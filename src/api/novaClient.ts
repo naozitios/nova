@@ -172,14 +172,16 @@ export const nova = {
             id: `proc-${Date.now()}-1`,
             name: 'Zara Top',
             category: 'tops',
-            image_url: "https://static.zara.net/assets/public/570f/d39a/16ff4150b140/204f0f1d9de5/03905532250-e1/03905532250-e1.jpg?ts=1740389594337&w=688",
+            image_url:
+              'https://static.zara.net/assets/public/570f/d39a/16ff4150b140/204f0f1d9de5/03905532250-e1/03905532250-e1.jpg?ts=1740389594337&w=688',
             color: 'white',
           },
           {
             id: `proc-${Date.now()}-2`,
             name: 'Zara Bottom',
             category: 'bottoms',
-            image_url: "https://static.zara.net/assets/public/c190/d12d/8d704943b7ff/b839f8c2d7a4/04060217800-e1/04060217800-e1.jpg?ts=1758209153466&w=688",
+            image_url:
+              'https://static.zara.net/assets/public/c190/d12d/8d704943b7ff/b839f8c2d7a4/04060217800-e1/04060217800-e1.jpg?ts=1758209153466&w=688',
             color: 'black',
           },
         ];
