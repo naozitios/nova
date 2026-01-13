@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -9,15 +9,16 @@ import { Button } from '@/components/ui/button';
 import SignUpModal from '@/components/landing/SignUpModal';
 import SignInModal from './landing/SignInModal';
 import { useAuth } from '@/context/AuthContext';
+import { Shirt, Calendar } from 'lucide-react';
 
 const loggedOutNavLinks = [
-  { name: 'Features', href: '#features' },
-  { name: 'Tutorial', href: '#tutorial' },
+  { name: 'Features', href: '#features', icon: undefined },
+  { name: 'Tutorial', href: '#tutorial', icon: undefined },
 ];
 
 const loggedInNavLinks = [
-  { name: 'Wardrobe', href: '/wardrobe' },
-  { name: 'Calendar', href: '/calendar' },
+  { name: 'Wardrobe', href: '/wardrobe', icon: Shirt },
+  { name: 'Calendar', href: '/calendar', icon: Calendar },
 ];
 
 export default function Navbar() {
@@ -38,7 +39,7 @@ export default function Navbar() {
 
   const handleLogin = (email: string) => {
     // For demonstration, logging in a dummy user
-    login({ id: '1', name: 'John Doe', email: email });
+    login({ id: '1', name: 'Nova user', email: email });
     setShowSignIn(false);
   };
 
@@ -59,7 +60,9 @@ export default function Navbar() {
         <div className="mx-auto px-6 md:px-12 lg:px-24">
           <div
             className={`rounded-full transition-all duration-300 ${
-              scrolled || isLoggedIn ? 'bg-white/95 backdrop-blur-lg shadow-lg' : 'bg-white/80 backdrop-blur-md'
+              scrolled || isLoggedIn
+                ? 'bg-white/95 backdrop-blur-lg shadow-lg'
+                : 'bg-white/80 backdrop-blur-md'
             } px-6 py-3`}
           >
             <div className="flex justify-between">
@@ -75,19 +78,18 @@ export default function Navbar() {
               {isLoggedIn ? (
                 <nav className="hidden md:flex items-center ml-auto gap-2">
                   {navLinks.map((link) => (
-                    <Link
-                      key={link.name}
-                      href={link.href}
-                    >
-                        <Button
-                            variant={pathname === link.href ? 'default' : 'ghost'}
-                            className={
-                          `font-medium text-sm ${
-                          pathname === link.href ? 'bg-stone-900 text-white' : 'text-stone-600 hover:text-stone-900'
+                    <Link key={link.name} href={link.href}>
+                      <Button
+                        variant={pathname === link.href ? 'default' : 'ghost'}
+                        className={`font-medium text-sm ${
+                          pathname === link.href
+                            ? 'bg-stone-900 text-white'
+                            : 'text-stone-600 hover:text-stone-900'
                         }`}
-                        >
-                          {link.name}
-                        </Button>
+                      >
+                        {link?.icon && <link.icon className="w-4 h-4" />}
+                        {link.name}
+                      </Button>
                     </Link>
                   ))}
                 </nav>
@@ -113,8 +115,11 @@ export default function Navbar() {
                   </Button>
                 ) : (
                   <>
-                    <Button variant="ghost" className="text-gray-600 hover:text-gray-900 font-medium"
-                      onClick={() => setShowSignIn(true)}>
+                    <Button
+                      variant="ghost"
+                      className="text-gray-600 hover:text-gray-900 font-medium"
+                      onClick={() => setShowSignIn(true)}
+                    >
                       Sign In
                     </Button>
                     <Button
@@ -129,7 +134,10 @@ export default function Navbar() {
               </div>
 
               {/* Mobile menu button */}
-              <button className="md:hidden p-2 text-gray-600" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+              <button
+                className="md:hidden p-2 text-gray-600"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              >
                 {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
             </div>
@@ -192,7 +200,12 @@ export default function Navbar() {
         </AnimatePresence>
       </motion.header>
       <SignUpModal open={showSignUp} onOpenChange={setShowSignUp} />
-      <SignInModal open={showSignIn} onOpenChange={setShowSignIn} onLogin={handleLogin} onSignUpClick={handleSignUpClick} />
+      <SignInModal
+        open={showSignIn}
+        onOpenChange={setShowSignIn}
+        onLogin={handleLogin}
+        onSignUpClick={handleSignUpClick}
+      />
     </>
   );
 }

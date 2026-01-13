@@ -8,7 +8,21 @@ import { format } from 'date-fns';
 import ClothingCard from '@/components/wardrobe/ClothingCard';
 import CategoryFilter from '@/components/wardrobe/CategoryFilter';
 
-export default function OutfitPlanner({ date, clothingItems, existingOutfit, onSave, onClose, onDelete }: { date: any, clothingItems: any, existingOutfit: any, onSave: any, onClose: any, onDelete: any }) {
+export default function OutfitPlanner({
+  date,
+  clothingItems,
+  existingOutfit,
+  onSave,
+  onClose,
+  onDelete,
+}: {
+  date: any;
+  clothingItems: any;
+  existingOutfit: any;
+  onSave: any;
+  onClose: any;
+  onDelete: any;
+}) {
   const [selectedItems, setSelectedItems] = useState(existingOutfit?.clothing_items || []);
   const [occasion, setOccasion] = useState(existingOutfit?.occasion || '');
   const [category, setCategory] = useState('all');
@@ -19,9 +33,7 @@ export default function OutfitPlanner({ date, clothingItems, existingOutfit, onS
 
   const toggleItem = (item: any) => {
     setSelectedItems((prev: any) =>
-      prev.includes(item.id)
-        ? prev.filter((id: any) => id !== item.id)
-        : [...prev, item.id]
+      prev.includes(item.id) ? prev.filter((id: any) => id !== item.id) : [...prev, item.id]
     );
   };
 
@@ -29,7 +41,7 @@ export default function OutfitPlanner({ date, clothingItems, existingOutfit, onS
     onSave({
       date: format(date, 'yyyy-MM-dd'),
       clothing_items: selectedItems,
-      occasion
+      occasion,
     });
     onClose();
   };

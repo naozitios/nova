@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
@@ -25,9 +25,9 @@ export default function FinalCTA() {
             <p className="text-xl text-white/70 mb-12 max-w-2xl mx-auto">
               Don&apos;t let your closet hold you back. Let your hold be your closet back
             </p>
-            
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button 
+              <Button
                 size="lg"
                 className="bg-white text-[#E55A3C] hover:bg-white/90 rounded-full px-10 py-6 text-lg font-medium group"
                 onClick={() => setShowSignUp(true)}
@@ -35,7 +35,7 @@ export default function FinalCTA() {
                 Start Free Trial
                 <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Button>
-              <Button 
+              <Button
                 size="lg"
                 variant="outline"
                 className="border-white/30 text-white hover:bg-white/10 rounded-full px-10 py-6 text-lg font-medium bg-transparent"
@@ -46,7 +46,7 @@ export default function FinalCTA() {
           </motion.div>
         </div>
       </section>
-      
+
       <SignUpModal open={showSignUp} onOpenChange={setShowSignUp} />
     </GradientBackground>
   );

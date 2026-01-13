@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-"use client";
+'use client';
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,6 +7,7 @@ import { Plus, Search, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { nova } from '@/api/novaClient';
+import { ClothingItem } from '@/types/clothing';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ClothingCard from '@/components/wardrobe/ClothingCard';
 import CategoryFilter from '@/components/wardrobe/CategoryFilter';
@@ -18,28 +19,29 @@ export default function Wardrobe() {
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
 
-  const { data: items = [] as any[], isLoading } = useQuery({
+  const { data: items = [], isLoading } = useQuery<ClothingItem[]>({
     queryKey: ['clothing'],
-    queryFn: () => nova.entities.ClothingItem.list('-created_date')
+    queryFn: () => nova.entities.ClothingItem.list() as Promise<ClothingItem[]>,
   });
 
   const createMutation = useMutation({
-    mutationFn: (items: any) => nova.entities.ClothingItem.bulkCreate(items),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clothing'] })
+    mutationFn: (items: ClothingItem[]) => nova.entities.ClothingItem.bulkCreate(items),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clothing'] }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: any) => nova.entities.ClothingItem.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clothing'] })
+    mutationFn: (id: string) => nova.entities.ClothingItem.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clothing'] }),
   });
 
-  const handleCapture = (detectedItems: any) => {
+  const handleCapture = (detectedItems: ClothingItem[]) => {
     createMutation.mutate(detectedItems);
   };
 
-  const filteredItems = items.filter(item => {
+  const filteredItems = items.filter((item) => {
     const matchesCategory = category === 'all' || item.category === category;
-    const matchesSearch = !search || 
+    const matchesSearch =
+      !search ||
       item.name.toLowerCase().includes(search.toLowerCase()) ||
       item.brand?.toLowerCase().includes(search.toLowerCase());
     return matchesCategory && matchesSearch;
@@ -54,7 +56,7 @@ export default function Wardrobe() {
             <h1 className="text-3xl font-bold text-stone-900">My Wardrobe</h1>
             <p className="text-stone-500 mt-1">{items.length} pieces in your collection</p>
           </div>
-          
+
           <Button
             onClick={() => setShowCapture(true)}
             className="bg-stone-900 hover:bg-stone-800 gap-2 rounded-full px-6"
@@ -83,17 +85,19 @@ export default function Wardrobe() {
         {/* Grid */}
         {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {Array(8).fill(0).map((_, i) => (
-              <div key={i} className="aspect-square bg-stone-200 rounded-2xl animate-pulse" />
-            ))}
+            {Array(8)
+              .fill(0)
+              .map((_, i) => (
+                <div key={i} className="aspect-square bg-stone-200 rounded-2xl animate-pulse" />
+              ))}
           </div>
         ) : filteredItems.length > 0 ? (
-          <motion.div 
+          <motion.div
             layout
             className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
           >
             <AnimatePresence>
-              {filteredItems.map(item => (
+              {filteredItems.map((item) => (
                 <ClothingCard
                   key={item.id}
                   item={item}
@@ -118,7 +122,7 @@ export default function Wardrobe() {
               {search || category !== 'all' ? 'No items found' : 'Your wardrobe is empty'}
             </h3>
             <p className="text-stone-500 mb-6 text-center max-w-sm">
-              {search || category !== 'all' 
+              {search || category !== 'all'
                 ? 'Try adjusting your filters'
                 : 'Start building your digital closet by adding your first piece'}
             </p>
@@ -138,10 +142,7 @@ export default function Wardrobe() {
       {/* Camera Modal */}
       <AnimatePresence>
         {showCapture && (
-          <CameraCapture
-            onCapture={handleCapture}
-            onClose={() => setShowCapture(false)}
-          />
+          <CameraCapture onCapture={handleCapture} onClose={() => setShowCapture(false)} />
         )}
       </AnimatePresence>
     </div>

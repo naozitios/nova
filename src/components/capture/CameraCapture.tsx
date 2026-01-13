@@ -1,19 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-"use client";
+'use client';
 
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, Upload, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-// import { nova } from '@/api/novaClient';
+import { nova } from '@/api/novaClient';
+import { ClothingItem } from '@/types/clothing';
 import Image from 'next/image';
 
-export default function CameraCapture({ onCapture, onClose }: { onCapture: any, onClose: any }) {
+export default function CameraCapture({ onCapture, onClose }: { onCapture: any; onClose: any }) {
   const [preview, setPreview] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [detectedItems, setDetectedItems] = useState([]);
-  const fileInputRef = useRef(null);
+  const [detectedItems, setDetectedItems] = useState<ClothingItem[]>([]);
+  const [editingItem, setEditingItem] = useState<ClothingItem | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileSelect = async (e: any) => {
     const file = e.target.files?.[0];
@@ -24,41 +26,62 @@ export default function CameraCapture({ onCapture, onClose }: { onCapture: any, 
     reader.readAsDataURL(file);
 
     setIsUploading(true);
-    // const { file_url } = await nova.integrations.Core.UploadFile({ file });
-    // setIsUploading(false);
+    const { file_url } = await nova.integrations.Core.UploadFile({ _file: file });
+    setIsUploading(false);
 
-    // setIsAnalyzing(true);
-    // const analysis = await nova.integrations.Core.InvokeLLM({
-    //   prompt: `Analyze this outfit photo and identify individual clothing items. For each item, provide:
-    //   - name: descriptive name (e.g., "Navy Blue Crew Neck Sweater")
-    //   - category: one of [tops, bottoms, dresses, outerwear, shoes, accessories]
-    //   - color: primary color
-    //   - brand: if visible, otherwise null
-      
-    //   Be specific and fashion-forward in your descriptions.`,
-    //   file_urls: [file_url],
-    //   response_json_schema: {
-    //     type: "object",
-    //     properties: {
-    //       items: {
-    //         type: "array",
-    //         items: {
-    //           type: "object",
-    //           properties: {
-    //             name: { type: "string" },
-    //             category: { type: "string" },
-    //             color: { type: "string" },
-    //             brand: { type: "string" }
-    //           }
-    //         }
-    //       }
-    //     }
-    //   }
-    // });
-    
-    // setDetectedItems(analysis.items?.map((item: any) => ({ ...item, image_url: file_url })) || []);
+    setIsAnalyzing(true);
+    const processedItems = await nova.integrations.Core.invokeClothesProcesser({
+      image_url: file_url,
+    });
+
+    setDetectedItems(processedItems);
     setIsAnalyzing(false);
   };
+
+  //   const handleFileSelect = async (e) => {
+  //   const file = e.target.files?.[0];
+  //   if (!file) return;
+
+  //   const reader = new FileReader();
+  //   reader.onload = (e) => setPreview(e.target.result);
+  //   reader.readAsDataURL(file);
+
+  //   setIsUploading(true);
+  //   const { file_url } = await base44.integrations.Core.UploadFile({ file });
+  //   setIsUploading(false);
+
+  //   setIsAnalyzing(true);
+
+  //   // Simulate outfit analysis with realistic items
+  //   await new Promise(resolve => setTimeout(resolve, 1500));
+
+  //   const simulatedItems = [
+  //     {
+  //       name: "Classic White Cotton T-Shirt",
+  //       category: "tops",
+  //       color: "White",
+  //       brand: "Uniqlo",
+  //       image_url: file_url
+  //     },
+  //     {
+  //       name: "Dark Wash Slim Fit Jeans",
+  //       category: "bottoms",
+  //       color: "Blue",
+  //       brand: "Levi's",
+  //       image_url: file_url
+  //     },
+  //     {
+  //       name: "Black Leather Sneakers",
+  //       category: "shoes",
+  //       color: "Black",
+  //       brand: "Adidas",
+  //       image_url: file_url
+  //     }
+  //   ];
+
+  //   setDetectedItems(simulatedItems);
+  //   setIsAnalyzing(false);
+  // };
 
   const handleConfirm = () => {
     onCapture(detectedItems);
@@ -90,7 +113,7 @@ export default function CameraCapture({ onCapture, onClose }: { onCapture: any, 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
           {!preview ? (
             <div
-              // onClick={() => fileInputRef.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
               className="aspect-[3/4] rounded-2xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center gap-4 cursor-pointer hover:border-[#C9A484] hover:bg-stone-50 transition-all"
             >
               <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center">
@@ -98,7 +121,9 @@ export default function CameraCapture({ onCapture, onClose }: { onCapture: any, 
               </div>
               <div className="text-center">
                 <p className="font-medium text-stone-700">Take or upload a photo</p>
-                <p className="text-sm text-stone-500 mt-1">We&apos;ll identify your clothing items</p>
+                <p className="text-sm text-stone-500 mt-1">
+                  We&apos;ll identify your clothing items
+                </p>
               </div>
               <Button variant="outline" className="gap-2">
                 <Upload className="w-4 h-4" />
@@ -108,7 +133,13 @@ export default function CameraCapture({ onCapture, onClose }: { onCapture: any, 
           ) : (
             <div className="space-y-4">
               <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-stone-100">
-                <Image src={preview} alt="Preview" width={300} height={400} className="w-full h-full object-cover" />
+                <Image
+                  src={preview}
+                  alt="Preview"
+                  width={300}
+                  height={400}
+                  className="w-full h-full object-cover"
+                />
               </div>
 
               {(isUploading || isAnalyzing) && (
@@ -130,12 +161,14 @@ export default function CameraCapture({ onCapture, onClose }: { onCapture: any, 
                     <h3 className="font-medium text-stone-900">Detected Items</h3>
                     {detectedItems.map((item: any, idx: any) => (
                       <div
-                        key={idx}
-                        className="flex items-center gap-3 p-3 bg-stone-50 rounded-xl"
+                        key={item.id}
+                        className="flex items-center gap-3 p-3 bg-stone-50 rounded-xl cursor-pointer hover:bg-stone-100 transition-colors"
+                        onClick={() => setEditingItem(item)}
                       >
-                        <div
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
                           className="w-10 h-10 rounded-lg"
-                          style={{ backgroundColor: item.color?.toLowerCase() || '#e5e5e5' }}
                         />
                         <div className="flex-1">
                           <p className="font-medium text-stone-900">{item.name}</p>

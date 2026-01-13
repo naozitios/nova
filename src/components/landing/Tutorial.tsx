@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Upload, Sparkles, ShoppingBag, Share2 } from 'lucide-react';
 
@@ -7,33 +7,41 @@ const steps = [
     number: '01',
     icon: Upload,
     title: 'Upload Your Photo',
-    description: 'Take a clear photo or upload an existing one. Our AI works best with front-facing photos in good lighting.',
+    description:
+      'Take a clear photo or upload an existing one. Our AI works best with front-facing photos in good lighting.',
   },
   {
     number: '02',
     icon: Sparkles,
     title: 'Browse & Select',
-    description: 'Explore thousands of clothing items from top brands. Click any item to see how it looks on you instantly.',
+    description:
+      'Explore thousands of clothing items from top brands. Click any item to see how it looks on you instantly.',
   },
   {
     number: '03',
     icon: ShoppingBag,
     title: 'Try It On',
-    description: 'See realistic renders of clothing on your body. Adjust sizes, colors, and styles in real-time with AI precision.',
+    description:
+      'See realistic renders of clothing on your body. Adjust sizes, colors, and styles in real-time with AI precision.',
   },
   {
     number: '04',
     icon: Share2,
     title: 'Shop & Share',
-    description: 'Love the look? Buy directly or save to your wishlist. Share your virtual try-ons with friends for feedback.',
+    description:
+      'Love the look? Buy directly or save to your wishlist. Share your virtual try-ons with friends for feedback.',
   },
 ];
 
 export default function Tutorial() {
   const tutorialRef = useRef<HTMLDivElement>(null);
-  
+
   return (
-    <section ref={tutorialRef} id="tutorial" className="py-24 md:py-32 px-6 md:px-12 lg:px-24 bg-gray-50">
+    <section
+      ref={tutorialRef}
+      id="tutorial"
+      className="py-24 md:py-32 px-6 md:px-12 lg:px-24 bg-gray-50"
+    >
       <div className="max-w-7xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -42,7 +50,9 @@ export default function Tutorial() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <span className="text-[#E55A3C] font-medium text-sm tracking-wider uppercase">How It Works</span>
+          <span className="text-[#E55A3C] font-medium text-sm tracking-wider uppercase">
+            How It Works
+          </span>
           <h2 className="text-4xl md:text-5xl font-light text-gray-900 mt-4 mb-6">
             Try on clothes in seconds
           </h2>
@@ -66,12 +76,8 @@ export default function Tutorial() {
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#FEF3E2] to-[#FFDAB9] flex items-center justify-center mb-6">
                   <step.icon className="w-8 h-8 text-[#E55A3C]" />
                 </div>
-                <h3 className="text-xl font-medium text-gray-900 mb-3">
-                  {step.title}
-                </h3>
-                <p className="text-gray-500 leading-relaxed">
-                  {step.description}
-                </p>
+                <h3 className="text-xl font-medium text-gray-900 mb-3">{step.title}</h3>
+                <p className="text-gray-500 leading-relaxed">{step.description}</p>
               </div>
             </motion.div>
           ))}

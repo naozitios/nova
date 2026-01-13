@@ -3,7 +3,15 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from 'date-fns';
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  isSameDay,
+  addMonths,
+  subMonths,
+} from 'date-fns';
 import Image from 'next/image';
 import { PlannedOutfit, ClothingItem } from '@/types/clothing';
 
@@ -13,13 +21,17 @@ export interface OutfitCalendarProps {
   onDayClick: (date: Date) => void;
 }
 
-export default function OutfitCalendar({ plannedOutfits, clothingItems, onDayClick }: OutfitCalendarProps) {
+export default function OutfitCalendar({
+  plannedOutfits,
+  clothingItems,
+  onDayClick,
+}: OutfitCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  
+
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  
+
   const startDay = monthStart.getDay();
   const paddingDays = Array(startDay).fill(null);
 
@@ -60,7 +72,7 @@ export default function OutfitCalendar({ plannedOutfits, clothingItems, onDayCli
       </div>
 
       <div className="grid grid-cols-7 gap-1 mb-2">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
           <div key={day} className="text-center text-xs font-medium text-stone-400 py-2">
             {day}
           </div>
@@ -71,12 +83,12 @@ export default function OutfitCalendar({ plannedOutfits, clothingItems, onDayCli
         {paddingDays.map((_, idx) => (
           <div key={`pad-${idx}`} className="aspect-square" />
         ))}
-        
+
         {days.map((day: any) => {
           const outfit = getOutfitForDay(day);
           const outfitImages = getOutfitImages(outfit);
           const isToday = isSameDay(day, new Date());
-          
+
           return (
             <motion.button
               key={day.toISOString()}
@@ -87,14 +99,14 @@ export default function OutfitCalendar({ plannedOutfits, clothingItems, onDayCli
                 isToday
                   ? 'bg-[#C9A484] text-white'
                   : outfit
-                  ? 'bg-stone-100 hover:bg-stone-200'
-                  : 'hover:bg-stone-50'
+                    ? 'bg-stone-100 hover:bg-stone-200'
+                    : 'hover:bg-stone-50'
               }`}
             >
               <span className={`text-sm font-medium ${isToday ? 'text-white' : 'text-stone-700'}`}>
                 {format(day, 'd')}
               </span>
-              
+
               {outfitImages.length > 0 && (
                 <div className="flex -space-x-1 mt-1">
                   {outfitImages.map((item: any, idx: any) => (
@@ -113,7 +125,7 @@ export default function OutfitCalendar({ plannedOutfits, clothingItems, onDayCli
                   ))}
                 </div>
               )}
-              
+
               {!outfit && (
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                   <Plus className="w-4 h-4 text-stone-400" />

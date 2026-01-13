@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 // Define the shape of the user object
@@ -27,13 +27,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
   const login = (userData: User) => {
     setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
     router.push('/wardrobe');
   };
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('user');
     router.push('/');
   };
 

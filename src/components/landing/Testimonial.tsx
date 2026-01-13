@@ -4,16 +4,18 @@ import Image from 'next/image';
 
 const testimonials = [
   {
-    quote: 'Nova has revolutionized how our customers shop online. The virtual try-on feature has led to a significant increase in conversion rates and a noticeable reduction in returns.',
-    author: "Sarah Johnson",
-    title: "CEO of a popular fashion brand",
-    company: "Fashion Forward",
+    quote:
+      'Nova has revolutionized how our customers shop online. The virtual try-on feature has led to a significant increase in conversion rates and a noticeable reduction in returns.',
+    author: 'Sarah Johnson',
+    title: 'CEO of a popular fashion brand',
+    company: 'Fashion Forward',
   },
   {
-    quote: 'The integration was seamless, and the support from the Nova team has been outstanding. Our customers love the virtual try-on, and we\'ve seen a huge boost in engagement.',
-    author: "Michael Chen",
-    title: "Head of E-commerce",
-    company: "StyleSphere",
+    quote:
+      "The integration was seamless, and the support from the Nova team has been outstanding. Our customers love the virtual try-on, and we've seen a huge boost in engagement.",
+    author: 'Michael Chen',
+    title: 'Head of E-commerce',
+    company: 'StyleSphere',
   },
 ];
 
@@ -59,7 +61,9 @@ export default function Testimonial() {
                 </div>
                 <div className="ml-4">
                   <div className="text-base font-medium text-gray-900">{testimonial.author}</div>
-                  <div className="text-sm text-gray-500">{testimonial.title}, {testimonial.company}</div>
+                  <div className="text-sm text-gray-500">
+                    {testimonial.title}, {testimonial.company}
+                  </div>
                 </div>
               </div>
             </motion.div>

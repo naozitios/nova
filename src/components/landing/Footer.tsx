@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 const footerLinks = {
   Product: ['Features', 'Integrations', 'Pricing', 'Changelog', 'Roadmap'],
@@ -32,7 +32,10 @@ export default function Footer() {
               <ul className="space-y-3">
                 {links.map((link) => (
                   <li key={link}>
-                    <a href="#" className="text-gray-500 hover:text-white transition-colors text-sm">
+                    <a
+                      href="#"
+                      className="text-gray-500 hover:text-white transition-colors text-sm"
+                    >
                       {link}
                     </a>
                   </li>
@@ -44,12 +47,14 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="pt-8 border-t border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-gray-500 text-sm">
-            © 2025 Nova AI. All rights reserved.
-          </p>
+          <p className="text-gray-500 text-sm">© 2025 Nova AI. All rights reserved.</p>
           <div className="flex gap-6">
             {['Twitter', 'LinkedIn', 'GitHub'].map((social) => (
-              <a key={social} href="#" className="text-gray-500 hover:text-white transition-colors text-sm">
+              <a
+                key={social}
+                href="#"
+                className="text-gray-500 hover:text-white transition-colors text-sm"
+              >
                 {social}
               </a>
             ))}

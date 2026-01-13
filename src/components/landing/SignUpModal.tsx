@@ -1,7 +1,13 @@
-"use client";
+'use client';
 
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,13 +25,13 @@ export default function SignUpModal({ open, onOpenChange }: SignUpModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     console.log('Form submitted:', formData);
-    alert('Thank you! We\'ll be in touch soon.');
-    
+    alert("Thank you! We'll be in touch soon.");
+
     setIsSubmitting(false);
     setFormData({ name: '', email: '' });
     onOpenChange(false);
@@ -43,7 +49,7 @@ export default function SignUpModal({ open, onOpenChange }: SignUpModalProps) {
             Start your free trial and see how AI can transform your online store.
           </DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
@@ -56,7 +62,7 @@ export default function SignUpModal({ open, onOpenChange }: SignUpModalProps) {
               className="h-11"
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="email">Work Email</Label>
             <Input

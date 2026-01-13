@@ -12,13 +12,14 @@ const categories = [
   { id: 'accessories', label: 'Accessories', icon: Watch },
 ];
 
-export default function CategoryFilter({ selected, onSelect }: { selected: any, onSelect: any }) { // eslint-disable-line @typescript-eslint/no-explicit-any
+export default function CategoryFilter({ selected, onSelect }: { selected: any; onSelect: any }) {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
   return (
     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
       {categories.map((cat) => {
         const Icon = cat.icon;
         const isSelected = selected === cat.id;
-        
+
         return (
           <motion.button
             key={cat.id}

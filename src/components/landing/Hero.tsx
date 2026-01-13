@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
@@ -26,11 +26,11 @@ export default function Hero() {
           className="max-w-5xl"
         >
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-light text-white leading-[1.1] tracking-tight">
-            Stop stressing over what 
+            Stop stressing over what
             <br />
             <span className="font-normal">you wear.</span>
           </h1>
-          
+
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -73,7 +73,7 @@ export default function Hero() {
             transition={{ duration: 0.8, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="mt-12 flex flex-wrap gap-4"
           >
-            <Button 
+            <Button
               size="lg"
               className="bg-white text-[#E55A3C] hover:bg-white/90 rounded-full px-8 py-6 text-lg font-medium group"
               onClick={() => setShowSignUp(true)}
@@ -91,7 +91,7 @@ export default function Hero() {
           </motion.div>
         </motion.div>
       </div>
-      
+
       <SignUpModal open={showSignUp} onOpenChange={setShowSignUp} />
     </GradientBackground>
   );

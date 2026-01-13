@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -53,7 +53,7 @@ export default function Integrations() {
               className="bg-white rounded-2xl p-6 flex items-center justify-center shadow-sm hover:shadow-lg transition-shadow duration-300 group cursor-pointer"
             >
               <div className="flex items-center gap-3">
-                <div 
+                <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-lg"
                   style={{ backgroundColor: integration.color }}
                 >

@@ -1,51 +1,53 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-"use client";
+'use client';
 
 import Image from 'next/image';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CalendarDays, Shirt } from 'lucide-react';
 import { nova } from '@/api/novaClient';
+import { ClothingItem, PlannedOutfit } from '@/types/clothing';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, isSameDay, startOfWeek, addDays } from 'date-fns';
 import OutfitCalendar from '@/components/calendar/OutfitCalendar';
 import OutfitPlanner from '@/components/calendar/OutfitPlanner';
 
 export default function Calendar() {
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: clothingItems = [] as any[] } = useQuery({
+  const { data: clothingItems = [] } = useQuery<ClothingItem[]>({
     queryKey: ['clothing'],
-    queryFn: () => nova.entities.ClothingItem.list()
+    queryFn: () => nova.entities.ClothingItem.list() as Promise<ClothingItem[]>,
   });
 
-  const { data: plannedOutfits = [] as any[] } = useQuery({
+  const { data: plannedOutfits = [] } = useQuery<PlannedOutfit[]>({
     queryKey: ['outfits'],
-    queryFn: () => nova.entities.PlannedOutfit.list('-date')
+    queryFn: () => nova.entities.PlannedOutfit.list() as Promise<PlannedOutfit[]>,
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => nova.entities.PlannedOutfit.create(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['outfits'] })
+    mutationFn: (data: PlannedOutfit) => nova.entities.PlannedOutfit.create(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['outfits'] }),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: any) => nova.entities.PlannedOutfit.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['outfits'] })
+    mutationFn: ({ id, data }: { id: string; data: PlannedOutfit }) =>
+      nova.entities.PlannedOutfit.update(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['outfits'] }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: any) => nova.entities.PlannedOutfit.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['outfits'] })
+    mutationFn: (id: string) => nova.entities.PlannedOutfit.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['outfits'] }),
   });
 
-  const handleDayClick = (date: any) => {
+  const handleDayClick = (date: Date) => {
     setSelectedDate(date);
   };
 
-  const handleSaveOutfit = (data: any) => {
-    const existing = plannedOutfits.find(o => o.date === data.date);
+  const handleSaveOutfit = (data: PlannedOutfit) => {
+    const existing = plannedOutfits.find((o) => o.date === data.date);
     if (existing) {
       updateMutation.mutate({ id: existing.id, data });
     } else {
@@ -55,19 +57,23 @@ export default function Calendar() {
 
   const getExistingOutfit = () => {
     if (!selectedDate) return null;
-    return plannedOutfits.find(o => isSameDay(new Date(o.date), selectedDate));
+    return plannedOutfits.find((o) => isSameDay(new Date(o.date), selectedDate));
   };
 
   // Get upcoming outfits for the week
   const getUpcomingOutfits = () => {
     const today = new Date();
     const weekStart = startOfWeek(today);
-    const weekDays = Array(7).fill(0).map((_, i) => addDays(weekStart, i));
-    
-    return weekDays.map(day => ({
-      date: day,
-      outfit: plannedOutfits.find(o => isSameDay(new Date(o.date), day))
-    })).filter(d => d.date >= today);
+    const weekDays = Array(7)
+      .fill(0)
+      .map((_, i) => addDays(weekStart, i));
+
+    return weekDays
+      .map((day) => ({
+        date: day,
+        outfit: plannedOutfits.find((o) => isSameDay(new Date(o.date), day)),
+      }))
+      .filter((d) => d.date >= today);
   };
 
   const upcomingOutfits = getUpcomingOutfits();
@@ -101,10 +107,10 @@ export default function Calendar() {
 
               <div className="space-y-3">
                 {upcomingOutfits.map(({ date, outfit }) => {
-                  const outfitItems = outfit?.clothing_items
-                    ?.map((id: any) => clothingItems.find(c => c.id === id))
-                    .filter(Boolean) || [];
-
+                  const outfitItems =
+                    outfit?.clothing_items
+                      ?.map((id) => clothingItems.find((c) => c.id === id))
+                      .filter((item): item is ClothingItem => !!item) || [];
                   return (
                     <motion.button
                       key={date.toISOString()}
@@ -124,7 +130,7 @@ export default function Calendar() {
                       {outfit ? (
                         <div className="flex-1 flex items-center gap-3">
                           <div className="flex -space-x-2">
-                            {outfitItems.slice(0, 3).map((item: any, idx: any) => (
+                            {outfitItems.slice(0, 3).map((item, idx) => (
                               <div
                                 key={idx}
                                 className="w-10 h-10 rounded-lg border-2 border-white overflow-hidden"
@@ -144,7 +150,10 @@ export default function Calendar() {
                               {outfit.occasion || `${outfitItems.length} items`}
                             </p>
                             <p className="text-xs text-stone-500">
-                              {outfitItems.map((i: any) => i.category).filter((v: any, i: any, a: any) => a.indexOf(v) === i).join(', ')}
+                              {outfitItems
+                                .map((i) => i.category)
+                                .filter((v, i, a) => a.indexOf(v) === i)
+                                .join(', ')}
                             </p>
                           </div>
                         </div>
@@ -167,15 +176,11 @@ export default function Calendar() {
               <h3 className="text-lg font-semibold mb-4">Quick Stats</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-3xl font-bold text-[#C9A484]">
-                    {clothingItems.length}
-                  </div>
+                  <div className="text-3xl font-bold text-[#C9A484]">{clothingItems.length}</div>
                   <div className="text-sm text-stone-400">Items</div>
                 </div>
                 <div>
-                  <div className="text-3xl font-bold text-[#C9A484]">
-                    {plannedOutfits.length}
-                  </div>
+                  <div className="text-3xl font-bold text-[#C9A484]">{plannedOutfits.length}</div>
                   <div className="text-sm text-stone-400">Outfits Planned</div>
                 </div>
               </div>
@@ -192,7 +197,7 @@ export default function Calendar() {
             clothingItems={clothingItems}
             existingOutfit={getExistingOutfit()}
             onSave={handleSaveOutfit}
-            onDelete={(id: any) => deleteMutation.mutate(id)}
+            onDelete={(id: string) => deleteMutation.mutate(id)}
             onClose={() => setSelectedDate(null)}
           />
         )}

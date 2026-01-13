@@ -8,14 +8,9 @@ export interface ClothingItem {
   image_url: string;
 }
 
-export interface ClothingItem {
-  id: string;
-  name: string;
-  image_url: string;
-}
-
 export interface PlannedOutfit {
   id: string;
   date: string;
   clothing_items: string[];
+  occasion: string;
 }

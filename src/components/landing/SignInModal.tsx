@@ -1,7 +1,13 @@
-"use client";
+'use client';
 
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +20,12 @@ interface SignInModalProps {
   onSignUpClick: () => void;
 }
 
-export default function SignInModal({ open, onOpenChange, onLogin, onSignUpClick }: SignInModalProps) {
+export default function SignInModal({
+  open,
+  onOpenChange,
+  onLogin,
+  onSignUpClick,
+}: SignInModalProps) {
   const [formData, setFormData] = useState({ email: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -29,13 +40,13 @@ export default function SignInModal({ open, onOpenChange, onLogin, onSignUpClick
       setIsSubmitting(false);
       return;
     }
-    
+
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     console.log('Form submitted:', formData);
     onLogin(formData.email);
-    
+
     setIsSubmitting(false);
     setFormData({ email: '' });
     onOpenChange(false);
@@ -49,11 +60,9 @@ export default function SignInModal({ open, onOpenChange, onLogin, onSignUpClick
             <Sparkles className="w-6 h-6 text-white" />
           </div>
           <DialogTitle className="text-2xl text-center">Welcome back to Nova</DialogTitle>
-          <DialogDescription className="text-center">
-            Glad to have you back!
-          </DialogDescription>
+          <DialogDescription className="text-center">Glad to have you back!</DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -82,16 +91,16 @@ export default function SignInModal({ open, onOpenChange, onLogin, onSignUpClick
         </form>
         <p className="text-xs text-gray-500 text-center mt-4">
           No account?
-            <button
-              type="button"
-              onClick={() => {
-                onOpenChange(false);
-                onSignUpClick();
-              }}
-              className="text-[#E55A3C] hover:text-[#D14A2E] font-medium hover:underline ml-1"
-            >
-              Sign up here
-            </button>
+          <button
+            type="button"
+            onClick={() => {
+              onOpenChange(false);
+              onSignUpClick();
+            }}
+            className="text-[#E55A3C] hover:text-[#D14A2E] font-medium hover:underline ml-1"
+          >
+            Sign up here
+          </button>
         </p>
       </DialogContent>
     </Dialog>
