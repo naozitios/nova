@@ -5,16 +5,16 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import GradientBackground from './GradientBackground';
-import AnimatedNumber from './AnimatedNumber';
+// import AnimatedNumber from './AnimatedNumber';
 import SignUpModal from './SignUpModal';
 
 export default function Hero() {
   const [showSignUp, setShowSignUp] = useState(false);
-  const stats = [
-    { value: 847500, label: 'Hours saved from users' },
-    { value: 12400, label: 'Dollars saved', prefix: '$', suffix: 'M+' },
-    { value: 98.7, label: 'Happy customers', suffix: '%' },
-  ];
+  // const stats = [
+  //   { value: 847500, label: 'Hours saved from users' },
+  //   { value: 12400, label: 'Dollars saved', prefix: '$', suffix: 'M+' },
+  //   { value: 98.7, label: 'Happy customers', suffix: '%' },
+  // ];
 
   return (
     <GradientBackground variant="hero">
@@ -26,9 +26,9 @@ export default function Hero() {
           className="max-w-5xl"
         >
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-light text-white leading-[1.1] tracking-tight">
-            Your Personal Styler that
+            Stop stressing over what 
             <br />
-            <span className="font-normal">never sleeps.</span>
+            <span className="font-normal">you wear.</span>
           </h1>
           
           <motion.p
@@ -37,11 +37,11 @@ export default function Hero() {
             transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
             className="mt-8 text-xl md:text-2xl text-white/80 max-w-2xl font-light leading-relaxed"
           >
-            We make sure you are dressed your best throughout, without ever having to think about it.
+            Dress your best without thinking about it
           </motion.p>
 
           {/* Stats */}
-          <motion.div
+          {/* <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
@@ -64,7 +64,7 @@ export default function Hero() {
                 )}
               </div>
             ))}
-          </motion.div>
+          </motion.div> */}
 
           {/* CTA Buttons */}
           <motion.div

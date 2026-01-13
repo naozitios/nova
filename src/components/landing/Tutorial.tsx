@@ -1,7 +1,6 @@
 import { useRef } from "react";
 import { motion } from 'framer-motion';
 import { Upload, Sparkles, ShoppingBag, Share2 } from 'lucide-react';
-import { id } from "date-fns/locale/id";
 
 const steps = [
   {

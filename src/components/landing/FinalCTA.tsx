@@ -23,7 +23,7 @@ export default function FinalCTA() {
               Your wardrobe, reimagined.
             </h2>
             <p className="text-xl text-white/70 mb-12 max-w-2xl mx-auto">
-              Don't let your closet hold you back. Let your hold be your closet back
+              Don&apos;t let your closet hold you back. Let your hold be your closet back
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
