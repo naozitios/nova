@@ -67,7 +67,7 @@ export default function Navbar() {
               {/* Logo */}
               <Link href="/" className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#E55A3C] to-[#F4A574] flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">N</span>
+                  <span className="text-white font-bold text-lg">🍾</span>
                 </div>
                 <span className="text-xl font-semibold text-gray-900">Nova</span>
               </Link>
