@@ -1,35 +1,37 @@
+'use client';
+
 import { useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Sparkles, ShoppingBag, Share2 } from 'lucide-react';
+import { Link2, Upload, Rocket, Activity } from 'lucide-react';
 
 const steps = [
   {
     number: '01',
-    icon: Upload,
-    title: 'Upload Your Photo',
+    icon: Link2,
+    title: 'Connect Your Accounts',
     description:
-      'Take a clear photo or upload an existing one. Our AI works best with front-facing photos in good lighting.',
+      'Securely link your Meta Business Manager and Google Ads account. We auto-detect your ad accounts, pages, and tracking pixels.',
   },
   {
     number: '02',
-    icon: Sparkles,
-    title: 'Browse & Select',
+    icon: Upload,
+    title: 'Upload Your Assets',
     description:
-      'Explore thousands of clothing items from top brands. Click any item to see how it looks on you instantly.',
+      'Add images and videos to your global asset library. Our validator flags format or size issues before they reach the ad networks.',
   },
   {
     number: '03',
-    icon: ShoppingBag,
-    title: 'Try It On',
+    icon: Rocket,
+    title: 'Launch Cross-Channel Campaigns',
     description:
-      'See realistic renders of clothing on your body. Adjust sizes, colors, and styles in real-time with AI precision.',
+      'Fill out one unified form — campaign settings, targeting, and creatives. We assemble and send platform-specific payloads to Meta and Google.',
   },
   {
     number: '04',
-    icon: Share2,
-    title: 'Shop & Share',
+    icon: Activity,
+    title: 'Monitor & Optimize',
     description:
-      'Love the look? Buy directly or save to your wishlist. Share your virtual try-ons with friends for feedback.',
+      'Track blended performance metrics on a live dashboard. Toggle automated budget rules to let AI optimize your spend daily.',
   },
 ];
 
@@ -37,11 +39,7 @@ export default function Tutorial() {
   const tutorialRef = useRef<HTMLDivElement>(null);
 
   return (
-    <section
-      ref={tutorialRef}
-      id="tutorial"
-      className="py-24 md:py-32 px-6 md:px-12 lg:px-24 bg-gray-50"
-    >
+    <section ref={tutorialRef} id="how-it-works" className="py-24 md:py-32 px-6 md:px-12 lg:px-24 bg-gray-50">
       <div className="max-w-7xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -54,10 +52,10 @@ export default function Tutorial() {
             How It Works
           </span>
           <h2 className="text-4xl md:text-5xl font-light text-gray-900 mt-4 mb-6">
-            Try on clothes in seconds
+            From setup to go-live in minutes
           </h2>
           <p className="text-xl text-gray-500 max-w-2xl mx-auto">
-            No fitting rooms, no returns. See exactly how any outfit looks on you before you buy.
+            No more jumping between tabs. Create, publish, and optimize cross-channel ads from one place.
           </p>
         </motion.div>
 

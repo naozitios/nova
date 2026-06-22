@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Nova',
-  description: 'Generated with love by the Nova team',
+  title: 'Nova - Cross-Channel Ad Command Center',
+  description: 'Launch, analyze, and optimize ad campaigns across Meta and Google from a single dashboard.',
 };
 
 export default function RootLayout({

@@ -3,15 +3,13 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Define the shape of the user object
 interface User {
   id: string;
   name: string;
   email: string;
-  // Add any other user details you need
+  company?: string;
 }
 
-// Define the shape of the auth state
 interface AuthState {
   user: User | null;
   isLoggedIn: boolean;
@@ -19,10 +17,8 @@ interface AuthState {
   logout: () => void;
 }
 
-// Create the context with a default value
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
-// Create the provider component
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
@@ -30,7 +26,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
       setUser(JSON.parse(storedUser));
     }
   }, []);
@@ -38,7 +33,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = (userData: User) => {
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
-    router.push('/wardrobe');
+    router.push('/dashboard');
   };
 
   const logout = () => {
@@ -49,17 +44,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const isLoggedIn = !!user;
 
-  const value = {
-    user,
-    isLoggedIn,
-    login,
-    logout,
-  };
+  const value = { user, isLoggedIn, login, logout };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Create a custom hook to use the auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

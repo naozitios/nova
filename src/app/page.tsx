@@ -12,8 +12,6 @@ export default function Home() {
     <div>
       <Hero />
       <Features />
-      {/* <Integrations /> */}
-      {/* <Testimonial /> */}
       <Tutorial />
       <FinalCTA />
       <Footer />
