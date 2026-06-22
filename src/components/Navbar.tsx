@@ -4,21 +4,22 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, ArrowRight } from 'lucide-react';
+import { Menu, X, ArrowRight, LayoutDashboard, Megaphone, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SignUpModal from '@/components/landing/SignUpModal';
 import SignInModal from './landing/SignInModal';
 import { useAuth } from '@/context/AuthContext';
-import { Shirt, Calendar } from 'lucide-react';
 
 const loggedOutNavLinks = [
   { name: 'Features', href: '#features', icon: undefined },
-  { name: 'Tutorial', href: '#tutorial', icon: undefined },
+  { name: 'How It Works', href: '#how-it-works', icon: undefined },
+  { name: 'Demo', href: '/demo', icon: undefined },
 ];
 
 const loggedInNavLinks = [
-  { name: 'Wardrobe', href: '/wardrobe', icon: Shirt },
-  { name: 'Calendar', href: '/calendar', icon: Calendar },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Campaigns', href: '/campaigns', icon: Megaphone },
+  { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export default function Navbar() {
@@ -38,14 +39,11 @@ export default function Navbar() {
   }, []);
 
   const handleLogin = (email: string) => {
-    // For demonstration, logging in a dummy user
-    login({ id: '1', name: 'Nova user', email: email });
+    login({ id: '1', name: 'Demo User', email, company: 'Demo Agency' });
     setShowSignIn(false);
   };
 
-  const handleSignUpClick = () => {
-    setShowSignUp(true);
-  };
+  const handleSignUpClick = () => setShowSignUp(true);
 
   return (
     <>
@@ -77,21 +75,24 @@ export default function Navbar() {
               {/* Desktop Nav */}
               {isLoggedIn ? (
                 <nav className="hidden md:flex items-center ml-auto gap-2">
-                  {navLinks.map((link) => (
-                    <Link key={link.name} href={link.href}>
-                      <Button
-                        variant={pathname === link.href ? 'default' : 'ghost'}
-                        className={`font-medium text-sm ${
-                          pathname === link.href
-                            ? 'bg-stone-900 text-white'
-                            : 'text-stone-600 hover:text-stone-900'
-                        }`}
-                      >
-                        {link?.icon && <link.icon className="w-4 h-4" />}
-                        {link.name}
-                      </Button>
-                    </Link>
-                  ))}
+                  {navLinks.map((link) => {
+                    const Icon = link.icon;
+                    return (
+                      <Link key={link.name} href={link.href}>
+                        <Button
+                          variant={pathname === link.href ? 'default' : 'ghost'}
+                          className={`font-medium text-sm ${
+                            pathname === link.href
+                              ? 'bg-stone-900 text-white'
+                              : 'text-stone-600 hover:text-stone-900'
+                          }`}
+                        >
+                          {Icon && <Icon className="w-4 h-4" />}
+                          {link.name}
+                        </Button>
+                      </Link>
+                    );
+                  })}
                 </nav>
               ) : (
                 <nav className="hidden md:flex items-center justify-center flex-1 gap-8">
@@ -154,18 +155,22 @@ export default function Navbar() {
               className="md:hidden mx-6 mt-3"
             >
               <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
-                {navLinks.map((link) => (
-                  <Link
-                    key={link.name}
-                    href={link.href}
-                    className={`block text-gray-600 hover:text-gray-900 font-medium py-2 ${
-                      isLoggedIn && pathname === link.href ? 'bg-gray-100 px-3 rounded-full' : ''
-                    }`}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {link.name}
-                  </Link>
-                ))}
+                {navLinks.map((link) => {
+                  const Icon = link.icon;
+                  return (
+                    <Link
+                      key={link.name}
+                      href={link.href}
+                      className={`flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium py-2 ${
+                        isLoggedIn && pathname === link.href ? 'bg-gray-100 px-3 rounded-full' : ''
+                      }`}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {Icon && <Icon className="w-4 h-4" />}
+                      {link.name}
+                    </Link>
+                  );
+                })}
                 <div className="pt-4 border-t space-y-3">
                   {isLoggedIn ? (
                     <Button variant="outline" className="w-full" onClick={logout}>
@@ -175,19 +180,13 @@ export default function Navbar() {
                     <>
                       <Button
                         className="w-full bg-[#E55A3C] hover:bg-[#D14A2E] text-white rounded-full"
-                        onClick={() => {
-                          setShowSignIn(true);
-                          setMobileMenuOpen(false);
-                        }}
+                        onClick={() => { setShowSignIn(true); setMobileMenuOpen(false); }}
                       >
                         Sign In
                       </Button>
                       <Button
                         className="w-full bg-[#E55A3C] hover:bg-[#D14A2E] text-white rounded-full"
-                        onClick={() => {
-                          setShowSignUp(true);
-                          setMobileMenuOpen(false);
-                        }}
+                        onClick={() => { setShowSignUp(true); setMobileMenuOpen(false); }}
                       >
                         Get Started
                       </Button>

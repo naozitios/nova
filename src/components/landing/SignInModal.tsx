@@ -2,16 +2,12 @@
 
 import React, { useState } from 'react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight, BarChart3 } from 'lucide-react';
 
 interface SignInModalProps {
   open: boolean;
@@ -20,12 +16,7 @@ interface SignInModalProps {
   onSignUpClick: () => void;
 }
 
-export default function SignInModal({
-  open,
-  onOpenChange,
-  onLogin,
-  onSignUpClick,
-}: SignInModalProps) {
+export default function SignInModal({ open, onOpenChange, onLogin, onSignUpClick }: SignInModalProps) {
   const [formData, setFormData] = useState({ email: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -35,18 +26,14 @@ export default function SignInModal({
     setIsSubmitting(true);
     setError('');
 
-    if (formData.email !== 'nova@gmail.com') {
-      setError('No account existing with this email. Please sign up.');
+    if (formData.email !== 'demo@nova.io') {
+      setError('No account found with this email. Please sign up.');
       setIsSubmitting(false);
       return;
     }
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    console.log('Form submitted:', formData);
+    await new Promise((resolve) => setTimeout(resolve, 800));
     onLogin(formData.email);
-
     setIsSubmitting(false);
     setFormData({ email: '' });
     onOpenChange(false);
@@ -57,19 +44,21 @@ export default function SignInModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-[#E55A3C] to-[#F4A574] mx-auto mb-4">
-            <Sparkles className="w-6 h-6 text-white" />
+            <BarChart3 className="w-6 h-6 text-white" />
           </div>
           <DialogTitle className="text-2xl text-center">Welcome back to Nova</DialogTitle>
-          <DialogDescription className="text-center">Glad to have you back!</DialogDescription>
+          <DialogDescription className="text-center">
+            Sign in to manage your cross-channel campaigns.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Work Email</Label>
             <Input
               id="email"
               type="email"
-              placeholder="john@company.com"
+              placeholder="you@agency.com"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
@@ -83,7 +72,7 @@ export default function SignInModal({
             className="w-full bg-[#E55A3C] hover:bg-[#D14A2E] text-white h-11 rounded-lg font-medium group"
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Logging in...' : 'Login'}
+            {isSubmitting ? 'Signing in...' : 'Sign In'}
             {!isSubmitting && (
               <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
             )}
@@ -93,14 +82,14 @@ export default function SignInModal({
           No account?
           <button
             type="button"
-            onClick={() => {
-              onOpenChange(false);
-              onSignUpClick();
-            }}
+            onClick={() => { onOpenChange(false); onSignUpClick(); }}
             className="text-[#E55A3C] hover:text-[#D14A2E] font-medium hover:underline ml-1"
           >
             Sign up here
           </button>
+        </p>
+        <p className="text-xs text-gray-400 text-center">
+          Demo: use <span className="font-mono text-gray-600">demo@nova.io</span>
         </p>
       </DialogContent>
     </Dialog>
