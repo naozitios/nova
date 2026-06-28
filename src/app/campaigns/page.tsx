@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { adClient } from '@/api/adClient';
 import { Campaign } from '@/types/advertising';
+import { campaignStore, ensureSeeded } from '@/lib/campaign-engine';
 
 const statusColors: Record<string, string> = {
   active: 'bg-green-100 text-green-700',
@@ -26,7 +27,47 @@ export default function Campaigns() {
 
   const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
     queryKey: ['campaigns'],
-    queryFn: () => adClient.campaigns.list(),
+    queryFn: async () => {
+      const mock = await adClient.campaigns.list();
+      ensureSeeded();
+      const stored = campaignStore.list();
+      const storedCamps: Campaign[] = stored.map(e => ({
+        id: e.id,
+        name: e.config.name,
+        platform: e.config.platform[0] || 'meta',
+        status: 'active' as const,
+        objective: e.config.objective,
+        totalBudget: e.config.totalBudget,
+        startDate: e.config.startDate,
+        endDate: e.config.endDate,
+        adGroups: e.config.adSets.map(a => ({
+          id: `${e.id}-${a.name}`,
+          name: a.name,
+          platform: e.config.platform[0] || 'meta',
+          targeting: a.targeting,
+          bidAmount: a.bidAmount,
+          creatives: a.creatives.map(c => ({
+            id: `${e.id}-cr`,
+            name: c.headline.slice(0, 20),
+            platform: e.config.platform[0] || 'meta',
+            headline: c.headline,
+            bodyText: c.bodyText,
+            destinationUrl: c.destinationUrl,
+            mediaUrl: c.mediaUrl,
+            mediaType: c.mediaType,
+            status: 'approved' as const,
+          })),
+        })),
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt,
+      }));
+      const existingIds = new Set(mock.map(c => c.id));
+      const merged = [...mock];
+      for (const sc of storedCamps) {
+        if (!existingIds.has(sc.id)) merged.push(sc);
+      }
+      return merged.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    },
   });
 
   const deleteMutation = useMutation({

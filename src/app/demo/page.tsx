@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight, Check, Link2, Upload, Rocket, Activity, BarChart3,
-  DollarSign, Eye, MousePointerClick, TrendingUp, Play, Target, Settings2, Sparkles
+  DollarSign, Eye, MousePointerClick, TrendingUp, Play, Target, Settings2, Sparkles,
+  GitBranch, RotateCcw, ListChecks, FileJson, Clock, Shield, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -78,13 +79,17 @@ const steps = [
   {
     id: 'create',
     title: 'Step 3: Launch a Cross-Channel Campaign',
-    subtitle: 'One form → Meta + Google simultaneously',
+    subtitle: 'Form → Hidden Config → Execution Plan → Publish',
     icon: Rocket,
     color: 'from-[#E55A3C] to-[#F4A574]',
-    description: 'A single wizard-style form collects campaign settings, targeting, and creatives. We assemble and fork platform-specific API payloads.',
+    description: 'A single wizard-style form collects campaign settings. Nova generates a hidden internal config, computes an execution plan with every change tracked, then deploys to your platforms.',
     content: (
       <div className="space-y-4">
         <div className="bg-white rounded-2xl border border-stone-200 p-5 space-y-4">
+          <div className="flex items-center gap-2 mb-3">
+            <FileJson className="w-4 h-4 text-stone-400" />
+            <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">Form Input</span>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="text-xs text-stone-400 mb-1">Campaign Name</div>
@@ -117,15 +122,60 @@ const steps = [
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-4 p-4 rounded-xl bg-stone-50">
-          <div className="flex-1 text-center p-3 rounded-lg bg-blue-50 border border-blue-100">
-            <div className="text-sm font-medium text-blue-700">Meta Payload</div>
-            <div className="text-xs text-blue-500 mt-1">Campaign → Ad Set → Ad</div>
-          </div>
-          <ArrowRight className="w-5 h-5 text-stone-400" />
-          <div className="flex-1 text-center p-3 rounded-lg bg-red-50 border border-red-100">
-            <div className="text-sm font-medium text-red-700">Google Payload</div>
-            <div className="text-xs text-red-500 mt-1">PMax → Asset Group</div>
+
+        <div className="relative">
+          <div className="absolute left-8 top-0 bottom-0 w-px bg-gradient-to-b from-[#E55A3C]/40 via-amber-200 to-green-200" />
+          <div className="space-y-4 relative">
+            <div className="flex items-start gap-4 pl-0">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#FEF3E2] to-[#FFDAB9] flex items-center justify-center flex-shrink-0 shadow-sm">
+                <FileJson className="w-7 h-7 text-[#E55A3C]" />
+              </div>
+              <div className="flex-1 bg-white rounded-xl border border-stone-200 p-4">
+                <div className="text-sm font-semibold text-stone-900 mb-1">Config Engine</div>
+                <div className="text-xs text-stone-500">Validates form input, generates structured campaign configuration, stores as single source of truth.</div>
+                <div className="flex gap-2 mt-2">
+                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">Validated</Badge>
+                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">v1 created</Badge>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 pl-0">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <ListChecks className="w-7 h-7 text-amber-600" />
+              </div>
+              <div className="flex-1 bg-white rounded-xl border border-stone-200 p-4">
+                <div className="text-sm font-semibold text-stone-900 mb-2">Execution Plan</div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-stone-600">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <span className="font-medium text-green-700">+2</span> ad sets to create
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-stone-600">
+                    <div className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="font-medium text-amber-700">~3</span> campaign settings to apply
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-stone-600">
+                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    <span className="font-medium text-blue-700">4</span> platform actions across Meta + Google
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 pl-0">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Rocket className="w-7 h-7 text-green-600" />
+              </div>
+              <div className="flex-1 bg-white rounded-xl border border-stone-200 p-4">
+                <div className="text-sm font-semibold text-stone-900 mb-1">Publish</div>
+                <div className="text-xs text-stone-500">Plan applied asynchronously to connected platforms.</div>
+                <div className="flex gap-2 mt-2">
+                  <Badge className="bg-green-100 text-green-700 text-xs">Meta — Published</Badge>
+                  <Badge className="bg-green-100 text-green-700 text-xs">Google — Published</Badge>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -226,6 +276,99 @@ const steps = [
       </div>
     ),
   },
+  {
+    id: 'versions',
+    title: 'Step 6: Version History & Rollback',
+    subtitle: 'Every change tracked, every version reversible',
+    icon: GitBranch,
+    color: 'from-indigo-500 to-indigo-600',
+    description: 'The campaign config engine automatically versions every change. You can view the full history, see what changed, and rollback to any previous state — all without exposing raw JSON.',
+    content: (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Shield className="w-4 h-4 text-indigo-500" />
+          <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">Summer Collection Launch — Version Timeline</span>
+        </div>
+
+        <div className="space-y-3">
+          {[
+            {
+              version: 3, current: true, user: 'Sarah M.', time: 'Today, 2:15 PM',
+              message: 'Increased budget to $6,500 and extended end date',
+              changes: [
+                { type: 'modified', label: 'totalBudget: $5,000 → $6,500' },
+                { type: 'modified', label: 'endDate: 2026-07-15 → 2026-07-31' },
+              ],
+            },
+            {
+              version: 2, current: false, user: 'Sarah M.', time: 'Yesterday, 10:30 AM',
+              message: 'Updated creative and added UK targeting',
+              changes: [
+                { type: 'modified', label: 'headline: new creative variant' },
+                { type: 'modified', label: 'targeting.countries: added UK' },
+              ],
+            },
+            {
+              version: 1, current: false, user: 'system', time: 'Jun 1, 10:00 AM',
+              message: 'Campaign created',
+              changes: [
+                { type: 'added', label: 'Campaign created with 1 ad set, 1 creative' },
+              ],
+            },
+          ].map((v, idx) => (
+            <div key={v.version} className={`relative pl-10 ${idx < 2 ? 'pb-3' : ''}`}>
+              <div className={`absolute left-[15px] top-2 w-3 h-3 rounded-full border-2 ${
+                v.current ? 'bg-indigo-500 border-indigo-500' : 'bg-white border-stone-300'
+              }`} />
+              {idx < 2 && <div className="absolute left-[19px] top-5 bottom-0 w-0.5 bg-stone-200" />}
+              <div className="bg-white rounded-xl border border-stone-200 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-xs font-mono">v{v.version}</Badge>
+                      {v.current && <Badge className="bg-indigo-100 text-indigo-700 text-xs">Current</Badge>}
+                    </div>
+                    <p className="font-medium text-stone-900 text-sm">{v.message}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-stone-400">
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{v.time}</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-stone-200 inline-block" />{v.user}</span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {v.changes.map((c, i) => (
+                        <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${
+                          c.type === 'added' ? 'bg-green-50 text-green-700' :
+                          c.type === 'modified' ? 'bg-amber-50 text-amber-700' :
+                          'bg-red-50 text-red-700'
+                        }`}>
+                          {c.type === 'added' ? '+' : c.type === 'modified' ? '~' : '-'} {c.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {!v.current && (
+                    <Button variant="outline" size="sm" className="flex-shrink-0 rounded-full text-xs gap-1">
+                      <RotateCcw className="w-3 h-3" />
+                      Rollback
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">Drift detection active</p>
+            <p className="text-sm text-amber-700 mt-1">
+              Nova periodically compares internal config against platform state. If the Meta API reports different budget than your last saved version, Nova flags the drift and offers to reconcile.
+            </p>
+          </div>
+        </div>
+      </div>
+    ),
+  },
 ];
 
 export default function Demo() {
@@ -255,7 +398,7 @@ export default function Demo() {
             See Nova in action
           </h1>
           <p className="text-lg text-stone-500 max-w-2xl mx-auto">
-            A guided walkthrough of the cross-channel ad command center — from connecting accounts to automated budget optimization.
+            A guided walkthrough of the cross-channel ad command center — from connecting accounts to versioned campaign management.
           </p>
         </div>
 
@@ -358,24 +501,24 @@ export default function Demo() {
         <div className="mt-16 grid md:grid-cols-3 gap-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-100 text-center">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FEF3E2] to-[#FFDAB9] flex items-center justify-center mx-auto mb-4">
-              <Target className="w-6 h-6 text-[#E55A3C]" />
+              <FileJson className="w-6 h-6 text-[#E55A3C]" />
             </div>
-            <h3 className="font-semibold text-stone-900 mb-2">FR-2.1 Global Asset Repository</h3>
-            <p className="text-sm text-stone-500">Centralized media manager with background validation for Meta & Google format requirements.</p>
+            <h3 className="font-semibold text-stone-900 mb-2">Hidden Config Engine</h3>
+            <p className="text-sm text-stone-500">Campaigns stored as internal JSON. Every change is validated, versioned, and reversible — entirely behind the scenes.</p>
           </div>
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-100 text-center">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FEF3E2] to-[#FFDAB9] flex items-center justify-center mx-auto mb-4">
-              <BarChart3 className="w-6 h-6 text-[#E55A3C]" />
+              <GitBranch className="w-6 h-6 text-[#E55A3C]" />
             </div>
-            <h3 className="font-semibold text-stone-900 mb-2">FR-3.2 Metric Normalization</h3>
-            <p className="text-sm text-stone-500">Normalized spend, impressions, clicks, and revenue from Meta + Google into unified columns.</p>
+            <h3 className="font-semibold text-stone-900 mb-2">Version History & Rollback</h3>
+            <p className="text-sm text-stone-500">Every change tracked with diffs. One-click rollback to any previous state. Full audit trail.</p>
           </div>
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-100 text-center">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FEF3E2] to-[#FFDAB9] flex items-center justify-center mx-auto mb-4">
-              <Activity className="w-6 h-6 text-[#E55A3C]" />
+              <ListChecks className="w-6 h-6 text-[#E55A3C]" />
             </div>
-            <h3 className="font-semibold text-stone-900 mb-2">FR-4.2 Daily Budget Pacing</h3>
-            <p className="text-sm text-stone-500">Auto-shift 10% of budget to the higher-ROAS platform when performance gap exceeds 20%.</p>
+            <h3 className="font-semibold text-stone-900 mb-2">Execution Plans & Drift</h3>
+            <p className="text-sm text-stone-500">Before every apply, Nova generates an execution plan. Continuous drift detection catches out-of-sync platform state.</p>
           </div>
         </div>
       </div>
