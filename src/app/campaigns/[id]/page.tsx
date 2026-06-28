@@ -137,14 +137,14 @@ function ExecutionPlanView({ plan }: { plan: ExecutionPlan | null }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
         {[
           { label: 'Additions', value: plan.summary.additions, color: 'text-green-600', bg: 'bg-green-50' },
           { label: 'Modifications', value: plan.summary.modifications, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Removals', value: plan.summary.removals, color: 'text-red-600', bg: 'bg-red-50' },
         ].map(s => (
-          <div key={s.label} className={`${s.bg} rounded-xl p-4 text-center`}>
-            <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+          <div key={s.label} className={`${s.bg} rounded-xl p-3 sm:p-4 text-center`}>
+            <div className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</div>
             <div className="text-xs text-stone-500 mt-1">{s.label}</div>
           </div>
         ))}
@@ -301,18 +301,18 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-white border border-stone-200 rounded-2xl p-1">
-            <TabsTrigger value="overview" className="rounded-xl gap-2 data-[state=active]:bg-stone-900 data-[state=active]:text-white">
+          <TabsList className="bg-white border border-stone-200 rounded-2xl p-1 w-full sm:w-auto overflow-x-auto">
+            <TabsTrigger value="overview" className="rounded-xl gap-1.5 sm:gap-2 data-[state=active]:bg-stone-900 data-[state=active]:text-white text-xs sm:text-sm">
               <Eye className="w-4 h-4" /> Overview
             </TabsTrigger>
-            <TabsTrigger value="edit" className="rounded-xl gap-2 data-[state=active]:bg-stone-900 data-[state=active]:text-white">
+            <TabsTrigger value="edit" className="rounded-xl gap-1.5 sm:gap-2 data-[state=active]:bg-stone-900 data-[state=active]:text-white text-xs sm:text-sm">
               <Edit3 className="w-4 h-4" /> Edit
             </TabsTrigger>
-            <TabsTrigger value="history" className="rounded-xl gap-2 data-[state=active]:bg-stone-900 data-[state=active]:text-white">
+            <TabsTrigger value="history" className="rounded-xl gap-1.5 sm:gap-2 data-[state=active]:bg-stone-900 data-[state=active]:text-white text-xs sm:text-sm">
               <History className="w-4 h-4" /> History
             </TabsTrigger>
-            <TabsTrigger value="plan" className="rounded-xl gap-2 data-[state=active]:bg-stone-900 data-[state=active]:text-white">
-              <ListChecks className="w-4 h-4" /> Execution Plan
+            <TabsTrigger value="plan" className="rounded-xl gap-1.5 sm:gap-2 data-[state=active]:bg-stone-900 data-[state=active]:text-white text-xs sm:text-sm">
+              <ListChecks className="w-4 h-4" /> <span className="hidden sm:inline">Execution </span>Plan
             </TabsTrigger>
           </TabsList>
 

@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowRight, Check, Link2, Upload, Rocket, Activity, BarChart3,
-  DollarSign, Eye, MousePointerClick, TrendingUp, Play, Target, Settings2, Sparkles,
+  ArrowRight, Check, Link2, Upload, Rocket, BarChart3,
+  DollarSign, Eye, MousePointerClick, TrendingUp, Play, Settings2, Sparkles,
   GitBranch, RotateCcw, ListChecks, FileJson, Clock, Shield, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,12 +20,12 @@ const steps = [
     description: 'Securely authenticate with Meta Business Manager and Google Ads. We auto-discover your accounts, pages, and pixels.',
     content: (
       <div className="space-y-4">
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           {[
             { name: 'Meta Business Account', label: 'act_123456789', connected: true, icon: 'M', bg: 'bg-blue-50 text-blue-600' },
             { name: 'Google Ads', label: '123-456-7890', connected: true, icon: 'G', bg: 'bg-red-50 text-red-600' },
           ].map((acct) => (
-            <div key={acct.name} className="flex-1 p-5 rounded-2xl border-2 border-green-200 bg-green-50/50">
+            <div key={acct.name} className="flex-1 p-4 sm:p-5 rounded-2xl border-2 border-green-200 bg-green-50/50">
               <div className="flex items-center gap-3 mb-3">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${acct.bg}`}>{acct.icon}</div>
                 <div className="flex-1">
@@ -53,7 +53,7 @@ const steps = [
     description: 'Upload images and videos to your global asset repository. Our validator catches size/format issues before they reach ad networks.',
     content: (
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[
             { name: 'hero-shoe.jpg', status: 'valid', dims: '1200×1200' },
             { name: 'summer-banner.jpg', status: 'valid', dims: '1920×1080' },
@@ -90,7 +90,7 @@ const steps = [
             <FileJson className="w-4 h-4 text-stone-400" />
             <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">Form Input</span>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="text-xs text-stone-400 mb-1">Campaign Name</div>
               <div className="font-medium text-stone-900">Summer Collection Launch</div>
@@ -124,27 +124,27 @@ const steps = [
         </div>
 
         <div className="relative">
-          <div className="absolute left-8 top-0 bottom-0 w-px bg-gradient-to-b from-[#E55A3C]/40 via-amber-200 to-green-200" />
-          <div className="space-y-4 relative">
-            <div className="flex items-start gap-4 pl-0">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#FEF3E2] to-[#FFDAB9] flex items-center justify-center flex-shrink-0 shadow-sm">
-                <FileJson className="w-7 h-7 text-[#E55A3C]" />
+          <div className="absolute left-6 sm:left-8 top-0 bottom-0 w-px bg-gradient-to-b from-[#E55A3C]/40 via-amber-200 to-green-200 hidden sm:block" />
+          <div className="space-y-3 sm:space-y-4 relative">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-[#FEF3E2] to-[#FFDAB9] flex items-center justify-center flex-shrink-0 shadow-sm">
+                <FileJson className="w-5 h-5 sm:w-7 sm:h-7 text-[#E55A3C]" />
               </div>
-              <div className="flex-1 bg-white rounded-xl border border-stone-200 p-4">
+              <div className="flex-1 bg-white rounded-xl border border-stone-200 p-3 sm:p-4">
                 <div className="text-sm font-semibold text-stone-900 mb-1">Config Engine</div>
                 <div className="text-xs text-stone-500">Validates form input, generates structured campaign configuration, stores as single source of truth.</div>
-                <div className="flex gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 mt-2">
                   <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">Validated</Badge>
                   <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">v1 created</Badge>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-start gap-4 pl-0">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center flex-shrink-0 shadow-sm">
-                <ListChecks className="w-7 h-7 text-amber-600" />
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <ListChecks className="w-5 h-5 sm:w-7 sm:h-7 text-amber-600" />
               </div>
-              <div className="flex-1 bg-white rounded-xl border border-stone-200 p-4">
+              <div className="flex-1 bg-white rounded-xl border border-stone-200 p-3 sm:p-4">
                 <div className="text-sm font-semibold text-stone-900 mb-2">Execution Plan</div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-xs text-stone-600">
@@ -163,14 +163,14 @@ const steps = [
               </div>
             </div>
 
-            <div className="flex items-start gap-4 pl-0">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center flex-shrink-0 shadow-sm">
-                <Rocket className="w-7 h-7 text-green-600" />
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Rocket className="w-5 h-5 sm:w-7 sm:h-7 text-green-600" />
               </div>
-              <div className="flex-1 bg-white rounded-xl border border-stone-200 p-4">
+              <div className="flex-1 bg-white rounded-xl border border-stone-200 p-3 sm:p-4">
                 <div className="text-sm font-semibold text-stone-900 mb-1">Publish</div>
                 <div className="text-xs text-stone-500">Plan applied asynchronously to connected platforms.</div>
-                <div className="flex gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 mt-2">
                   <Badge className="bg-green-100 text-green-700 text-xs">Meta — Published</Badge>
                   <Badge className="bg-green-100 text-green-700 text-xs">Google — Published</Badge>
                 </div>
@@ -190,14 +190,14 @@ const steps = [
     description: 'View aggregated spend, impressions, clicks, revenue, and calculated metrics like blended CTR and ROAS — all from your local cache.',
     content: (
       <div className="space-y-4">
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { label: 'Total Spend', value: '$4,280', icon: DollarSign, trend: '+12.3%' },
             { label: 'Impressions', value: '184.2K', icon: Eye, trend: '+8.1%' },
             { label: 'Clicks', value: '4,891', icon: MousePointerClick, trend: '+15.2%' },
             { label: 'Blended ROAS', value: '3.42x', icon: TrendingUp, trend: 'CTR: 2.65%' },
           ].map((stat) => (
-            <div key={stat.label} className="p-4 rounded-xl bg-white border border-stone-200">
+            <div key={stat.label} className="p-3 sm:p-4 rounded-xl bg-white border border-stone-200">
               <div className="flex items-center gap-2 mb-2">
                 <stat.icon className="w-4 h-4 text-[#E55A3C]" />
                 <span className="text-xs text-stone-400">{stat.label}</span>
@@ -251,7 +251,7 @@ const steps = [
             </div>
             <Badge className="bg-green-100 text-green-700">Active</Badge>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div className="p-3 rounded-xl bg-white border border-stone-200">
               <div className="text-xs text-stone-400">Min Budget</div>
               <div className="font-semibold text-stone-900">$1,000</div>
@@ -316,11 +316,11 @@ const steps = [
               ],
             },
           ].map((v, idx) => (
-            <div key={v.version} className={`relative pl-10 ${idx < 2 ? 'pb-3' : ''}`}>
-              <div className={`absolute left-[15px] top-2 w-3 h-3 rounded-full border-2 ${
+            <div key={v.version} className={`relative pl-8 sm:pl-10 ${idx < 2 ? 'pb-3' : ''}`}>
+              <div className={`absolute left-[11px] sm:left-[15px] top-2 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border-2 ${
                 v.current ? 'bg-indigo-500 border-indigo-500' : 'bg-white border-stone-300'
               }`} />
-              {idx < 2 && <div className="absolute left-[19px] top-5 bottom-0 w-0.5 bg-stone-200" />}
+              {idx < 2 && <div className="absolute left-[15px] sm:left-[19px] top-5 bottom-0 w-0.5 bg-stone-200" />}
               <div className="bg-white rounded-xl border border-stone-200 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -403,12 +403,12 @@ export default function Demo() {
         </div>
 
         {/* Step Navigation */}
-        <div className="flex items-center justify-center gap-2 mb-12 overflow-x-auto pb-2">
+        <div className="flex items-center justify-start md:justify-center gap-1.5 md:gap-2 mb-8 md:mb-12 overflow-x-auto pb-2 -mx-6 md:mx-0 px-6 md:px-0">
           {steps.map((s, i) => (
             <React.Fragment key={s.id}>
               <button
                 onClick={() => { setActiveStep(i); setAutoPlay(false); }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                className={`flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${
                   i === activeStep
                     ? 'bg-stone-900 text-white shadow-lg'
                     : i < activeStep
@@ -416,10 +416,10 @@ export default function Demo() {
                       : 'bg-white text-stone-400 border border-stone-200 hover:border-stone-300'
                 }`}
               >
-                {i < activeStep ? <Check className="w-3.5 h-3.5" /> : <s.icon className="w-3.5 h-3.5" />}
-                <span className="hidden md:inline">{s.title.replace('Step', '').trim()}</span>
+                {i < activeStep ? <Check className="w-3 h-3 md:w-3.5 md:h-3.5" /> : <s.icon className="w-3 h-3 md:w-3.5 md:h-3.5" />}
+                <span className="hidden sm:inline">{s.title.replace('Step', '').trim()}</span>
               </button>
-              {i < steps.length - 1 && <div className="w-6 h-px bg-stone-200 hidden md:block" />}
+              {i < steps.length - 1 && <div className="w-4 md:w-6 h-px bg-stone-200 hidden sm:block flex-shrink-0" />}
             </React.Fragment>
           ))}
         </div>
@@ -435,40 +435,40 @@ export default function Demo() {
           >
             <div className="bg-white rounded-3xl shadow-sm border border-stone-100 overflow-hidden">
               {/* Header */}
-              <div className={`p-8 bg-gradient-to-r ${step.color} text-white`}>
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <div className={`p-6 sm:p-8 bg-gradient-to-r ${step.color} text-white`}>
+                <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
                     <step.icon className="w-7 h-7" />
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-white/80">{step.subtitle}</div>
-                    <h2 className="text-2xl font-semibold">{step.title}</h2>
+                    <div className="text-xs sm:text-sm font-medium text-white/80">{step.subtitle}</div>
+                    <h2 className="text-lg sm:text-2xl font-semibold">{step.title}</h2>
                   </div>
                 </div>
-                <p className="text-white/90 max-w-2xl text-lg font-light">{step.description}</p>
+                <p className="text-white/90 max-w-2xl text-sm sm:text-lg font-light">{step.description}</p>
               </div>
 
               {/* Demo Content */}
-              <div className="p-8">{step.content}</div>
+              <div className="p-4 sm:p-8">{step.content}</div>
 
               {/* Navigation */}
-              <div className="flex items-center justify-between p-6 bg-stone-50 border-t border-stone-100">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 sm:p-6 bg-stone-50 border-t border-stone-100">
                 <Button
                   variant="outline"
                   onClick={() => { setActiveStep((prev) => Math.max(0, prev - 1)); setAutoPlay(false); }}
                   disabled={activeStep === 0}
-                  className="rounded-full"
+                  className="rounded-full order-2 sm:order-none"
                 >
                   Previous Step
                 </Button>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between sm:justify-center gap-3 order-1 sm:order-none">
                   <Button
                     variant="ghost"
                     onClick={() => setAutoPlay(!autoPlay)}
-                    className="rounded-full text-stone-500"
+                    className="rounded-full text-stone-500 text-sm"
                   >
-                    {autoPlay ? <span className="flex items-center gap-2">⏸ Pause</span> : <span className="flex items-center gap-2"><Play className="w-4 h-4" /> Auto-play</span>}
+                    {autoPlay ? <span className="flex items-center gap-1.5">⏸ Pause</span> : <span className="flex items-center gap-1.5"><Play className="w-4 h-4" /> Auto-play</span>}
                   </Button>
 
                   <div className="text-sm text-stone-400">
@@ -479,7 +479,7 @@ export default function Demo() {
                 {activeStep < steps.length - 1 ? (
                   <Button
                     onClick={() => setActiveStep((prev) => prev + 1)}
-                    className="bg-stone-900 hover:bg-stone-800 rounded-full px-6 group"
+                    className="bg-stone-900 hover:bg-stone-800 rounded-full px-5 sm:px-6 group order-3 sm:order-none"
                   >
                     Next Step
                     <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -487,9 +487,9 @@ export default function Demo() {
                 ) : (
                   <Button
                     onClick={() => setActiveStep(0)}
-                    className="bg-[#E55A3C] hover:bg-[#D14A2E] rounded-full px-6"
+                    className="bg-[#E55A3C] hover:bg-[#D14A2E] rounded-full px-5 sm:px-6 order-3 sm:order-none"
                   >
-                    <Sparkles className="w-4 h-4 mr-2" /> Replay Demo
+                    <Sparkles className="w-4 h-4 mr-1.5" /> Replay
                   </Button>
                 )}
               </div>
@@ -498,7 +498,7 @@ export default function Demo() {
         </AnimatePresence>
 
         {/* Feature Grid */}
-        <div className="mt-16 grid md:grid-cols-3 gap-6">
+        <div className="mt-12 md:mt-16 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-100 text-center">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FEF3E2] to-[#FFDAB9] flex items-center justify-center mx-auto mb-4">
               <FileJson className="w-6 h-6 text-[#E55A3C]" />
