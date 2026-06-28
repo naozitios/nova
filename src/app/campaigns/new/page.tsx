@@ -9,9 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { adClient } from '@/api/adClient';
 import { Platform } from '@/types/advertising';
+import { campaignStore, ensureSeeded } from '@/lib/campaign-engine';
 
 const steps = ['Campaign Settings', 'Targeting', 'Creative', 'Review & Publish'];
 
@@ -38,7 +38,7 @@ export default function NewCampaign() {
     mediaUrl: '',
   });
 
-  const update = (key: string, val: any) => setForm(f => ({ ...f, [key]: val }));
+  const update = (key: string, val: string | string[]) => setForm(f => ({ ...f, [key]: val }));
 
   const canProceed = () => {
     if (step === 0) return form.name && form.platform.length > 0 && form.totalBudget && form.startDate && form.endDate;
@@ -51,6 +51,12 @@ export default function NewCampaign() {
     setPublishing(true);
     const res = await adClient.publishCampaign(form);
     setResults(res);
+
+    ensureSeeded();
+    const storedUser = localStorage.getItem('user');
+    const userName = storedUser ? JSON.parse(storedUser).name : 'system';
+    campaignStore.create(form, userName);
+
     setPublishing(false);
     if (res.meta.success && res.google.success) {
       setTimeout(() => router.push('/campaigns'), 2000);
