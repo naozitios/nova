@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, ArrowRight, LayoutDashboard, Megaphone, Settings, Sparkles } from 'lucide-react';
+import { Menu, X, ArrowRight, LayoutDashboard, Megaphone, Settings, Sparkles, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SignUpModal from '@/components/landing/SignUpModal';
 import SignInModal from './landing/SignInModal';
@@ -20,6 +20,7 @@ const loggedInNavLinks = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Campaigns', href: '/campaigns', icon: Megaphone },
   { name: 'AI Assistant', href: '/ai', icon: Sparkles },
+  { name: 'Optimization', href: '/optimization', icon: Activity },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
