@@ -1,156 +1,119 @@
 'use client';
 
-import React from 'react';
-import { motion } from 'framer-motion';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowUp, ArrowDown, DollarSign, MousePointerClick, Eye, TrendingUp } from 'lucide-react';
 import { adClient } from '@/api/adClient';
-import { AggregatedMetrics, AnalyticsSnapshot } from '@/types/advertising';
-
-function formatCurrency(n: number) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-
-function MetricCard({ title, value, change, icon: Icon, trend }: { title: string; value: string; change: string; icon: React.ElementType; trend: 'up' | 'down' | 'neutral' }) {
-  return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-6 shadow-sm border border-stone-100">
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-medium text-stone-500">{title}</span>
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FEF3E2] to-[#FFDAB9] flex items-center justify-center">
-          <Icon className="w-5 h-5 text-[#E55A3C]" />
-        </div>
-      </div>
-      <div className="text-3xl font-semibold text-stone-900 mb-1">{value}</div>
-      <div className={`flex items-center gap-1 text-sm ${trend === 'up' ? 'text-green-600' : trend === 'down' ? 'text-red-500' : 'text-stone-400'}`}>
-        {trend === 'up' ? <ArrowUp className="w-4 h-4" /> : trend === 'down' ? <ArrowDown className="w-4 h-4" /> : null}
-        {change}
-      </div>
-    </motion.div>
-  );
-}
-
-function PlatformBreakdown({ data }: { data: AggregatedMetrics }) {
-  const platforms = [
-    { name: 'Meta Ads', key: 'meta' as const, color: '#E55A3C' },
-    { name: 'Google Ads', key: 'google' as const, color: '#4285F4' },
-  ];
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white rounded-3xl p-6 shadow-sm border border-stone-100">
-      <h3 className="text-lg font-semibold text-stone-900 mb-6">Platform Breakdown</h3>
-      <div className="space-y-6">
-        {platforms.map(({ name, key, color }) => {
-          const p = data.platformBreakdown[key];
-          const spendPct = data.totalSpend > 0 ? ((p.spend / data.totalSpend) * 100).toFixed(1) : '0';
-          const roas = p.spend > 0 ? (p.revenue / p.spend).toFixed(2) : '0.00';
-          return (
-            <div key={key}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-                  <span className="font-medium text-stone-900">{name}</span>
-                </div>
-                <span className="text-sm text-stone-500">{spendPct}% of spend</span>
-              </div>
-              <div className="grid grid-cols-3 gap-4 mt-3">
-                <div>
-                  <div className="text-xs text-stone-400">Spend</div>
-                  <div className="text-sm font-semibold text-stone-900">{formatCurrency(p.spend)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-stone-400">Revenue</div>
-                  <div className="text-sm font-semibold text-stone-900">{formatCurrency(p.revenue)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-stone-400">ROAS</div>
-                  <div className="text-sm font-semibold text-stone-900">{roas}x</div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </motion.div>
-  );
-}
-
-function PerformanceChart({ data }: { data: AnalyticsSnapshot[] }) {
-  const daily = data.reduce<Record<string, { spend: number; revenue: number }>>((acc, d) => {
-    if (!acc[d.date]) acc[d.date] = { spend: 0, revenue: 0 };
-    acc[d.date].spend += d.spend;
-    acc[d.date].revenue += d.revenue;
-    return acc;
-  }, {});
-  const sorted = Object.entries(daily).sort(([a], [b]) => a.localeCompare(b));
-  const maxVal = Math.max(...sorted.map(([, v]) => Math.max(v.spend, v.revenue)), 1);
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white rounded-3xl p-6 shadow-sm border border-stone-100">
-      <h3 className="text-lg font-semibold text-stone-900 mb-6">30-Day Performance</h3>
-      <div className="relative h-48">
-        <div className="absolute inset-0 flex items-end gap-[2px]">
-          {sorted.map(([date, val]) => (
-            <div key={date} className="flex-1 flex flex-col justify-end gap-[2px]">
-              <div
-                className="w-full rounded-t-sm bg-gradient-to-t from-[#E55A3C] to-[#F4A574] transition-all duration-300 hover:opacity-80"
-                style={{ height: `${(val.revenue / maxVal) * 100}%` }}
-              />
-              <div
-                className="w-full rounded-t-sm bg-stone-200 transition-all duration-300"
-                style={{ height: `${(val.spend / maxVal) * 100}%` }}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="flex items-center gap-6 mt-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-gradient-to-t from-[#E55A3C] to-[#F4A574]" />
-          <span className="text-stone-500">Revenue</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-stone-200" />
-          <span className="text-stone-500">Spend</span>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
+import { DashboardAISummaryCard } from '@/components/dashboard/DashboardAISummaryCard';
+import { DashboardInsightDrawer } from '@/components/dashboard/DashboardInsightDrawer';
+import { DashboardInsightList } from '@/components/dashboard/DashboardInsightList';
+import { DashboardMetricGrid } from '@/components/dashboard/DashboardMetricGrid';
+import { DashboardTimeRangeSelector } from '@/components/dashboard/DashboardTimeRangeSelector';
+import { DashboardTrendSection } from '@/components/dashboard/DashboardTrendSection';
+import { RecentChangesList } from '@/components/dashboard/RecentChangesList';
+import type { DashboardInsight, DashboardTimeRangeId } from '@/components/dashboard/dashboard-types';
+import {
+  DEFAULT_DASHBOARD_TIME_RANGE,
+  deriveDashboardInsights,
+  deriveDashboardMetrics,
+  deriveDashboardSummary,
+  derivePerformanceTrendPoints,
+  deriveRecentChanges,
+  filterAnalyticsByTimeRange,
+  getDashboardTimeRange,
+} from '@/components/dashboard/dashboard-utils';
+import type { AggregatedMetrics, AnalyticsSnapshot, Campaign } from '@/types/advertising';
 
 export default function Dashboard() {
-  const { data: metrics, isLoading: mLoading } = useQuery<AggregatedMetrics>({ queryKey: ['analytics-latest'], queryFn: () => adClient.analytics.getLatest() });
-  const { data: timeSeries } = useQuery<AnalyticsSnapshot[]>({ queryKey: ['analytics-timeseries'], queryFn: () => adClient.analytics.getTimeSeries() });
+  const [selectedRange, setSelectedRange] = useState<DashboardTimeRangeId>(DEFAULT_DASHBOARD_TIME_RANGE);
+  const [dismissedInsightIds, setDismissedInsightIds] = useState<Set<string>>(() => new Set());
+  const [reviewInsight, setReviewInsight] = useState<DashboardInsight | null>(null);
+
+  const latestQuery = useQuery<AggregatedMetrics>({
+    queryKey: ['analytics-latest'],
+    queryFn: () => adClient.analytics.getLatest(),
+  });
+  const timeSeriesQuery = useQuery<AnalyticsSnapshot[]>({
+    queryKey: ['analytics-timeseries'],
+    queryFn: () => adClient.analytics.getTimeSeries(),
+  });
+  const campaignsQuery = useQuery<Campaign[]>({
+    queryKey: ['dashboard-campaigns'],
+    queryFn: () => adClient.campaigns.list(),
+  });
+
+  const selectedRangeMeta = getDashboardTimeRange(selectedRange);
+  const filteredSnapshots = useMemo(
+    () => filterAnalyticsByTimeRange(timeSeriesQuery.data ?? [], selectedRange),
+    [timeSeriesQuery.data, selectedRange]
+  );
+  const metrics = useMemo(() => deriveDashboardMetrics(filteredSnapshots), [filteredSnapshots]);
+  const trendPoints = useMemo(() => derivePerformanceTrendPoints(filteredSnapshots), [filteredSnapshots]);
+  const summary = useMemo(() => deriveDashboardSummary(metrics), [metrics]);
+  const insights = useMemo(
+    () => deriveDashboardInsights(filteredSnapshots, campaignsQuery.data ?? []),
+    [filteredSnapshots, campaignsQuery.data]
+  );
+  const visibleInsights = useMemo(
+    () => insights.filter((insight) => !dismissedInsightIds.has(insight.id)),
+    [insights, dismissedInsightIds]
+  );
+  const recentChanges = useMemo(
+    () => deriveRecentChanges(campaignsQuery.data ?? [], selectedRange),
+    [campaignsQuery.data, selectedRange]
+  );
+
+  const isAnalyticsLoading = latestQuery.isLoading || timeSeriesQuery.isLoading;
+  const isDashboardLoading = isAnalyticsLoading || campaignsQuery.isLoading;
+  const isDashboardError = latestQuery.isError || timeSeriesQuery.isError || campaignsQuery.isError;
+
+  function handleDismissInsight(id: string) {
+    setDismissedInsightIds((previous) => new Set(previous).add(id));
+    if (reviewInsight?.id === id) setReviewInsight(null);
+  }
 
   return (
-    <div className="min-h-screen bg-stone-50 pt-28 pb-16 px-6 md:px-12 lg:px-24">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
+    <div className="min-h-screen bg-stone-50 px-6 pb-16 pt-28 md:px-12 lg:px-24">
+      <div className="mx-auto max-w-7xl space-y-8">
+        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
           <h1 className="text-3xl font-bold text-stone-900">Dashboard</h1>
-          <p className="text-stone-500 mt-1">Real-time cross-channel performance overview</p>
+          <DashboardTimeRangeSelector value={selectedRange} onChange={setSelectedRange} />
         </div>
 
-        {mLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {Array(4).fill(0).map((_, i) => (
-              <div key={i} className="bg-white rounded-3xl p-6 animate-pulse h-32" />
-            ))}
-          </div>
-        ) : metrics ? (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <MetricCard title="Total Spend" value={formatCurrency(metrics.totalSpend)} change="+12.3% vs yesterday" icon={DollarSign} trend="up" />
-              <MetricCard title="Total Impressions" value={metrics.totalImpressions.toLocaleString()} change="+8.1% vs yesterday" icon={Eye} trend="up" />
-              <MetricCard title="Total Clicks" value={metrics.totalClicks.toLocaleString()} change="+15.2% vs yesterday" icon={MousePointerClick} trend="up" />
-              <MetricCard title="Blended ROAS" value={`${metrics.blendedROAS.toFixed(2)}x`} change={`CTR: ${metrics.blendedCTR.toFixed(2)}%`} icon={TrendingUp} trend="neutral" />
-            </div>
+        <DashboardMetricGrid
+          metrics={metrics}
+          isLoading={isAnalyticsLoading}
+          isError={isDashboardError}
+        />
 
-            <div className="grid lg:grid-cols-3 gap-6 mb-8">
-              <div className="lg:col-span-2">
-                {timeSeries && <PerformanceChart data={timeSeries} />}
-              </div>
-              <PlatformBreakdown data={metrics} />
-            </div>
-          </>
-        ) : null}
+        <DashboardTrendSection
+          points={trendPoints}
+          rangeLabel={selectedRangeMeta.label}
+          isLoading={isAnalyticsLoading}
+          isError={isDashboardError}
+        />
+
+        <DashboardAISummaryCard
+          summary={summary}
+          isLoading={isAnalyticsLoading}
+          isError={isDashboardError}
+        />
+
+        <DashboardInsightList
+          insights={visibleInsights}
+          isLoading={isDashboardLoading}
+          isError={isDashboardError}
+          onReview={setReviewInsight}
+          onDismiss={handleDismissInsight}
+        />
+
+        <RecentChangesList
+          items={recentChanges}
+          isLoading={campaignsQuery.isLoading}
+          isError={isDashboardError}
+        />
       </div>
+
+      <DashboardInsightDrawer insight={reviewInsight} onClose={() => setReviewInsight(null)} />
     </div>
   );
 }
