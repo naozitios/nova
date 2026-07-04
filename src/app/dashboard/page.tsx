@@ -4,8 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowUp, ArrowDown, DollarSign, MousePointerClick, Eye, TrendingUp } from 'lucide-react';
-import { adClient } from '@/api/adClient';
-import { AggregatedMetrics, AnalyticsSnapshot } from '@/types/advertising';
+import type { AggregatedMetrics, AnalyticsSnapshot } from '@/types/advertising';
 
 function formatCurrency(n: number) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
@@ -116,8 +115,22 @@ function PerformanceChart({ data }: { data: AnalyticsSnapshot[] }) {
 }
 
 export default function Dashboard() {
-  const { data: metrics, isLoading: mLoading } = useQuery<AggregatedMetrics>({ queryKey: ['analytics-latest'], queryFn: () => adClient.analytics.getLatest() });
-  const { data: timeSeries } = useQuery<AnalyticsSnapshot[]>({ queryKey: ['analytics-timeseries'], queryFn: () => adClient.analytics.getTimeSeries() });
+  const { data: metrics, isLoading: mLoading } = useQuery<AggregatedMetrics | null>({
+    queryKey: ['analytics-latest'],
+    queryFn: async () => {
+      const res = await fetch('/api/analytics');
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+  const { data: timeSeries } = useQuery<AnalyticsSnapshot[]>({
+    queryKey: ['analytics-timeseries'],
+    queryFn: async () => {
+      const res = await fetch('/api/analytics/timeseries');
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
 
   return (
     <div className="min-h-screen bg-stone-50 pt-28 pb-16 px-6 md:px-12 lg:px-24">
