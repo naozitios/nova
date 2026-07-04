@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Container } from '@/di/container';
+import { config } from '@/infrastructure/config';
+import { MetaApiAdapter } from '@/infrastructure/meta/meta-api.adapter';
 
 export async function GET() {
+  const accessToken = config.meta.appSecret;
+  const accountId = config.meta.appId;
+
+  if (accessToken && accountId) {
+    try {
+      const metaAdapter = new MetaApiAdapter();
+      const campaigns = await metaAdapter.getCampaigns(accountId, accessToken);
+      return NextResponse.json(campaigns);
+    } catch {
+      // Fall through to seeded campaigns
+    }
+  }
+
   const service = Container.getCampaignService();
+  await Container.getCampaignSeed().ensure();
   const campaigns = await service.list();
   return NextResponse.json(campaigns);
 }
