@@ -78,11 +78,11 @@ export function DashboardTimeRangeSelector({
           </SelectContent>
         </Select>
 
-        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen} modal={false}>
           <PopoverTrigger asChild>
             <span />
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end">
+          <PopoverContent className="w-auto p-0" align="end" onOpenAutoFocus={(e) => e.preventDefault()} onCloseAutoFocus={(e) => e.preventDefault()}>
             <Calendar
               mode="range"
               selected={customRange?.from ? customRange as { from: Date; to?: Date } : undefined}
