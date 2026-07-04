@@ -107,11 +107,9 @@ export function DashboardTimeRangeSelector({
         <div className="flex items-center gap-2">
           <Select value={value} onValueChange={handleSelectChange}>
             <SelectTrigger className="h-10 min-w-[180px] rounded-full border-stone-200 bg-white px-4 text-stone-700 shadow-sm">
-              {triggerLabel ? (
-                <span className="truncate">{triggerLabel}</span>
-              ) : (
-                <SelectValue placeholder="Select time range" />
-              )}
+              <SelectValue placeholder="Select time range">
+                {triggerLabel}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent align="end" className="rounded-xl border-stone-100 bg-white">
               {DASHBOARD_TIME_RANGES.map((range) => (
