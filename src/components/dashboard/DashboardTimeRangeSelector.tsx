@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { format } from 'date-fns';
+import { CalendarIcon } from 'lucide-react';
 import type { DashboardTimeRangeId } from './dashboard-types';
 import { DASHBOARD_TIME_RANGES } from './dashboard-utils';
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Button } from '@/components/ui/button';
 
 interface DashboardTimeRangeSelectorProps {
   value: DashboardTimeRangeId;
@@ -62,7 +64,7 @@ export function DashboardTimeRangeSelector({
       <label className="text-xs font-medium uppercase tracking-[0.18em] text-stone-400">
         Time range
       </label>
-      <div className="relative">
+      <div className="flex items-center gap-2">
         <Select value={value} onValueChange={handleSelectChange}>
           <SelectTrigger className="h-10 min-w-[180px] rounded-full border-stone-200 bg-white px-4 text-stone-700 shadow-sm">
             <SelectValue placeholder="Select time range">
@@ -78,11 +80,23 @@ export function DashboardTimeRangeSelector({
           </SelectContent>
         </Select>
 
-        <Popover open={calendarOpen} onOpenChange={setCalendarOpen} modal={false}>
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger asChild>
-            <span />
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0 rounded-full border-stone-200 bg-white shadow-sm"
+            >
+              <CalendarIcon className="h-4 w-4 text-stone-500" />
+            </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end" onOpenAutoFocus={(e) => e.preventDefault()} onCloseAutoFocus={(e) => e.preventDefault()}>
+          <PopoverContent
+            className="w-auto p-0"
+            align="end"
+            onInteractOutside={(e) => {
+              e.preventDefault();
+            }}
+          >
             <Calendar
               mode="range"
               selected={customRange?.from ? customRange as { from: Date; to?: Date } : undefined}
