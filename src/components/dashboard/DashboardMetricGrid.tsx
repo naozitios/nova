@@ -13,9 +13,9 @@ interface DashboardMetricGridProps {
 export function DashboardMetricGrid({ metrics, isLoading, isError }: DashboardMetricGridProps) {
   if (isLoading) {
     return (
-      <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {Array.from({ length: 6 }).map((_, index) => (
-          <Skeleton key={index} className="h-36 rounded-3xl bg-white" />
+          <Skeleton key={index} className="h-28 rounded-3xl bg-white" />
         ))}
       </section>
     );
@@ -38,7 +38,7 @@ export function DashboardMetricGrid({ metrics, isLoading, isError }: DashboardMe
   }
 
   return (
-    <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+    <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {metrics.map((metric) => (
         <DashboardMetricCard key={metric.id} metric={metric} />
       ))}

@@ -1,6 +1,7 @@
 import type { AnalyticsSnapshot, Campaign } from '../../types/advertising';
 import type {
   DashboardAISummary,
+  DashboardChartPoint,
   DashboardInsight,
   DashboardInsightCTA,
   DashboardMetric,
@@ -36,7 +37,7 @@ export const DASHBOARD_TIME_RANGES: DashboardTimeRange[] = [
   { id: 'this-week', label: 'This week', supported: true },
   { id: 'last-week', label: 'Last week', supported: true },
   { id: 'month-to-date', label: 'Month to date', supported: true },
-  { id: 'custom', label: 'Custom', supported: false, disabledReason: 'Custom dates are not available yet' },
+  { id: 'custom', label: 'Custom', supported: true },
 ];
 
 const dateLabelFormatter = new Intl.DateTimeFormat('en-US', {
@@ -210,6 +211,48 @@ export function filterAnalyticsByTimeRange(
   if (!window) return [];
 
   return snapshots.filter((snapshot) => isWithinWindow(snapshot.date, window));
+}
+
+export function filterAnalyticsByCustomDateRange(
+  snapshots: AnalyticsSnapshot[],
+  fromDateKey: string,
+  toDateKey: string
+): AnalyticsSnapshot[] {
+  const [start, end] = fromDateKey <= toDateKey ? [fromDateKey, toDateKey] : [toDateKey, fromDateKey];
+  return snapshots.filter((snapshot) => snapshot.date >= start && snapshot.date <= end);
+}
+
+export function deriveDashboardChartPoints(snapshots: AnalyticsSnapshot[]): DashboardChartPoint[] {
+  if (snapshots.length === 0) return [];
+
+  const grouped = snapshots.reduce<Record<string, DashboardChartPoint>>((acc, snapshot) => {
+    acc[snapshot.date] ??= {
+      date: snapshot.date,
+      label: formatDateLabel(snapshot.date),
+      revenue: 0,
+      spend: 0,
+      impressions: 0,
+      clicks: 0,
+      roas: 0,
+      cpm: 0,
+      ctr: 0,
+    };
+
+    acc[snapshot.date].spend += snapshot.spend;
+    acc[snapshot.date].revenue += snapshot.revenue;
+    acc[snapshot.date].impressions += snapshot.impressions;
+    acc[snapshot.date].clicks += snapshot.clicks;
+    return acc;
+  }, {});
+
+  return Object.values(grouped)
+    .map((point) => ({
+      ...point,
+      roas: point.spend > 0 ? point.revenue / point.spend : 0,
+      cpm: point.impressions > 0 ? (point.spend / point.impressions) * 1000 : 0,
+      ctr: point.impressions > 0 ? (point.clicks / point.impressions) * 100 : 0,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export function deriveDashboardMetrics(snapshots: AnalyticsSnapshot[]): DashboardMetric[] {

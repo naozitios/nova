@@ -5,11 +5,13 @@ import type { AnalyticsSnapshot, Campaign } from '../../types/advertising';
 import {
   DASHBOARD_TIME_RANGES,
   DEFAULT_DASHBOARD_TIME_RANGE,
+  deriveDashboardChartPoints,
   deriveDashboardInsights,
   deriveDashboardMetrics,
   deriveDashboardSummary,
   derivePerformanceTrendPoints,
   deriveRecentChanges,
+  filterAnalyticsByCustomDateRange,
   filterAnalyticsByTimeRange,
 } from './dashboard-utils';
 
@@ -159,4 +161,106 @@ test('derives recent changes only from existing campaign timestamps', () => {
     ['cmp1', 'cmp2']
   );
   assert.ok(lastWeekChanges.every((change) => change.description === 'Campaign updated'));
+});
+
+test('filters analytics by custom date range inclusively', () => {
+  const customFiltered = filterAnalyticsByCustomDateRange(snapshots, '2026-06-27', '2026-07-03');
+  assert.deepEqual(
+    customFiltered.map((s) => s.date),
+    ['2026-06-27', '2026-07-03']
+  );
+});
+
+test('returns empty array when no snapshots match custom range', () => {
+  const customFiltered = filterAnalyticsByCustomDateRange(snapshots, '2026-05-01', '2026-05-05');
+  assert.deepEqual(customFiltered, []);
+});
+
+test('handles reversed custom date range by swapping dates', () => {
+  const customFiltered = filterAnalyticsByCustomDateRange(snapshots, '2026-07-03', '2026-06-27');
+  assert.deepEqual(
+    customFiltered.map((s) => s.date),
+    ['2026-06-27', '2026-07-03']
+  );
+});
+
+test('handles single-day custom range', () => {
+  const customFiltered = filterAnalyticsByCustomDateRange(snapshots, '2026-07-03', '2026-07-03');
+  assert.equal(customFiltered.length, 1);
+  assert.equal(customFiltered[0].date, '2026-07-03');
+});
+
+test('derives daily chart points with roas, cpm, ctr fields', () => {
+  const filtered = filterAnalyticsByTimeRange(snapshots, 'last-7-days', today);
+  const points = deriveDashboardChartPoints(filtered);
+
+  assert.ok(points.length > 0);
+  for (const point of points) {
+    assert.ok(typeof point.date === 'string');
+    assert.ok(typeof point.label === 'string');
+    assert.ok(typeof point.revenue === 'number');
+    assert.ok(typeof point.spend === 'number');
+    assert.ok(typeof point.impressions === 'number');
+    assert.ok(typeof point.clicks === 'number');
+    assert.ok(typeof point.roas === 'number');
+    assert.ok(typeof point.cpm === 'number');
+    assert.ok(typeof point.ctr === 'number');
+  }
+});
+
+test('computes roas as revenue/spend when spend > 0, else 0', () => {
+  const points = deriveDashboardChartPoints(snapshots);
+  const pointWithSpend = points.find((p) => p.spend > 0);
+  if (pointWithSpend) {
+    const expected = pointWithSpend.revenue / pointWithSpend.spend;
+    assert.ok(Math.abs(pointWithSpend.roas - expected) < 0.001);
+  }
+  const zeroSpendPoints = points.filter((p) => p.spend === 0);
+  for (const p of zeroSpendPoints) {
+    assert.equal(p.roas, 0);
+  }
+});
+
+test('computes cpm as (spend/impressions)*1000 when impressions > 0, else 0', () => {
+  const points = deriveDashboardChartPoints(snapshots);
+  const pointWithImpressions = points.find((p) => p.impressions > 0);
+  if (pointWithImpressions) {
+    const expected = (pointWithImpressions.spend / pointWithImpressions.impressions) * 1000;
+    assert.ok(Math.abs(pointWithImpressions.cpm - expected) < 0.001);
+  }
+  const zeroImpPoints = points.filter((p) => p.impressions === 0);
+  for (const p of zeroImpPoints) {
+    assert.equal(p.cpm, 0);
+  }
+});
+
+test('computes ctr as (clicks/impressions)*100 when impressions > 0, else 0', () => {
+  const points = deriveDashboardChartPoints(snapshots);
+  const pointWithImpressions = points.find((p) => p.impressions > 0);
+  if (pointWithImpressions) {
+    const expected = (pointWithImpressions.clicks / pointWithImpressions.impressions) * 100;
+    assert.ok(Math.abs(pointWithImpressions.ctr - expected) < 0.001);
+  }
+  const zeroImpPoints = points.filter((p) => p.impressions === 0);
+  for (const p of zeroImpPoints) {
+    assert.equal(p.ctr, 0);
+  }
+});
+
+test('handles empty snapshots array for chart points', () => {
+  const points = deriveDashboardChartPoints([]);
+  assert.deepEqual(points, []);
+});
+
+test('aggregates same-date snapshots before deriving chart points', () => {
+  const dupSnapshots: AnalyticsSnapshot[] = [
+    { date: '2026-07-03', platform: 'meta', campaignId: 'a', campaignName: 'A', spend: 50, impressions: 500, clicks: 25, revenue: 150 },
+    { date: '2026-07-03', platform: 'google', campaignId: 'b', campaignName: 'B', spend: 50, impressions: 500, clicks: 25, revenue: 150 },
+  ];
+  const points = deriveDashboardChartPoints(dupSnapshots);
+  assert.equal(points.length, 1);
+  assert.equal(points[0].spend, 100);
+  assert.equal(points[0].revenue, 300);
+  assert.equal(points[0].impressions, 1000);
+  assert.equal(points[0].clicks, 50);
 });

@@ -8,23 +8,24 @@ import { DashboardInsightDrawer } from '@/components/dashboard/DashboardInsightD
 import { DashboardInsightList } from '@/components/dashboard/DashboardInsightList';
 import { DashboardMetricGrid } from '@/components/dashboard/DashboardMetricGrid';
 import { DashboardTimeRangeSelector } from '@/components/dashboard/DashboardTimeRangeSelector';
-import { DashboardTrendSection } from '@/components/dashboard/DashboardTrendSection';
+import { DashboardChartGrid } from '@/components/dashboard/DashboardChartGrid';
 import { RecentChangesList } from '@/components/dashboard/RecentChangesList';
 import type { DashboardInsight, DashboardTimeRangeId } from '@/components/dashboard/dashboard-types';
 import {
   DEFAULT_DASHBOARD_TIME_RANGE,
+  deriveDashboardChartPoints,
   deriveDashboardInsights,
   deriveDashboardMetrics,
   deriveDashboardSummary,
-  derivePerformanceTrendPoints,
   deriveRecentChanges,
+  filterAnalyticsByCustomDateRange,
   filterAnalyticsByTimeRange,
-  getDashboardTimeRange,
 } from '@/components/dashboard/dashboard-utils';
 import type { AggregatedMetrics, AnalyticsSnapshot, Campaign } from '@/types/advertising';
 
 export default function Dashboard() {
   const [selectedRange, setSelectedRange] = useState<DashboardTimeRangeId>(DEFAULT_DASHBOARD_TIME_RANGE);
+  const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date }>({});
   const [dismissedInsightIds, setDismissedInsightIds] = useState<Set<string>>(() => new Set());
   const [reviewInsight, setReviewInsight] = useState<DashboardInsight | null>(null);
 
@@ -41,13 +42,18 @@ export default function Dashboard() {
     queryFn: () => adClient.campaigns.list(),
   });
 
-  const selectedRangeMeta = getDashboardTimeRange(selectedRange);
-  const filteredSnapshots = useMemo(
-    () => filterAnalyticsByTimeRange(timeSeriesQuery.data ?? [], selectedRange),
-    [timeSeriesQuery.data, selectedRange]
-  );
+  const filteredSnapshots = useMemo(() => {
+    if (selectedRange === 'custom' && customRange.from && customRange.to) {
+      return filterAnalyticsByCustomDateRange(
+        timeSeriesQuery.data ?? [],
+        customRange.from.toISOString().slice(0, 10),
+        customRange.to.toISOString().slice(0, 10)
+      );
+    }
+    return filterAnalyticsByTimeRange(timeSeriesQuery.data ?? [], selectedRange);
+  }, [timeSeriesQuery.data, selectedRange, customRange]);
   const metrics = useMemo(() => deriveDashboardMetrics(filteredSnapshots), [filteredSnapshots]);
-  const trendPoints = useMemo(() => derivePerformanceTrendPoints(filteredSnapshots), [filteredSnapshots]);
+  const chartPoints = useMemo(() => deriveDashboardChartPoints(filteredSnapshots), [filteredSnapshots]);
   const summary = useMemo(() => deriveDashboardSummary(metrics), [metrics]);
   const insights = useMemo(
     () => deriveDashboardInsights(filteredSnapshots, campaignsQuery.data ?? []),
@@ -76,7 +82,12 @@ export default function Dashboard() {
       <div className="mx-auto max-w-7xl space-y-8">
         <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
           <h1 className="text-3xl font-bold text-stone-900">Dashboard</h1>
-          <DashboardTimeRangeSelector value={selectedRange} onChange={setSelectedRange} />
+          <DashboardTimeRangeSelector
+            value={selectedRange}
+            onChange={setSelectedRange}
+            customRange={customRange}
+            onCustomRangeChange={setCustomRange}
+          />
         </div>
 
         <DashboardMetricGrid
@@ -85,9 +96,8 @@ export default function Dashboard() {
           isError={isDashboardError}
         />
 
-        <DashboardTrendSection
-          points={trendPoints}
-          rangeLabel={selectedRangeMeta.label}
+        <DashboardChartGrid
+          chartPoints={chartPoints}
           isLoading={isAnalyticsLoading}
           isError={isDashboardError}
         />

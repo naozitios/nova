@@ -76,3 +76,15 @@ export interface RecentChangeItem {
   timestamp: string;
   href?: string;
 }
+
+export interface DashboardChartPoint {
+  date: string;
+  label: string;
+  revenue: number;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  roas: number;
+  cpm: number;
+  ctr: number;
+}
