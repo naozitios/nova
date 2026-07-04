@@ -130,7 +130,7 @@ export function DashboardTimeRangeSelector({
           ) : null}
         </div>
         {calendarOpen ? (
-          <div className="z-50 mt-2 w-max rounded-3xl border border-stone-200 bg-white p-4 shadow-md">
+          <div className="absolute right-0 top-full z-50 mt-2 w-max rounded-3xl border border-stone-200 bg-white p-4 shadow-md">
             <div className="mb-3 flex items-center justify-between gap-4">
               <span className="text-sm font-medium text-stone-700">Select date range</span>
               <div className="flex items-center gap-3">
