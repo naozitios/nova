@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { campaignStore, ensureSeeded, CampaignConfig, CampaignVersion, ExecutionPlan, DriftReport } from '@/lib/campaign-engine';
+import type { CampaignEntry } from '@/core/campaign/repository.port';
 import { CampaignFormInput, configToFormInput } from '@/lib/campaign-engine/generator';
 import { Platform } from '@/types/advertising';
 
@@ -180,34 +181,45 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('overview');
-  const [entry, setEntry] = useState(() => {
-    ensureSeeded();
-    return campaignStore.get(id);
-  });
+  const [entry, setEntry] = useState<CampaignEntry | undefined>(undefined);
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState<CampaignFormInput | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [plan, setPlan] = useState<ExecutionPlan | null>(null);
   const [drift, setDrift] = useState<DriftReport | null>(null);
+  const [versions, setVersions] = useState<CampaignVersion[]>([]);
 
   useEffect(() => {
-    if (!entry) return;
-    setForm(configToFormInput(entry.config));
-    setPlan(campaignStore.getExecutionPlan(id));
+    const load = async () => {
+      await ensureSeeded();
+      const e = await campaignStore.get(id);
+      setEntry(e);
+      if (e) {
+        setForm(configToFormInput(e.config));
+        const [executionPlan, versionHistory] = await Promise.all([
+          campaignStore.getExecutionPlan(id),
+          campaignStore.getVersionHistory(id),
+        ]);
+        setPlan(executionPlan);
+        setVersions(versionHistory);
 
-    const storedUser = localStorage.getItem('user');
-    const simulatedPlatformState: Partial<CampaignConfig> | null = storedUser ? {
-      name: entry.config.name,
-      totalBudget: entry.config.totalBudget,
-      startDate: entry.config.startDate,
-      endDate: entry.config.endDate,
-      objective: entry.config.objective,
-    } : null;
-    if (simulatedPlatformState) {
-      setDrift(campaignStore.checkDrift(id, simulatedPlatformState));
-    }
-  }, [entry, id]);
+        const storedUser = localStorage.getItem('user');
+        const simulatedPlatformState: Partial<CampaignConfig> | null = storedUser ? {
+          name: e.config.name,
+          totalBudget: e.config.totalBudget,
+          startDate: e.config.startDate,
+          endDate: e.config.endDate,
+          objective: e.config.objective,
+        } : null;
+        if (simulatedPlatformState) {
+          const driftReport = await campaignStore.checkDrift(id, simulatedPlatformState);
+          setDrift(driftReport);
+        }
+      }
+    };
+    load();
+  }, [id]);
 
   if (!entry || !form) {
     return (
@@ -225,7 +237,6 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   }
 
   const config = entry.config;
-  const versions = campaignStore.getVersionHistory(id);
   const adSet = config.adSets[0];
 
   const update = (key: string, val: string | string[]) => setForm(f => f ? { ...f, [key]: val } : f);
@@ -244,13 +255,19 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     try {
       const storedUser = localStorage.getItem('user');
       const userName = storedUser ? JSON.parse(storedUser).name : 'system';
-      const result = campaignStore.update(id, form, userName, 'Campaign updated via detail form');
+      const result = await campaignStore.update(id, form, userName, 'Campaign updated via detail form');
       if (result.errors.length > 0) {
         setSaveError(result.errors.join(', '));
       } else {
-        setEntry(campaignStore.get(id));
+        const updatedEntry = await campaignStore.get(id);
+        if (updatedEntry) {
+          setEntry(updatedEntry);
+          setForm(configToFormInput(updatedEntry.config));
+        }
         setIsEditing(false);
         if (result.plan) setPlan(result.plan);
+        const latestVersions = await campaignStore.getVersionHistory(id);
+        setVersions(latestVersions);
       }
     } catch {
       setSaveError('Failed to save campaign');
@@ -262,11 +279,19 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const handleRollback = async (versionNumber: number) => {
     const storedUser = localStorage.getItem('user');
     const userName = storedUser ? JSON.parse(storedUser).name : 'system';
-    const result = campaignStore.rollback(id, versionNumber, userName);
+    const result = await campaignStore.rollback(id, versionNumber, userName);
     if (!result.errors.length) {
-      setEntry(campaignStore.get(id));
-      setForm(configToFormInput(result.config!));
-      setPlan(campaignStore.getExecutionPlan(id));
+      const updatedEntry = await campaignStore.get(id);
+      if (updatedEntry) {
+        setEntry(updatedEntry);
+        setForm(configToFormInput(updatedEntry.config));
+      }
+      const [p, v] = await Promise.all([
+        campaignStore.getExecutionPlan(id),
+        campaignStore.getVersionHistory(id),
+      ]);
+      setPlan(p);
+      setVersions(v);
       setActiveTab('overview');
     }
   };

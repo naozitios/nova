@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Link2, Link2Off, Settings2, Clock } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { Link2, Link2Off, Settings2, Clock, CreditCard, Check, Zap } from 'lucide-react';
 import { adClient } from '@/api/adClient';
 import { AdAccount, BudgetRule } from '@/types/advertising';
 
@@ -31,8 +32,39 @@ function AccountCard({ account }: { account: AdAccount }) {
   );
 }
 
+const PLANS = [
+  {
+    id: 'free',
+    name: 'Free',
+    price: '$0',
+    features: ['Up to 5 campaigns', 'Basic analytics', 'Meta & Google integration'],
+    cta: 'Current plan',
+    ctaDisabled: true,
+    popular: false,
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: '$99',
+    period: '/mo',
+    features: ['Unlimited campaigns', 'Advanced analytics & AI insights', 'AI Campaign Assistant', 'Budget optimization rules', 'Priority support'],
+    cta: 'Upgrade',
+    popular: true,
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    price: 'Custom',
+    features: ['Everything in Pro', 'Custom integrations', 'Dedicated support', 'SLA guarantee', 'Custom reporting'],
+    cta: 'Contact sales',
+    popular: false,
+  },
+];
+
 export default function Settings() {
   const queryClient = useQueryClient();
+  const [billingLoading, setBillingLoading] = useState<string | null>(null);
+  const currentPlan: 'free' | 'pro' | 'enterprise' = 'free';
 
   const { data: accounts = [] } = useQuery<AdAccount[]>({
     queryKey: ['accounts'],
@@ -153,6 +185,99 @@ export default function Settings() {
                 <span className="text-stone-600">Budget rules run at 11:50 PM UTC</span>
               </div>
             </div>
+          </div>
+          </motion.section>
+
+        {/* Billing */}
+        <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-10">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center">
+              <CreditCard className="w-4 h-4 text-emerald-700" />
+            </div>
+            <h2 className="text-xl font-semibold text-stone-900">Billing & Plan</h2>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-4">
+            {PLANS.map((plan) => {
+              const isCurrent = plan.id === currentPlan;
+              const handleClick = async () => {
+                if (plan.id === 'free' || plan.id === 'enterprise') return;
+                setBillingLoading(plan.id);
+                try {
+                  const res = await fetch('/api/billing/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      priceId: plan.id === 'pro' ? '__stripe_pro_price_id__' : '',
+                      returnUrl: window.location.href,
+                    }),
+                  });
+                  const data = await res.json();
+                  if (data.url) window.location.href = data.url;
+                } finally {
+                  setBillingLoading(null);
+                }
+              };
+
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative rounded-2xl border-2 p-6 transition-all ${
+                    isCurrent
+                      ? 'border-emerald-400 bg-emerald-50/50'
+                      : plan.popular
+                        ? 'border-stone-900 bg-white shadow-md'
+                        : 'border-stone-200 bg-white'
+                  }`}
+                >
+                  {plan.popular && !isCurrent && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <Badge className="bg-stone-900 text-white px-3 py-0.5 text-xs font-medium">
+                        <Zap className="w-3 h-3 mr-1 inline" /> Popular
+                      </Badge>
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-stone-900">{plan.name}</h3>
+                    <div className="mt-2">
+                      <span className="text-3xl font-bold text-stone-900">{plan.price}</span>
+                      {plan.id === 'pro' && <span className="text-stone-500 text-sm ml-1">{plan.period}</span>}
+                    </div>
+                  </div>
+
+                  <ul className="space-y-2 mb-6">
+                    {plan.features.map((f) => (
+                      <li key={f} className="text-sm text-stone-600 flex items-start gap-2">
+                        <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Button
+                    onClick={handleClick}
+                    disabled={isCurrent || billingLoading === plan.id}
+                    className={`w-full rounded-full ${
+                      isCurrent
+                        ? 'bg-stone-100 text-stone-400 cursor-default'
+                        : plan.popular
+                          ? 'bg-stone-900 hover:bg-stone-800 text-white'
+                          : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                    }`}
+                    variant={isCurrent ? 'outline' : 'default'}
+                  >
+                    {billingLoading === plan.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : isCurrent ? (
+                      'Current plan'
+                    ) : (
+                      plan.cta
+                    )}
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         </motion.section>
       </div>

@@ -1,6 +1,10 @@
+/** Advertising domain types — accounts, campaigns, ad groups, creatives, media assets, analytics, and budget rules. */
+/** Supported advertising platforms. */
 export type Platform = 'meta' | 'google';
+/** Possible lifecycle statuses for a campaign. */
 export type CampaignStatus = 'active' | 'paused' | 'completed' | 'draft' | 'failed';
 
+/** An ad account connected to Nova from a platform (Meta, Google). */
 export interface AdAccount {
   id: string;
   platform: Platform;
@@ -11,6 +15,7 @@ export interface AdAccount {
   timezone: string;
 }
 
+/** An advertising campaign with its ad groups, budget, schedule, and platform details. */
 export interface Campaign {
   id: string;
   name: string;
@@ -25,6 +30,7 @@ export interface Campaign {
   updatedAt: string;
 }
 
+/** A logical grouping of ads within a campaign, containing targeting and creatives. */
 export interface AdGroup {
   id: string;
   name: string;
@@ -38,6 +44,7 @@ export interface AdGroup {
   creatives: Creative[];
 }
 
+/** An individual ad creative with headline, body, media, and moderation status. */
 export interface Creative {
   id: string;
   name: string;
@@ -51,6 +58,7 @@ export interface Creative {
   rejectionReason?: string;
 }
 
+/** A media file (image/video) uploaded for use in ad creatives. */
 export interface MediaAsset {
   id: string;
   name: string;
@@ -63,6 +71,7 @@ export interface MediaAsset {
   validationMessage?: string;
 }
 
+/** A daily analytics data point for a single campaign on a platform. */
 export interface AnalyticsSnapshot {
   date: string;
   platform: Platform;
@@ -74,6 +83,7 @@ export interface AnalyticsSnapshot {
   revenue: number;
 }
 
+/** Aggregated metrics across all campaigns with blended CTR/ROAS and per-platform breakdowns. */
 export interface AggregatedMetrics {
   totalSpend: number;
   totalImpressions: number;
@@ -87,6 +97,7 @@ export interface AggregatedMetrics {
   };
 }
 
+/** A cross-platform budget rebalancing rule with ROAS threshold and shift percentage. */
 export interface BudgetRule {
   id: string;
   name: string;

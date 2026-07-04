@@ -52,10 +52,10 @@ export default function NewCampaign() {
     const res = await adClient.publishCampaign(form);
     setResults(res);
 
-    ensureSeeded();
+    await ensureSeeded();
     const storedUser = localStorage.getItem('user');
     const userName = storedUser ? JSON.parse(storedUser).name : 'system';
-    campaignStore.create(form, userName);
+    await campaignStore.create(form, userName);
 
     setPublishing(false);
     if (res.meta.success && res.google.success) {

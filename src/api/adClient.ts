@@ -1,3 +1,4 @@
+/** Mock API client providing simulated ad account, campaign, analytics, asset, and rule data for development. */
 import { AdAccount, Campaign, MediaAsset, AnalyticsSnapshot, BudgetRule, AggregatedMetrics, Platform } from '@/types/advertising';
 
 const now = new Date();
