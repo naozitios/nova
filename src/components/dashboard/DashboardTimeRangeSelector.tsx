@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import { format } from 'date-fns';
 import type { DashboardTimeRangeId } from './dashboard-types';
 import { DASHBOARD_TIME_RANGES } from './dashboard-utils';
 import {
@@ -18,13 +17,6 @@ interface DashboardTimeRangeSelectorProps {
   onChange: (value: DashboardTimeRangeId) => void;
   customRange?: { from?: Date; to?: Date };
   onCustomRangeChange?: (range: { from?: Date; to?: Date }) => void;
-}
-
-function formatCustomRangeLabel(range: { from?: Date; to?: Date }): string {
-  if (!range.from) return 'Custom';
-  const fromStr = format(range.from, 'MMM d');
-  if (!range.to) return `Custom: ${fromStr}`;
-  return `Custom: ${fromStr} – ${format(range.to, 'MMM d')}`;
 }
 
 export function DashboardTimeRangeSelector({
@@ -93,11 +85,6 @@ export function DashboardTimeRangeSelector({
     setCalendarOpen(false);
   };
 
-  const triggerLabel =
-    value === 'custom' && customRange?.from
-      ? formatCustomRangeLabel(customRange)
-      : undefined;
-
   return (
     <div className="flex flex-col gap-2 sm:items-end">
       <div className="relative flex flex-col gap-2 sm:items-end">
@@ -107,9 +94,7 @@ export function DashboardTimeRangeSelector({
         <div className="flex items-center gap-2">
           <Select value={value} onValueChange={handleSelectChange}>
             <SelectTrigger className="h-10 min-w-[180px] rounded-full border-stone-200 bg-white px-4 text-stone-700 shadow-sm">
-              <SelectValue placeholder="Select time range">
-                {triggerLabel}
-              </SelectValue>
+              <SelectValue placeholder="Select time range" />
             </SelectTrigger>
             <SelectContent align="end" className="rounded-xl border-stone-100 bg-white">
               {DASHBOARD_TIME_RANGES.map((range) => (
