@@ -31,8 +31,8 @@ export default function Campaigns() {
     queryKey: ['campaigns'],
     queryFn: async () => {
       const mock = await adClient.campaigns.list();
-      ensureSeeded();
-      const stored = campaignStore.list();
+      await ensureSeeded();
+      const stored = await campaignStore.list();
       const storedCamps: Campaign[] = stored.map(e => ({
         id: e.id,
         name: e.config.name,

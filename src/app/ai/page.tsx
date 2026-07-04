@@ -6,9 +6,7 @@ import { Send, Bot, Sparkles, Check, Loader2, AlertCircle, GitCompare, Pencil } 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { processPrompt, applyAction, applyAllActions } from '@/lib/ai';
 import type { AIResponse, AIActionItem, ChangePreview } from '@/lib/ai';
-import { ensureSeeded } from '@/lib/campaign-engine';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -123,10 +121,6 @@ export default function AIPage() {
   const chatEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    ensureSeeded();
-  }, []);
-
-  useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
@@ -151,7 +145,13 @@ export default function AIPage() {
     setProcessing(true);
 
     try {
-      const response = await processPrompt(userMsg.content);
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: userMsg.content }),
+      });
+      if (!res.ok) throw new Error('API error');
+      const response: AIResponse = await res.json();
       const assistantMsg: ChatMessage = {
         role: 'assistant',
         content: response.message,
@@ -169,7 +169,13 @@ export default function AIPage() {
   const handleApply = async (rawAction: AIActionItem, msgIndex: number) => {
     const action = applyEditsToAction(rawAction, edits[rawAction.id]);
     setApplying(action.id);
-    const result = applyAction(action);
+    const res = await fetch('/api/ai/actions/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actions: [action] }),
+    });
+    const data = await res.json();
+    const result = data.results?.[0] || { success: false, message: 'Failed to apply action' };
     setApplying(null);
 
     setMessages(prev => {
@@ -200,7 +206,13 @@ export default function AIPage() {
     if (unapplied.length === 0) return;
 
     setCommitting(msgIndex);
-    const results = applyAllActions(unapplied);
+    const res = await fetch('/api/ai/actions/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actions: unapplied }),
+    });
+    const data = await res.json();
+    const results: Array<{ id: string; success: boolean; message: string }> = data.results || [];
     setCommitting(null);
 
     setMessages(prev => {
