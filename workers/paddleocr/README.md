@@ -95,3 +95,32 @@ The worker satisfies the contract tested in `tests/test_contract.py`:
 - Default: CPU mode (`PADDLEOCR_WORKER_MODE=cpu`)
 - VL model optional (`PADDLEOCR_VL_ENABLED=true`)
 - Temp files auto-cleaned after each job
+
+## Third-Party Attribution
+
+This worker uses [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), an
+open-source OCR engine developed by PaddlePaddle.
+
+**PaddleOCR** is licensed under the
+[Apache License 2.0](https://github.com/PaddlePaddle/PaddleOCR/blob/develop/LICENSE).
+
+```
+Copyright 2020 PaddlePaddle Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+**Model weights**: PaddleOCR pre-trained models (including PP-StructureV3) are
+distributed under the Apache 2.0 license. See the
+[PaddleOCR model licenses](https://github.com/PaddlePaddle/PaddleOCR/blob/develop/LICENSE)
+for details. Models are downloaded on first use and cached locally.

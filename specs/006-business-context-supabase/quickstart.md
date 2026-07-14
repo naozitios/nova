@@ -136,8 +136,14 @@ The commands above migrate schema only. **Production data, auth users, Storage f
 
 ```bash
 npm run lint
-npm run test
+npm run test            # vitest run
+npm run test:watch      # vitest watch
+npm run test:coverage   # vitest run --coverage
 npm run build
+npm run supabase:start  # npx supabase start
+npm run supabase:stop   # npx supabase stop
+npm run supabase:reset  # npx supabase db reset
+npm run supabase:status # npx supabase status
 workers/paddleocr/.venv/bin/pytest workers/paddleocr/tests
 ```
 
