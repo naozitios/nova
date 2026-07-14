@@ -1,0 +1,787 @@
+openapi: 3.1.0
+info:
+  title: NOVA Business Context Backend API
+  version: 0.1.0
+  description: Backend contracts for PRD 006 Business Context onboarding, management, sources, and jobs.
+servers:
+  - url: http://localhost:3000
+security:
+  - cookieAuth: []
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: next-auth.session-token
+  parameters:
+    BusinessId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SourceId:
+      name: sourceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ConflictId:
+      name: conflictId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    VersionId:
+      name: versionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    JobId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+    Business:
+      type: object
+      required: [id, workspace_id, name, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        website_url:
+          type: string
+          format: uri
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    OnboardingSession:
+      type: object
+      required: [id, workspace_id, business_id, status, started_by, started_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        business_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [created, scanning, extracting, awaiting_review, awaiting_answers, ready_for_approval, approved, failed]
+        current_step:
+          type: string
+        started_by:
+          type: string
+          format: uuid
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        error:
+          type: object
+          additionalProperties: true
+    ContextSource:
+      type: object
+      required: [id, workspace_id, business_id, source_type, source_name, status, metadata, collected_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        business_id:
+          type: string
+          format: uuid
+        source_type:
+          type: string
+          enum: [website, brand_deck, brand_playbook, product_document, campaign_brief, research_document, user_answer, meta, system_inference]
+        source_name:
+          type: string
+        external_reference:
+          type: string
+        status:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        collected_at:
+          type: string
+          format: date-time
+    OnboardingQuestion:
+      type: object
+      required: [id, session_id, business_id, fact_key, question_type, question, reason, priority, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        business_id:
+          type: string
+          format: uuid
+        fact_key:
+          type: string
+        question_type:
+          type: string
+          enum: [single_choice, multiple_choice, number_currency, short_text, long_text, confirmation]
+        question:
+          type: string
+        options:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        reason:
+          type: string
+        priority:
+          type: integer
+        status:
+          type: string
+        answer:
+          type: object
+          additionalProperties: true
+    BusinessProfileVersion:
+      type: object
+      required: [id, business_id, version, profile, status, created_by, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        business_id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        profile:
+          type: object
+          additionalProperties: true
+        profile_markdown:
+          type: string
+        status:
+          type: string
+          enum: [draft, current, superseded, restored_snapshot]
+        change_summary:
+          type: string
+        created_by:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        approved_by:
+          type: string
+          format: uuid
+        approved_at:
+          type: string
+          format: date-time
+    ContextJob:
+      type: object
+      required: [id, workspace_id, business_id, job_type, status, attempt_count, idempotency_key, input, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        business_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        job_type:
+          type: string
+        status:
+          type: string
+          enum: [queued, scheduled, running, retry_waiting, succeeded, failed_retryable, failed_permanent, stalled, dead_lettered, cancelled]
+        attempt_count:
+          type: integer
+        max_attempts:
+          type: integer
+        idempotency_key:
+          type: string
+        stage:
+          type: string
+        input:
+          type: object
+          additionalProperties: true
+        output:
+          type: object
+          additionalProperties: true
+        error:
+          type: object
+          additionalProperties: true
+        error_class:
+          type: string
+        next_run_at:
+          type: string
+          format: date-time
+        heartbeat_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    QualityGateResult:
+      type: object
+      required: [id, gate_scope, gate_name, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        gate_scope:
+          type: string
+          enum: [document, fact]
+        gate_name:
+          type: string
+        status:
+          type: string
+          enum: [passed, warning, failed_blocking, failed_non_blocking]
+        measured_value:
+          type: object
+          additionalProperties: true
+        threshold:
+          type: object
+          additionalProperties: true
+        reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    ProcessingStageEvent:
+      type: object
+      required: [id, run_id, source_id, stage, status, attempt, started_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        run_id:
+          type: string
+          format: uuid
+        job_id:
+          type: string
+          format: uuid
+        source_id:
+          type: string
+          format: uuid
+        stage:
+          type: string
+          enum: [registered, queued, acquiring, stored, parsing, normalizing, extracting, reconciling, quality_checking, completed]
+        status:
+          type: string
+          enum: [started, succeeded, warned, failed_retryable, failed_permanent, skipped]
+        attempt:
+          type: integer
+        worker_id:
+          type: string
+        provider:
+          type: string
+        provider_request_id:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        duration_ms:
+          type: integer
+        pages_processed:
+          type: integer
+        slides_processed:
+          type: integer
+        bytes_processed:
+          type: integer
+        documents_created:
+          type: integer
+        facts_extracted:
+          type: integer
+        warnings_count:
+          type: integer
+        credits_consumed:
+          type: number
+        error_class:
+          type: string
+        error:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+    ProcessingRun:
+      type: object
+      required: [id, business_id, source_id, pipeline_type, status, current_stage, attempt_count, started_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        business_id:
+          type: string
+          format: uuid
+        source_id:
+          type: string
+          format: uuid
+        job_id:
+          type: string
+          format: uuid
+        pipeline_type:
+          type: string
+          enum: [website, upload, meta, manual]
+        status:
+          type: string
+          enum: [running, succeeded, succeeded_with_warnings, blocked, failed, dead_lettered, cancelled]
+        current_stage:
+          type: string
+          enum: [registered, queued, acquiring, stored, parsing, normalizing, extracting, reconciling, quality_checking, completed]
+        terminal_outcome:
+          type: string
+          enum: [processed, processed_with_warnings, blocked_needs_user_action, failed_permanent, archived]
+        attempt_count:
+          type: integer
+        pages_processed:
+          type: integer
+        slides_processed:
+          type: integer
+        documents_created:
+          type: integer
+        facts_extracted:
+          type: integer
+        warnings_count:
+          type: integer
+        credits_consumed:
+          type: number
+        quality_summary:
+          type: object
+          additionalProperties: true
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        stage_events:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessingStageEvent'
+        quality_gates:
+          type: array
+          items:
+            $ref: '#/components/schemas/QualityGateResult'
+paths:
+  /api/businesses:
+    post:
+      summary: Create business
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workspace_id, name, primary_market, primary_advertising_objective, primary_business_outcome, approximate_monthly_meta_budget, initial_sources]
+              properties:
+                workspace_id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                website_url:
+                  type: string
+                  format: uri
+                primary_market:
+                  type: string
+                primary_advertising_objective:
+                  type: string
+                primary_business_outcome:
+                  type: string
+                approximate_monthly_meta_budget:
+                  type: number
+                initial_sources:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    additionalProperties: true
+      responses:
+        '201':
+          description: Business created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Business'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/businesses/{id}/onboarding:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Create onboarding session
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Onboarding session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingSession'
+    get:
+      summary: Get onboarding session state
+      responses:
+        '200':
+          description: Current onboarding session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingSession'
+  /api/businesses/{id}/onboarding/scan:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Queue processing for selected sources
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Jobs queued
+  /api/businesses/{id}/onboarding/questions:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    get:
+      summary: Get unresolved onboarding questions
+      responses:
+        '200':
+          description: Open questions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [questions]
+                properties:
+                  questions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OnboardingQuestion'
+  /api/businesses/{id}/onboarding/answers:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Submit onboarding answers
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Answers accepted and verified facts created
+  /api/businesses/{id}/onboarding/compile:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Compile draft profile
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Draft profile compiled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessProfileVersion'
+  /api/businesses/{id}/onboarding/approve:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Approve Business Context v1
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Current profile published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessProfileVersion'
+  /api/businesses/{id}/context:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    get:
+      summary: Get current profile
+      responses:
+        '200':
+          description: Current Business Context profile
+  /api/businesses/{id}/context/facts:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    patch:
+      summary: Add corrections or updates as verified facts
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Facts created
+  /api/businesses/{id}/context/conflicts:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    get:
+      summary: List unresolved conflicts
+      responses:
+        '200':
+          description: Conflict list
+  /api/businesses/{id}/context/conflicts/{conflictId}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - $ref: '#/components/parameters/ConflictId'
+    post:
+      summary: Resolve conflict
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Conflict resolved
+  /api/businesses/{id}/context/draft:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Compile next draft
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Draft created
+  /api/businesses/{id}/context/diff:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    get:
+      summary: Compare draft with current
+      responses:
+        '200':
+          description: Field-level diff
+  /api/businesses/{id}/context/approve:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Publish draft version
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Current profile published
+  /api/businesses/{id}/context/versions:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    get:
+      summary: List version history
+      responses:
+        '200':
+          description: Version list
+  /api/businesses/{id}/context/versions/{versionId}/restore:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - $ref: '#/components/parameters/VersionId'
+    post:
+      summary: Restore version as a new version
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Restored snapshot published
+  /api/businesses/{id}/context/compile:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Compile task-specific context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purpose]
+              properties:
+                purpose:
+                  type: string
+                  enum: [campaign_setup, performance_analysis, optimization, hypothesis_generation, creative_brief, tracking_audit]
+      responses:
+        '200':
+          description: Purpose-scoped context
+  /api/businesses/{id}/context/sources:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Register a website, upload, Meta, or manual source
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Source registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextSource'
+    get:
+      summary: List sources and processing state
+      responses:
+        '200':
+          description: Source list
+  /api/businesses/{id}/context/sources/{sourceId}:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - $ref: '#/components/parameters/SourceId'
+    get:
+      summary: Inspect source metadata and extracted evidence
+      responses:
+        '200':
+          description: Source detail
+  /api/businesses/{id}/context/sources/{sourceId}/process:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - $ref: '#/components/parameters/SourceId'
+    post:
+      summary: Queue idempotent parsing and extraction
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Processing job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextJob'
+  /api/businesses/{id}/context/sources/{sourceId}/archive:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - $ref: '#/components/parameters/SourceId'
+    post:
+      summary: Archive source without erasing evidence history
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Source archived
+  /api/businesses/{id}/context/processing-runs:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    get:
+      summary: List source processing runs with aggregate visibility
+      parameters:
+        - name: sourceId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Processing runs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runs]
+                properties:
+                  runs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProcessingRun'
+  /api/businesses/{id}/context/processing-runs/{runId}:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Inspect processing run stage events and quality gate results
+      responses:
+        '200':
+          description: Processing run detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingRun'
+  /api/businesses/{id}/context/reconcile:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Re-run gap and conflict resolution across active sources
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Reconciliation queued or completed
+  /api/context-jobs/{id}:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      summary: Poll job status
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextJob'
+  /api/context-jobs/{id}/retry:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    post:
+      summary: Retry eligible failed job
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Retry queued

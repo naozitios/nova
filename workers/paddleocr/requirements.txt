@@ -1,0 +1,6 @@
+# PaddleOCR worker dependencies (T078)
+# Pin exact versions for reproducible builds.
+
+paddlepaddle==2.6.1
+paddleocr==2.7.0.3
+supabase==2.6.0

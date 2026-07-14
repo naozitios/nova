@@ -48,6 +48,9 @@ next-env.d.ts
 # OpenCode CLI agent commands + any env-specific config
 .opencode/
 
+# project agent instructions (env-specific)
+AGENTS.md
+
 # Brainstorming scratch (NOT a design contract)
 docs/superpowers/specs/
 
