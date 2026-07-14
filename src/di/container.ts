@@ -20,7 +20,7 @@ import type { BillingStorePort } from '@/core/billing/billing.port';
 import type { RepositoryPort } from '@/core/business-context/repository.port';
 import { SupabaseRepository } from '@/infrastructure/business-context/supabase.repository';
 import { ProcessingVisibilityWriter } from '@/infrastructure/business-context/processing-visibility';
-import { CircuitBreakerAdapter } from '@/infrastructure/business-context/circuit-breaker';
+import { CircuitBreakerAdapter } from '@/infrastructure/business-context/breaker';
 
 export class Container {
   private static _campaignRepo: CampaignRepositoryPort = new InMemoryCampaignRepository();

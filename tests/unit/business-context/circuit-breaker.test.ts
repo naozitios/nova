@@ -3,7 +3,7 @@ import {
   CircuitBreakerAdapter,
   DEFAULT_BREAKER_CONFIG,
   type BreakerSnapshot,
-} from "@/infrastructure/business-context/circuit-breaker";
+} from "@/infrastructure/business-context/breaker";
 
 class FakeQuery {
   private filters: Array<[string, unknown]> = [];
