@@ -38,15 +38,16 @@ export function normalizeFactKey(key: string): string {
 // ─── Deduplication ──────────────────────────────────────────────────────────
 
 export function deduplicateFacts(facts: ExtractedFact[]): ExtractedFact[] {
-  const byKey = new Map<string, ExtractedFact>()
+  const byKeyAndValue = new Map<string, ExtractedFact>()
   for (const fact of facts) {
     const norm = normalizeFactKey(fact.factKey)
-    const existing = byKey.get(norm)
+    const composite = `${norm}::${JSON.stringify(fact.value)}`
+    const existing = byKeyAndValue.get(composite)
     if (!existing || fact.confidence > existing.confidence) {
-      byKey.set(norm, fact)
+      byKeyAndValue.set(composite, fact)
     }
   }
-  return Array.from(byKey.values())
+  return Array.from(byKeyAndValue.values())
 }
 
 // ─── Material equality check ────────────────────────────────────────────────

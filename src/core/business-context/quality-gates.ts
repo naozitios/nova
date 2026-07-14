@@ -277,31 +277,38 @@ export function checkSourceMetadata(input: FactQualityInput): GateResult {
   const hasExcerpt = input.sourceExcerpt !== null && input.sourceExcerpt.length > 0
   const hasEvidence = input.evidenceLocator !== null
 
-  const ok = hasSource && hasExcerpt && hasEvidence
-
-  if (ok) {
+  if (!hasSource || !hasExcerpt) {
+    const missing: string[] = []
+    if (!hasSource) missing.push('sourceId')
+    if (!hasExcerpt) missing.push('sourceExcerpt')
     return {
       gateScope: 'fact',
       gateName: 'source_metadata',
-      status: 'passed',
-      measuredValue: { sourceId: true, excerpt: true, evidence: true },
+      status: 'failed_blocking',
+      measuredValue: { sourceId: hasSource, excerpt: hasExcerpt, evidence: hasEvidence },
       threshold: 'all present',
-      reason: null,
+      reason: `Missing source metadata: ${missing.join(', ')}`,
     }
   }
 
-  const missing: string[] = []
-  if (!hasSource) missing.push('sourceId')
-  if (!hasExcerpt) missing.push('sourceExcerpt')
-  if (!hasEvidence) missing.push('evidenceLocator')
+  if (!hasEvidence) {
+    return {
+      gateScope: 'fact',
+      gateName: 'source_metadata',
+      status: 'warning',
+      measuredValue: { sourceId: true, excerpt: true, evidence: false },
+      threshold: 'all present',
+      reason: 'Evidence locator missing — fact passed but downstream traceability weakened',
+    }
+  }
 
   return {
     gateScope: 'fact',
     gateName: 'source_metadata',
-    status: 'failed_blocking',
-    measuredValue: { sourceId: hasSource, excerpt: hasExcerpt, evidence: hasEvidence },
+    status: 'passed',
+    measuredValue: { sourceId: true, excerpt: true, evidence: true },
     threshold: 'all present',
-    reason: `Missing source metadata: ${missing.join(', ')}`,
+    reason: null,
   }
 }
 
@@ -377,8 +384,8 @@ export function hasWarnings(results: GateResult[]): boolean {
 
 export function overallGateStatus(
   results: GateResult[],
-): 'passed' | 'passed_with_warnings' | 'failed' {
-  if (hasBlockingFailures(results)) return 'failed'
+): 'passed' | 'passed_with_warnings' | 'failed_blocking' {
+  if (hasBlockingFailures(results)) return 'failed_blocking'
   if (hasWarnings(results)) return 'passed_with_warnings'
   return 'passed'
 }

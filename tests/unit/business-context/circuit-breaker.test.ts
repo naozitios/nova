@@ -5,38 +5,100 @@ import {
   type BreakerSnapshot,
 } from "@/infrastructure/business-context/circuit-breaker";
 
+class FakeQuery {
+  private filters: Array<[string, unknown]> = [];
+
+  constructor(
+    private db: FakeDb,
+    private table: string,
+    private patch: Record<string, unknown> | null = null,
+    private preloaded: Record<string, unknown> | null = null,
+  ) {}
+
+  eq(col: string, val: unknown): this {
+    this.filters.push([col, val]);
+    return this;
+  }
+
+  is(col: string, val: unknown): this {
+    this.filters.push([col, val]);
+    return this;
+  }
+
+  select(): this {
+    return this;
+  }
+
+  async single(): Promise<{ data: Record<string, unknown> | null; error: { code: string; message: string } | null }> {
+    if (this.preloaded) return { data: this.preloaded, error: null };
+    if (this.patch) {
+      const r = this.db._findAndUpdate(this.table, this.filters, this.patch);
+      if (!r) return { data: null, error: { code: "PGRST116", message: "not found" } };
+      return { data: r, error: null };
+    }
+    const r = this.db._find(this.table, this.filters);
+    if (!r) return { data: null, error: { code: "PGRST116", message: "not found" } };
+    return { data: r, error: null };
+  }
+
+  async maybeSingle(): Promise<{ data: Record<string, unknown> | null; error: null }> {
+    if (this.preloaded) return { data: this.preloaded, error: null };
+    const r = this.db._find(this.table, this.filters);
+    return { data: r, error: null };
+  }
+}
+
 class FakeDb {
   rows: Map<string, Record<string, unknown>> = new Map();
 
   from(table: string) {
+    const db = this;
     return {
-      select: () => ({
-        eq: (_col: string, val: string) => ({
-          maybeSingle: async () => {
-            const key = `${table}:${val}`;
-            return { data: this.rows.get(key) ?? null, error: null };
-          },
-          single: async () => {
-            const key = `${table}:${val}`;
-            const row = this.rows.get(key);
-            return { data: row ?? null, error: row ? null : { message: "not found" } };
-          },
-        }),
-      }),
+      select: () => new FakeQuery(db, table),
       upsert: (row: Record<string, unknown>) => {
         const key = `${table}:${row.id ?? row.provider ?? ""}`;
-        this.rows.set(key, row);
-        return { error: null };
+        db.rows.set(key, row);
+        return new FakeQuery(db, table, null, row);
       },
-      update: (patch: Record<string, unknown>) => ({
-        eq: async (_col: string, val: string) => {
-          const key = `${table}:${val}`;
-          const existing = this.rows.get(key);
-          if (existing) this.rows.set(key, { ...existing, ...patch });
-          return { error: null };
-        },
-      }),
+      update: (patch: Record<string, unknown>) => new FakeQuery(db, table, patch),
     };
+  }
+
+  _find(table: string, filters: Array<[string, unknown]>): Record<string, unknown> | null {
+    for (const [key, row] of this.rows.entries()) {
+      if (!key.startsWith(`${table}:`)) continue;
+      const normalized = this._normalize(row);
+      if (filters.every(([c, v]) => (v === null ? normalized[c] == null : normalized[c] === v))) {
+        return normalized;
+      }
+    }
+    return null;
+  }
+
+  _findAndUpdate(
+    table: string,
+    filters: Array<[string, unknown]>,
+    patch: Record<string, unknown>,
+  ): Record<string, unknown> | null {
+    for (const [key, row] of this.rows.entries()) {
+      if (!key.startsWith(`${table}:`)) continue;
+      const normalized = this._normalize(row);
+      if (filters.every(([c, v]) => (v === null ? normalized[c] == null : normalized[c] === v))) {
+        const updated = { ...normalized, ...patch };
+        this.rows.set(key, updated);
+        return updated;
+      }
+    }
+    return null;
+  }
+
+  _normalize(row: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(row)) {
+      const snake = k.replace(/[A-Z]/g, (m) => "_" + m.toLowerCase());
+      out[snake] = v;
+    }
+    return out;
   }
 }
 

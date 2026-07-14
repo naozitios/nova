@@ -30,6 +30,10 @@ export const DEFAULT_BREAKER_CONFIG: CircuitBreakerConfig = {
   halfOpenAfterMs: 5 * 60 * 1000,
 }
 
+export type BreakerSnapshot = Omit<CircuitBreaker, 'metadata'> & {
+  failureWindowStartedAt: string
+}
+
 // ─── Adapter ────────────────────────────────────────────────────────────────
 
 export class CircuitBreakerAdapter {
@@ -44,25 +48,35 @@ export class CircuitBreakerAdapter {
   /**
    * Read current breaker state for a provider.
    * Creates a default closed breaker if none exists.
+   * Auto-transitions open → half_open when half_open_after has passed.
    */
   async getState(
     workspaceId: string | null,
     provider: string,
-  ): Promise<ServiceResult<CircuitBreaker>> {
+  ): Promise<CircuitBreaker> {
     const { data, error } = await this.readRaw(workspaceId, provider)
 
     if (error && error.code !== 'PGRST116') {
-      return { ok: false, error: { code: 'READ_FAILED', message: error.message } }
+      throw new Error(`READ_FAILED: ${error.message}`)
     }
 
     if (data) {
-      return { ok: true, data: this.mapBreaker(data) }
+      const breaker = this.mapBreaker(data)
+      if (
+        breaker.state === 'open' &&
+        breaker.halfOpenAfter &&
+        new Date() >= breaker.halfOpenAfter
+      ) {
+        const transitioned = await this.transitionToHalfOpen(workspaceId, provider)
+        if (transitioned.ok) return transitioned.data
+      }
+      return breaker
     }
 
     // Create default closed breaker
     const created = await this.createDefault(workspaceId, provider)
-    if (!created.ok) return created
-    return { ok: true, data: created.data }
+    if (!created.ok) throw new Error(`CREATE_FAILED: ${created.error.message}`)
+    return created.data
   }
 
   /**
@@ -71,13 +85,11 @@ export class CircuitBreakerAdapter {
   async recordFailure(
     workspaceId: string | null,
     provider: string,
-    isTimeout: boolean,
+    details: { isTimeout: boolean } | boolean,
   ): Promise<ServiceResult<CircuitBreaker>> {
-    const get = await this.getState(workspaceId, provider)
-    if (!get.ok) return get
-
-    const breaker = get.data
+    const breaker = await this.getState(workspaceId, provider)
     const now = new Date()
+    const isTimeout = typeof details === 'boolean' ? details : details.isTimeout
     const update: Record<string, unknown> = {
       failure_count: breaker.failureCount + 1,
       last_failure_at: now.toISOString(),
@@ -115,10 +127,7 @@ export class CircuitBreakerAdapter {
     workspaceId: string | null,
     provider: string,
   ): Promise<ServiceResult<CircuitBreaker>> {
-    const get = await this.getState(workspaceId, provider)
-    if (!get.ok) return get
-
-    const breaker = get.data
+    const breaker = await this.getState(workspaceId, provider)
     const now = new Date()
     const update: Record<string, unknown> = {
       success_count: breaker.successCount + 1,
@@ -177,9 +186,9 @@ export class CircuitBreakerAdapter {
   }
 
   /**
-   * Set quota_exhausted and immediately trip the breaker.
+   * Mark quota as exhausted and immediately trip the breaker.
    */
-  async setQuotaExhausted(
+  async markQuotaExhausted(
     workspaceId: string | null,
     provider: string,
   ): Promise<ServiceResult<CircuitBreaker>> {
@@ -229,6 +238,22 @@ export class CircuitBreakerAdapter {
   }
 
   // ─── Private helpers ─────────────────────────────────────────────────────
+
+  private async transitionToHalfOpen(
+    workspaceId: string | null,
+    provider: string,
+  ): Promise<ServiceResult<CircuitBreaker>> {
+    const { data, error } = await this.db
+      .from('context_provider_circuit_breakers')
+      .update({ state: 'half_open' })
+      .eq('provider', provider)
+      .eq('workspace_id', workspaceId)
+      .select()
+      .single()
+
+    if (error) return { ok: false, error: { code: 'UPDATE_FAILED', message: error.message } }
+    return { ok: true, data: this.mapBreaker(data) }
+  }
 
   private async readRaw(
     workspaceId: string | null,
