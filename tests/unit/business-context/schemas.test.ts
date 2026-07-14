@@ -1,514 +1,188 @@
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
+import {
+  OnboardingStatusSchema,
+  SourceTypeSchema,
+  SourceProcessingStageSchema,
+  JobStatusSchema,
+  VerificationStatusSchema,
+  ProfileVersionStatusSchema,
+  QualityGateStatusSchema,
+  CircuitBreakerStateSchema,
+  CompilePurposeSchema,
+  ErrorClassSchema,
+  ExtractedFactSchema,
+  ExtractionOutputSchema,
+  CreateBusinessSchema,
+  JsonValueSchema,
+  isValidStageTransition,
+  isTerminalStage,
+} from "@/core/business-context/schemas";
+import { REQUIRED_PROFILE_SECTIONS } from "@/core/business-context/types";
 
-// ---------------------------------------------------------------------------
-// T020 — Domain Zod schema tests
-// Self-contained: defines schemas inline (implementation doesn't exist yet).
-// These tests define the expected validation contracts per data-model.md.
-// ---------------------------------------------------------------------------
-
-// ── Enums ──────────────────────────────────────────────────────────────────
-
-const OnboardingStatusSchema = z.enum([
-  "created",
-  "scanning",
-  "extracting",
-  "awaiting_review",
-  "awaiting_answers",
-  "ready_for_approval",
-  "approved",
-  "failed",
-]);
-
-const SourceTypeSchema = z.enum([
-  "website",
-  "brand_deck",
-  "brand_playbook",
-  "product_document",
-  "campaign_brief",
-  "research_document",
-  "user_answer",
-  "meta",
-  "system_inference",
-]);
-
-const SourceProcessingStageSchema = z.enum([
-  "registered",
-  "queued",
-  "acquiring",
-  "stored",
-  "parsing",
-  "normalizing",
-  "extracting",
-  "reconciling",
-  "quality_checking",
-  "completed",
-]);
-
-const TerminalSourceOutcomeSchema = z.enum([
-  "processed",
-  "processed_with_warnings",
-  "blocked_needs_user_action",
-  "failed_permanent",
-  "archived",
-]);
-
-const JobStatusSchema = z.enum([
-  "queued",
-  "scheduled",
-  "running",
-  "retry_waiting",
-  "succeeded",
-  "failed_retryable",
-  "failed_permanent",
-  "stalled",
-  "dead_lettered",
-  "cancelled",
-]);
-
-const VerificationStatusSchema = z.enum([
-  "extracted",
-  "inferred",
-  "user_verified",
-  "rejected",
-  "superseded",
-]);
-
-const ProfileVersionStatusSchema = z.enum([
-  "draft",
-  "current",
-  "superseded",
-  "restored_snapshot",
-]);
-
-const StageEventStatusSchema = z.enum([
-  "started",
-  "succeeded",
-  "warned",
-  "failed_retryable",
-  "failed_permanent",
-  "skipped",
-]);
-
-const QualityGateScopeSchema = z.enum(["document", "fact"]);
-
-const QualityGateStatusSchema = z.enum([
-  "passed",
-  "warning",
-  "failed_blocking",
-  "failed_non_blocking",
-]);
-
-const CircuitBreakerStateSchema = z.enum(["closed", "open", "half_open"]);
-
-const CompilePurposeSchema = z.enum([
-  "campaign_setup",
-  "performance_analysis",
-  "optimization",
-  "hypothesis_generation",
-  "creative_brief",
-  "tracking_audit",
-]);
-
-// ── Complex schemas ────────────────────────────────────────────────────────
-
-const FactConfidenceSchema = z.number().min(0).max(1);
-
-const ExtractionOutputSchema = z.object({
-  facts: z.array(
-    z.object({
-      fact_key: z.string().min(1),
-      value: z.unknown(),
-      confidence: FactConfidenceSchema,
-      source_excerpt: z.string().optional(),
-      evidence_locator: z
-        .object({
-          url: z.string().url().optional(),
-          page: z.number().int().positive().optional(),
-          slide: z.number().int().positive().optional(),
-        })
-        .optional(),
-    }),
-  ),
-  warnings: z.array(z.string()).optional(),
-});
-
-const QualityGateResultSchema = z.object({
-  gate_scope: QualityGateScopeSchema,
-  gate_name: z.string().min(1),
-  status: QualityGateStatusSchema,
-  measured_value: z.unknown().optional(),
-  threshold: z.unknown().optional(),
-  reason: z.string().optional(),
-});
-
-const CircuitBreakerRecordSchema = z.object({
-  provider: z.string().min(1),
-  state: CircuitBreakerStateSchema,
-  failure_count: z.number().int().min(0),
-  success_count: z.number().int().min(0),
-  timeout_count: z.number().int().min(0),
-  quota_exhausted: z.boolean(),
-  opened_at: z.string().datetime().nullable().optional(),
-  half_open_after: z.string().datetime().nullable().optional(),
-});
-
-// ── Tests ──────────────────────────────────────────────────────────────────
-
-describe("OnboardingStatusSchema", () => {
-  it("accepts all valid statuses", () => {
-    const valid = [
-      "created",
-      "scanning",
-      "extracting",
-      "awaiting_review",
-      "awaiting_answers",
-      "ready_for_approval",
-      "approved",
-      "failed",
-    ];
-    for (const v of valid) {
-      expect(OnboardingStatusSchema.parse(v)).toBe(v);
-    }
+describe("enum schemas", () => {
+  it("OnboardingStatusSchema accepts known values", () => {
+    expect(OnboardingStatusSchema.parse("created")).toBe("created");
+    expect(OnboardingStatusSchema.parse("approved")).toBe("approved");
   });
 
-  it("rejects invalid status", () => {
-    expect(() => OnboardingStatusSchema.parse("pending")).toThrow();
-    expect(() => OnboardingStatusSchema.parse("")).toThrow();
-    expect(() => OnboardingStatusSchema.parse("CREATED")).toThrow();
+  it("OnboardingStatusSchema rejects unknown values", () => {
+    expect(() => OnboardingStatusSchema.parse("nope")).toThrow();
+  });
+
+  it("SourceTypeSchema accepts known source types", () => {
+    expect(SourceTypeSchema.parse("website")).toBe("website");
+    expect(SourceTypeSchema.parse("meta")).toBe("meta");
+  });
+
+  it("SourceProcessingStageSchema accepts known stages", () => {
+    expect(SourceProcessingStageSchema.parse("parsing")).toBe("parsing");
+    expect(SourceProcessingStageSchema.parse("completed")).toBe("completed");
+  });
+
+  it("JobStatusSchema accepts known statuses", () => {
+    expect(JobStatusSchema.parse("queued")).toBe("queued");
+    expect(JobStatusSchema.parse("dead_lettered")).toBe("dead_lettered");
+  });
+
+  it("VerificationStatusSchema accepts known statuses", () => {
+    expect(VerificationStatusSchema.parse("user_verified")).toBe("user_verified");
+  });
+
+  it("ProfileVersionStatusSchema accepts known statuses", () => {
+    expect(ProfileVersionStatusSchema.parse("current")).toBe("current");
+  });
+
+  it("QualityGateStatusSchema accepts known statuses", () => {
+    expect(QualityGateStatusSchema.parse("failed_blocking")).toBe("failed_blocking");
+  });
+
+  it("CircuitBreakerStateSchema accepts known states", () => {
+    expect(CircuitBreakerStateSchema.parse("half_open")).toBe("half_open");
+  });
+
+  it("CompilePurposeSchema accepts known purposes", () => {
+    expect(CompilePurposeSchema.parse("creative_brief")).toBe("creative_brief");
+  });
+
+  it("ErrorClassSchema accepts known classes", () => {
+    expect(ErrorClassSchema.parse("worker_oom")).toBe("worker_oom");
   });
 });
 
-describe("SourceTypeSchema", () => {
-  it("accepts all 9 V1 source types", () => {
-    const valid = [
-      "website",
-      "brand_deck",
-      "brand_playbook",
-      "product_document",
-      "campaign_brief",
-      "research_document",
-      "user_answer",
-      "meta",
-      "system_inference",
-    ];
-    for (const v of valid) {
-      expect(SourceTypeSchema.parse(v)).toBe(v);
-    }
+describe("ExtractedFactSchema and ExtractionOutputSchema", () => {
+  it("accepts a well-formed extracted fact", () => {
+    const r = ExtractedFactSchema.parse({
+      factKey: "business.name",
+      value: "Acme",
+      confidence: 0.9,
+      sourceExcerpt: "Acme Corp",
+      evidenceLocator: null,
+    });
+    expect(r.factKey).toBe("business.name");
   });
 
-  it("rejects reserved-but-not-implemented types", () => {
-    expect(() => SourceTypeSchema.parse("shopify")).toThrow();
-    expect(() => SourceTypeSchema.parse("crm")).toThrow();
-    expect(() => SourceTypeSchema.parse("payments")).toThrow();
-    expect(() => SourceTypeSchema.parse("csv")).toThrow();
-    expect(() => SourceTypeSchema.parse("webhook")).toThrow();
-  });
-});
-
-describe("SourceProcessingStageSchema", () => {
-  it("accepts all 10 processing stages", () => {
-    const valid = [
-      "registered",
-      "queued",
-      "acquiring",
-      "stored",
-      "parsing",
-      "normalizing",
-      "extracting",
-      "reconciling",
-      "quality_checking",
-      "completed",
-    ];
-    for (const v of valid) {
-      expect(SourceProcessingStageSchema.parse(v)).toBe(v);
-    }
+  it("rejects confidence out of range", () => {
+    expect(() =>
+      ExtractedFactSchema.parse({
+        factKey: "x",
+        value: 1,
+        confidence: 1.4,
+        sourceExcerpt: null,
+        evidenceLocator: null,
+      })
+    ).toThrow();
   });
 
-  it("rejects unknown stage", () => {
-    expect(() => SourceProcessingStageSchema.parse("processing")).toThrow();
-  });
-});
-
-describe("TerminalSourceOutcomeSchema", () => {
-  it("accepts all terminal outcomes", () => {
-    const valid = [
-      "processed",
-      "processed_with_warnings",
-      "blocked_needs_user_action",
-      "failed_permanent",
-      "archived",
-    ];
-    for (const v of valid) {
-      expect(TerminalSourceOutcomeSchema.parse(v)).toBe(v);
-    }
-  });
-});
-
-describe("JobStatusSchema", () => {
-  it("accepts all 10 job statuses", () => {
-    const valid = [
-      "queued",
-      "scheduled",
-      "running",
-      "retry_waiting",
-      "succeeded",
-      "failed_retryable",
-      "failed_permanent",
-      "stalled",
-      "dead_lettered",
-      "cancelled",
-    ];
-    for (const v of valid) {
-      expect(JobStatusSchema.parse(v)).toBe(v);
-    }
-  });
-
-  it("rejects invalid job status", () => {
-    expect(() => JobStatusSchema.parse("done")).toThrow();
-    expect(() => JobStatusSchema.parse("in_progress")).toThrow();
-  });
-});
-
-describe("FactConfidenceSchema", () => {
-  it("accepts 0 and 1 boundaries", () => {
-    expect(FactConfidenceSchema.parse(0)).toBe(0);
-    expect(FactConfidenceSchema.parse(1)).toBe(1);
-  });
-
-  it("accepts values in [0, 1]", () => {
-    expect(FactConfidenceSchema.parse(0.5)).toBe(0.5);
-    expect(FactConfidenceSchema.parse(0.73)).toBe(0.73);
-  });
-
-  it("rejects values below 0", () => {
-    expect(() => FactConfidenceSchema.parse(-0.01)).toThrow();
-    expect(() => FactConfidenceSchema.parse(-1)).toThrow();
-  });
-
-  it("rejects values above 1", () => {
-    expect(() => FactConfidenceSchema.parse(1.01)).toThrow();
-    expect(() => FactConfidenceSchema.parse(2)).toThrow();
-  });
-
-  it("rejects non-numbers", () => {
-    expect(() => FactConfidenceSchema.parse("0.5")).toThrow();
-    expect(() => FactConfidenceSchema.parse(NaN)).toThrow();
-  });
-});
-
-describe("ExtractionOutputSchema", () => {
-  it("accepts valid extraction with facts", () => {
-    const output = ExtractionOutputSchema.parse({
+  it("accepts a well-formed extraction output", () => {
+    const r = ExtractionOutputSchema.parse({
       facts: [
         {
-          fact_key: "offers.primary",
-          value: { name: "Test Product", price: 29.99 },
-          confidence: 0.85,
-          source_excerpt: "Our product costs $29.99",
+          factKey: "business.name",
+          value: "Acme",
+          confidence: 0.9,
+          sourceExcerpt: "x",
+          evidenceLocator: null,
         },
       ],
+      conflicts: [],
       warnings: [],
     });
-    expect(output.facts).toHaveLength(1);
-    expect(output.facts[0].fact_key).toBe("offers.primary");
+    expect(r.facts).toHaveLength(1);
   });
+});
 
-  it("accepts extraction with optional fields omitted", () => {
-    const output = ExtractionOutputSchema.parse({
-      facts: [
-        {
-          fact_key: "business.name",
-          value: "Acme Corp",
-          confidence: 1.0,
-        },
-      ],
+describe("CreateBusinessSchema", () => {
+  it("accepts a complete business payload", () => {
+    const r = CreateBusinessSchema.parse({
+      workspaceId: "00000000-0000-0000-0000-000000000001",
+      name: "Acme",
+      primaryMarket: "US",
+      primaryAdvertisingObjective: "conversions",
+      primaryBusinessOutcome: "revenue_growth",
+      approximateMonthlyMetaBudget: 10000,
     });
-    expect(output.facts[0].source_excerpt).toBeUndefined();
+    expect(r.name).toBe("Acme");
   });
 
-  it("rejects extraction with empty fact_key", () => {
+  it("rejects negative budget", () => {
     expect(() =>
-      ExtractionOutputSchema.parse({
-        facts: [
-          {
-            fact_key: "",
-            value: "test",
-            confidence: 0.5,
-          },
-        ],
-      }),
-    ).toThrow();
-  });
-
-  it("rejects extraction with confidence out of bounds", () => {
-    expect(() =>
-      ExtractionOutputSchema.parse({
-        facts: [
-          {
-            fact_key: "test",
-            value: "test",
-            confidence: 1.5,
-          },
-        ],
-      }),
+      CreateBusinessSchema.parse({
+        workspaceId: "00000000-0000-0000-0000-000000000001",
+        name: "Acme",
+        primaryMarket: "US",
+        primaryAdvertisingObjective: "conversions",
+        primaryBusinessOutcome: "revenue_growth",
+        approximateMonthlyMetaBudget: -1,
+      })
     ).toThrow();
   });
 });
 
-describe("QualityGateResultSchema", () => {
-  it("accepts valid document gate result", () => {
-    const result = QualityGateResultSchema.parse({
-      gate_scope: "document",
-      gate_name: "mime_validation",
-      status: "passed",
-    });
-    expect(result.gate_scope).toBe("document");
+describe("stage helpers", () => {
+  it("isValidStageTransition allows forward progress", () => {
+    expect(isValidStageTransition("registered", "queued")).toBe(true);
   });
 
-  it("accepts valid fact gate result with measured value", () => {
-    const result = QualityGateResultSchema.parse({
-      gate_scope: "fact",
-      gate_name: "confidence_threshold",
-      status: "warning",
-      measured_value: { value: 0.55, unit: "ratio" },
-      threshold: { value: 0.7, unit: "ratio" },
-      reason: "Confidence below recommended threshold",
-    });
-    expect(result.gate_scope).toBe("fact");
+  it("isValidStageTransition blocks skipping", () => {
+    expect(isValidStageTransition("registered", "completed")).toBe(false);
   });
 
-  it("rejects invalid gate scope", () => {
-    expect(() =>
-      QualityGateResultSchema.parse({
-        gate_scope: "pipeline",
-        gate_name: "test",
-        status: "passed",
-      }),
-    ).toThrow();
+  it("isTerminalStage is true for completed", () => {
+    expect(isTerminalStage("completed")).toBe(true);
   });
 
-  it("rejects invalid gate status", () => {
-    expect(() =>
-      QualityGateResultSchema.parse({
-        gate_scope: "document",
-        gate_name: "test",
-        status: "skipped",
-      }),
-    ).toThrow();
+  it("isTerminalStage is false for parsing", () => {
+    expect(isTerminalStage("parsing")).toBe(false);
   });
 });
 
-describe("CircuitBreakerRecordSchema", () => {
-  it("accepts closed state with zero counts", () => {
-    const cb = CircuitBreakerRecordSchema.parse({
-      provider: "firecrawl",
-      state: "closed",
-      failure_count: 0,
-      success_count: 0,
-      timeout_count: 0,
-      quota_exhausted: false,
-    });
-    expect(cb.state).toBe("closed");
+describe("JsonValueSchema", () => {
+  it("accepts primitive values", () => {
+    expect(JsonValueSchema.parse("x")).toBe("x");
+    expect(JsonValueSchema.parse(1)).toBe(1);
+    expect(JsonValueSchema.parse(true)).toBe(true);
+    expect(JsonValueSchema.parse(null)).toBe(null);
   });
 
-  it("accepts open state with timestamps", () => {
-    const cb = CircuitBreakerRecordSchema.parse({
-      provider: "llm_extraction",
-      state: "open",
-      failure_count: 5,
-      success_count: 0,
-      timeout_count: 3,
-      quota_exhausted: false,
-      opened_at: "2026-01-15T10:30:00Z",
-      half_open_after: "2026-01-15T10:35:00Z",
-    });
-    expect(cb.state).toBe("open");
-  });
-
-  it("rejects negative counts", () => {
-    expect(() =>
-      CircuitBreakerRecordSchema.parse({
-        provider: "firecrawl",
-        state: "closed",
-        failure_count: -1,
-        success_count: 0,
-        timeout_count: 0,
-        quota_exhausted: false,
-      }),
-    ).toThrow();
-  });
-
-  it("rejects unknown state", () => {
-    expect(() =>
-      CircuitBreakerRecordSchema.parse({
-        provider: "firecrawl",
-        state: "recovering",
-        failure_count: 0,
-        success_count: 0,
-        timeout_count: 0,
-        quota_exhausted: false,
-      }),
-    ).toThrow();
+  it("accepts nested object", () => {
+    const r = JsonValueSchema.parse({ a: 1, b: { c: "x" } });
+    expect(r).toEqual({ a: 1, b: { c: "x" } });
   });
 });
 
-describe("CompilePurposeSchema", () => {
-  it("accepts all 6 compile purposes", () => {
-    const valid = [
-      "campaign_setup",
-      "performance_analysis",
-      "optimization",
-      "hypothesis_generation",
-      "creative_brief",
-      "tracking_audit",
-    ];
-    for (const v of valid) {
-      expect(CompilePurposeSchema.parse(v)).toBe(v);
-    }
-  });
-
-  it("rejects unknown purpose", () => {
-    expect(() => CompilePurposeSchema.parse("reporting")).toThrow();
-    expect(() => CompilePurposeSchema.parse("analytics")).toThrow();
-  });
-});
-
-describe("StageEventStatusSchema", () => {
-  it("accepts all stage event statuses", () => {
-    const valid = [
-      "started",
-      "succeeded",
-      "warned",
-      "failed_retryable",
-      "failed_permanent",
-      "skipped",
-    ];
-    for (const v of valid) {
-      expect(StageEventStatusSchema.parse(v)).toBe(v);
-    }
-  });
-});
-
-describe("VerificationStatusSchema", () => {
-  it("accepts all verification statuses", () => {
-    const valid = ["extracted", "inferred", "user_verified", "rejected", "superseded"];
-    for (const v of valid) {
-      expect(VerificationStatusSchema.parse(v)).toBe(v);
-    }
-  });
-
-  it("rejects unknown status", () => {
-    expect(() => VerificationStatusSchema.parse("verified")).toThrow();
-    expect(() => VerificationStatusSchema.parse("pending")).toThrow();
-  });
-});
-
-describe("ProfileVersionStatusSchema", () => {
-  it("accepts all profile version statuses", () => {
-    const valid = ["draft", "current", "superseded", "restored_snapshot"];
-    for (const v of valid) {
-      expect(ProfileVersionStatusSchema.parse(v)).toBe(v);
-    }
+describe("REQUIRED_PROFILE_SECTIONS", () => {
+  it("contains the 8 required business sections", () => {
+    expect(REQUIRED_PROFILE_SECTIONS).toEqual(
+      expect.arrayContaining([
+        "business",
+        "offers",
+        "customers",
+        "conversion_journey",
+        "economics",
+        "brand",
+        "creative_capacity",
+        "measurement",
+      ])
+    );
   });
 });

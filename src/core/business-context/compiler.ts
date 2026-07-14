@@ -1,6 +1,13 @@
 import type { RepositoryPort } from './repository.port'
-import type { JsonValue, ServiceResult, ContextConflict } from './types'
+import type {
+  ContextFact,
+  ContextConflict,
+  JsonValue,
+  ServiceResult,
+  VerificationStatus,
+} from './types'
 import { REQUIRED_PROFILE_SECTIONS } from './types'
+import { runFactGates, hasBlockingFailures } from './quality-gates'
 
 // ─── Validation result ──────────────────────────────────────────────────────
 
@@ -78,4 +85,159 @@ export async function checkRequiredFieldsFulfilled(
       missingFields,
     },
   }
+}
+
+// ─── Confidence thresholds ──────────────────────────────────────────────────
+
+export const CONFIDENCE_THRESHOLDS = {
+  /** Facts below this are excluded from draft compilation */
+  MIN_COMPILE: 0.5,
+  /** Facts in this range produce warnings but still compile */
+  REVIEW_RANGE_MIN: 0.5,
+  REVIEW_RANGE_MAX: 0.7,
+  /** Facts at or above this are considered high confidence */
+  HIGH: 0.7,
+} as const
+
+// ─── Active fact selection ──────────────────────────────────────────────────
+
+/**
+ * Filter active facts: exclude superseded and rejected facts.
+ * User-verified facts always pass confidence thresholds.
+ */
+export function selectActiveFacts(facts: ContextFact[]): ContextFact[] {
+  return facts.filter(
+    (f) =>
+      f.verificationStatus !== 'superseded' &&
+      f.verificationStatus !== 'rejected',
+  )
+}
+
+/**
+ * Group facts by their top-level section key (e.g. "business", "offers").
+ * Within each section, keep only the highest-confidence active fact per factKey.
+ */
+export function groupFactsBySection(
+  facts: ContextFact[],
+): Map<string, Map<string, ContextFact>> {
+  const bySection = new Map<string, Map<string, ContextFact>>()
+
+  for (const fact of facts) {
+    const section = fact.factKey.split('.')[0] ?? fact.factKey
+    if (!bySection.has(section)) {
+      bySection.set(section, new Map())
+    }
+    const sectionFacts = bySection.get(section)!
+    const existing = sectionFacts.get(fact.factKey)
+    if (!existing || fact.confidence > existing.confidence) {
+      sectionFacts.set(fact.factKey, fact)
+    }
+  }
+
+  return bySection
+}
+
+// ─── Draft compilation ──────────────────────────────────────────────────────
+
+export interface CompiledDraft {
+  profile: Record<string, JsonValue>
+  unresolvedFields: string[]
+  warnings: string[]
+}
+
+/**
+ * Compile a draft profile from active facts in the repository.
+ * Assembles sections, filters by confidence thresholds, tracks unresolved fields.
+ */
+export async function compileDraftFromFacts(
+  repo: RepositoryPort,
+  businessId: string,
+  workspaceId: string,
+): Promise<ServiceResult<CompiledDraft>> {
+  const factsResult = await repo.listContextFacts({
+    workspaceId,
+    businessId,
+    active: true,
+  })
+  if (!factsResult.ok) return factsResult
+
+  const activeFacts = selectActiveFacts(factsResult.data.items)
+  const bySection = groupFactsBySection(activeFacts)
+
+  const profile: Record<string, JsonValue> = {}
+  const unresolvedFields: string[] = []
+  const warnings: string[] = []
+
+  for (const section of REQUIRED_PROFILE_SECTIONS) {
+    const sectionFacts = bySection.get(section)
+    if (!sectionFacts || sectionFacts.size === 0) {
+      unresolvedFields.push(section)
+      continue
+    }
+
+    const sectionData: Record<string, JsonValue> = {}
+    let sectionHasContent = false
+
+    for (const [factKey, fact] of sectionFacts) {
+      const isUserVerified = fact.verificationStatus === 'user_verified'
+
+      if (!isUserVerified && fact.confidence < CONFIDENCE_THRESHOLDS.MIN_COMPILE) {
+        unresolvedFields.push(factKey)
+        continue
+      }
+
+      if (
+        !isUserVerified &&
+        fact.confidence >= CONFIDENCE_THRESHOLDS.REVIEW_RANGE_MIN &&
+        fact.confidence < CONFIDENCE_THRESHOLDS.HIGH
+      ) {
+        warnings.push(
+          `Low confidence (${fact.confidence}) for ${factKey}`,
+        )
+      }
+
+      // Use the leaf key within the section
+      const leafKey = factKey.includes('.') ? factKey.split('.').slice(1).join('.') : factKey
+      sectionData[leafKey] = fact.value
+      sectionHasContent = true
+    }
+
+    if (sectionHasContent) {
+      profile[section] = sectionData
+    } else {
+      unresolvedFields.push(section)
+    }
+  }
+
+  return { ok: true, data: { profile, unresolvedFields, warnings } }
+}
+
+// ─── Markdown projection ────────────────────────────────────────────────────
+
+/**
+ * Project a compiled profile to Markdown.
+ * Each section becomes a heading; each key-value pair becomes a bullet.
+ */
+export function projectToMarkdown(profile: Record<string, JsonValue>): string {
+  const lines: string[] = []
+
+  for (const section of REQUIRED_PROFILE_SECTIONS) {
+    const data = profile[section]
+    const title = section.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+lines.push(`## ${title}`)
+
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      for (const [key, val] of Object.entries(data as Record<string, JsonValue>)) {
+        lines.push(`- **${key}**: ${JSON.stringify(val)}`)
+      }
+    } else if (data !== undefined && data !== null) {
+      lines.push(`- ${JSON.stringify(data)}`)
+    } else {
+      lines.push('- *No data available*')
+    }
+
+    lines.push('')
+  }
+
+  return lines.join('\n')
 }
