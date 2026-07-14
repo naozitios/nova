@@ -17,6 +17,10 @@ import type { LlmClientPort } from '@/core/ai/llm-client.port';
 import type { MetaClientPort } from '@/core/optimization/meta-client.port';
 import type { BillingPort } from '@/core/billing/billing.port';
 import type { BillingStorePort } from '@/core/billing/billing.port';
+import type { RepositoryPort } from '@/core/business-context/repository.port';
+import { SupabaseRepository } from '@/infrastructure/business-context/supabase.repository';
+import { ProcessingVisibilityWriter } from '@/infrastructure/business-context/processing-visibility';
+import { CircuitBreakerAdapter } from '@/infrastructure/business-context/circuit-breaker';
 
 export class Container {
   private static _campaignRepo: CampaignRepositoryPort = new InMemoryCampaignRepository();
@@ -33,6 +37,9 @@ export class Container {
   private static _stripeAdapter: StripeAdapter | null = null;
   private static _stripeWebhookParser: StripeWebhookParser | null = null;
   private static _billingStore: BillingStorePort = new InMemoryBillingStore();
+  private static _bcRepo: RepositoryPort | null = null;
+  private static _bcVisibility: ProcessingVisibilityWriter | null = null;
+  private static _bcCircuitBreaker: CircuitBreakerAdapter | null = null;
 
   /** Returns the current campaign repository instance. */
   static getCampaignRepository(): CampaignRepositoryPort {
@@ -168,6 +175,33 @@ export class Container {
     this._billingStore = store;
   }
 
+  // ── Business Context ──────────────────────────────────────────────────────
+
+  /** Returns the Business Context repository. Lazy-initializes Supabase-backed repo. */
+  static getBusinessContextRepository(): RepositoryPort {
+    if (!this._bcRepo) this._bcRepo = new SupabaseRepository();
+    return this._bcRepo;
+  }
+
+  /** Replaces the Business Context repository. */
+  static setBusinessContextRepository(repo: RepositoryPort): void {
+    this._bcRepo = repo;
+    this._bcVisibility = null;
+    this._bcCircuitBreaker = null;
+  }
+
+  /** Returns a lazy-initialized ProcessingVisibilityWriter. */
+  static getProcessingVisibilityWriter(): ProcessingVisibilityWriter {
+    if (!this._bcVisibility) this._bcVisibility = new ProcessingVisibilityWriter();
+    return this._bcVisibility;
+  }
+
+  /** Returns a lazy-initialized CircuitBreakerAdapter. */
+  static getCircuitBreakerAdapter(): CircuitBreakerAdapter {
+    if (!this._bcCircuitBreaker) this._bcCircuitBreaker = new CircuitBreakerAdapter();
+    return this._bcCircuitBreaker;
+  }
+
   /** Resets all services and repositories to their default in-memory state. */
   static reset(): void {
     this._campaignRepo = new InMemoryCampaignRepository();
@@ -184,5 +218,8 @@ export class Container {
     this._stripeAdapter = null;
     this._stripeWebhookParser = null;
     this._billingStore = new InMemoryBillingStore();
+    this._bcRepo = null;
+    this._bcVisibility = null;
+    this._bcCircuitBreaker = null;
   }
 }
