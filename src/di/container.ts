@@ -9,42 +9,28 @@ import { GroqAdapter } from '@/infrastructure/llm/groq.adapter';
 import { MetaOAuthAdapter } from '@/infrastructure/meta/meta-oauth.adapter';
 import { MetaApiAdapter } from '@/infrastructure/meta/meta-api.adapter';
 import { DrizzleCampaignRepository } from '@/infrastructure/persistence/campaign/drizzle.repository';
-import { StripeAdapter } from '@/infrastructure/payment/stripe.adapter';
-import { StripeWebhookParser } from '@/infrastructure/payment/stripe-webhook';
-import { InMemoryBillingStore } from '@/infrastructure/payment/billing-store';
 import type { CampaignRepositoryPort } from '@/core/campaign/repository.port';
 import type { LlmClientPort } from '@/core/ai/llm-client.port';
 import type { MetaClientPort } from '@/core/optimization/meta-client.port';
 import type { BillingPort } from '@/core/billing/billing.port';
 import type { BillingStorePort } from '@/core/billing/billing.port';
 import type { RepositoryPort } from '@/core/business-context/repository.port';
-import type { UploadRepositoryPort } from '@/core/business-context/upload-repository.port';
-import type { IdempotencyRepositoryPort } from '@/core/business-context/idempotency-repository.port';
-import type { MetaConnectionRepositoryPort } from '@/core/business-context/meta-connection-repository.port';
+import type { UploadRepositoryPort } from '@/core/business-context/repository/upload.port';
+import type { IdempotencyRepositoryPort } from '@/core/business-context/repository/idempotency.port';
+import type { MetaConnectionRepositoryPort } from '@/core/business-context/repository/meta-connection.port';
 import type { UploadStoragePort } from '@/core/business-context/upload-storage.port';
 import type { MalwareScannerPort } from '@/core/business-context/malware-scanner.port';
 import type { IdempotencyPort } from '@/core/business-context/idempotency.port';
 import type { MetaConnectionPort } from '@/core/business-context/meta-connection.port';
 import type { DocumentParserPort } from '@/core/business-context/document-parser.port';
 import type { ExtractionPort } from '@/core/business-context/extraction.port';
-import { SupabaseRepository } from '@/infrastructure/business-context/supabase.repository';
 import { ProcessingVisibilityWriter } from '@/infrastructure/business-context/processing-visibility';
 import { CircuitBreakerAdapter } from '@/infrastructure/business-context/breaker';
-import { InMemoryUploadRepository } from '@/infrastructure/business-context/in-memory-upload.repository';
-import { InMemoryIdempotencyRepository } from '@/infrastructure/business-context/in-memory-idempotency.repository';
-import { InMemoryMetaConnectionRepository } from '@/infrastructure/business-context/in-memory-meta-connection.repository';
-import { SupabaseUploadStorage } from '@/infrastructure/business-context/supabase-upload.storage';
-import { ClamavMalwareScanner } from '@/infrastructure/business-context/clamav-malware.scanner';
-import { IdempotencyService } from '@/infrastructure/business-context/idempotency.service';
-import { MetaResolver } from '@/infrastructure/business-context/meta-resolver.service';
 import { SourceAdapterRegistry } from '@/infrastructure/business-context/source-adapter-registry';
-import { NativeDocumentParserAdapter } from '@/infrastructure/business-context/native-document.parser.adapter';
-import { PaddleOcrDocumentParserAdapter } from '@/infrastructure/business-context/paddleocr-document-parser.adapter';
-import { DocumentParserRouter } from '@/infrastructure/business-context/document-parser-router';
-import { LlmExtractionAdapter, type LlmClient } from '@/infrastructure/business-context/llm-extraction.adapter';
 import { SourceProcessingService } from '@/infrastructure/business-context/source-processing.service';
 import { JobRunner } from '@/infrastructure/business-context/job-runner';
-import { registerExtractionHandlers } from '@/infrastructure/business-context/job-runner';
+import * as BC from './providers/business-context';
+import * as Billing from './providers/billing';
 
 export class Container {
   private static _campaignRepo: CampaignRepositoryPort = new InMemoryCampaignRepository();
@@ -58,24 +44,6 @@ export class Container {
   private static _healthService: HealthService | null = null;
   private static _actionCenter: ActionCenter | null = null;
   private static _useDrizzle = false;
-  private static _stripeAdapter: StripeAdapter | null = null;
-  private static _stripeWebhookParser: StripeWebhookParser | null = null;
-  private static _billingStore: BillingStorePort = new InMemoryBillingStore();
-  private static _bcRepo: RepositoryPort | null = null;
-  private static _bcVisibility: ProcessingVisibilityWriter | null = null;
-  private static _bcCircuitBreaker: CircuitBreakerAdapter | null = null;
-  private static _uploadRepo: UploadRepositoryPort | null = null;
-  private static _idempotencyRepo: IdempotencyRepositoryPort | null = null;
-  private static _metaConnectionRepo: MetaConnectionRepositoryPort | null = null;
-  private static _uploadStorage: UploadStoragePort | null = null;
-  private static _malwareScanner: MalwareScannerPort | null = null;
-  private static _idempotencyService: IdempotencyPort | null = null;
-  private static _metaResolver: MetaConnectionPort | null = null;
-  private static _sourceAdapterRegistry: SourceAdapterRegistry | null = null;
-  private static _documentParser: DocumentParserPort | null = null;
-  private static _extractionService: ExtractionPort | null = null;
-  private static _sourceProcessingService: SourceProcessingService | null = null;
-  private static _jobRunner: JobRunner | null = null;
 
   /** Returns the current campaign repository instance. */
   static getCampaignRepository(): CampaignRepositoryPort {
@@ -189,173 +157,113 @@ export class Container {
     return this._actionCenter;
   }
 
+  // ── Billing (delegated) ─────────────────────────────────────────────────
+
   /** Returns a lazy-initialized Stripe billing adapter. */
   static getBillingAdapter(): BillingPort {
-    if (!this._stripeAdapter) this._stripeAdapter = new StripeAdapter();
-    return this._stripeAdapter;
+    return Billing.getBillingAdapter();
   }
 
   /** Returns a lazy-initialized StripeWebhookParser. */
-  static getStripeWebhookParser(): StripeWebhookParser {
-    if (!this._stripeWebhookParser) this._stripeWebhookParser = new StripeWebhookParser();
-    return this._stripeWebhookParser;
+  static getStripeWebhookParser() {
+    return Billing.getStripeWebhookParser();
   }
 
   /** Returns the current billing store instance. */
   static getBillingStore(): BillingStorePort {
-    return this._billingStore;
+    return Billing.getBillingStore();
   }
 
   /** Replaces the billing store with a custom implementation. */
   static setBillingStore(store: BillingStorePort): void {
-    this._billingStore = store;
+    Billing.setBillingStore(store);
   }
 
-  // ── Business Context ──────────────────────────────────────────────────────
+  // ── Business Context (delegated) ────────────────────────────────────────
 
   /** Returns the Business Context repository. Lazy-initializes Supabase-backed repo. */
   static getBusinessContextRepository(): RepositoryPort {
-    if (!this._bcRepo) this._bcRepo = new SupabaseRepository();
-    return this._bcRepo;
+    return BC.getBusinessContextRepository();
   }
 
   /** Replaces the Business Context repository. */
   static setBusinessContextRepository(repo: RepositoryPort): void {
-    this._bcRepo = repo;
-    this._bcVisibility = null;
-    this._bcCircuitBreaker = null;
+    BC.setBusinessContextRepository(repo);
   }
 
   /** Returns a lazy-initialized ProcessingVisibilityWriter. */
   static getProcessingVisibilityWriter(): ProcessingVisibilityWriter {
-    if (!this._bcVisibility) this._bcVisibility = new ProcessingVisibilityWriter();
-    return this._bcVisibility;
+    return BC.getProcessingVisibilityWriter();
   }
 
   /** Returns a lazy-initialized CircuitBreakerAdapter. */
   static getCircuitBreakerAdapter(): CircuitBreakerAdapter {
-    if (!this._bcCircuitBreaker) this._bcCircuitBreaker = new CircuitBreakerAdapter();
-    return this._bcCircuitBreaker;
+    return BC.getCircuitBreakerAdapter();
   }
 
-  // ── Remediation Services ─────────────────────────────────────────────────
-
-  /** Returns the upload repository. Lazy-initializes in-memory repo. */
+  /** Returns the upload repository. Lazy-initializes Supabase-backed repo. */
   static getUploadRepository(): UploadRepositoryPort {
-    if (!this._uploadRepo) this._uploadRepo = new InMemoryUploadRepository();
-    return this._uploadRepo;
+    return BC.getUploadRepository();
   }
 
-  /** Returns the idempotency repository. Lazy-initializes in-memory repo. */
+  /** Returns the idempotency repository. Lazy-initializes Supabase-backed repo. */
   static getIdempotencyRepository(): IdempotencyRepositoryPort {
-    if (!this._idempotencyRepo) this._idempotencyRepo = new InMemoryIdempotencyRepository();
-    return this._idempotencyRepo;
+    return BC.getIdempotencyRepository();
   }
 
-  /** Returns the Meta connection repository. Lazy-initializes in-memory repo. */
+  /** Returns the Meta connection repository. Lazy-initializes Supabase-backed repo. */
   static getMetaConnectionRepository(): MetaConnectionRepositoryPort {
-    if (!this._metaConnectionRepo) this._metaConnectionRepo = new InMemoryMetaConnectionRepository();
-    return this._metaConnectionRepo;
+    return BC.getMetaConnectionRepository();
   }
 
   /** Returns the upload storage adapter. Lazy-initializes Supabase storage. */
   static getUploadStorage(): UploadStoragePort {
-    if (!this._uploadStorage) this._uploadStorage = new SupabaseUploadStorage();
-    return this._uploadStorage;
+    return BC.getUploadStorage();
   }
 
   /** Returns the malware scanner. Requires CLAMAV_HOST env var. */
   static getMalwareScanner(): MalwareScannerPort {
-    if (!process.env.CLAMAV_HOST) {
-      throw new Error('CLAMAV_HOST environment variable is required for MalwareScanner');
-    }
-    if (!this._malwareScanner) this._malwareScanner = new ClamavMalwareScanner();
-    return this._malwareScanner;
+    return BC.getMalwareScanner();
   }
 
   /** Returns the idempotency service. Lazy-initializes with repository. */
   static getIdempotencyService(): IdempotencyPort {
-    if (!this._idempotencyService) {
-      this._idempotencyService = new IdempotencyService(this.getIdempotencyRepository());
-    }
-    return this._idempotencyService;
+    return BC.getIdempotencyService();
   }
 
   /** Returns the Meta connection resolver. Lazy-initializes with repository. */
   static getMetaResolver(): MetaConnectionPort {
-    if (!this._metaResolver) {
-      this._metaResolver = new MetaResolver(this.getMetaConnectionRepository());
-    }
-    return this._metaResolver;
+    return BC.getMetaResolver();
   }
 
   /** Returns the source adapter registry. Lazy-initializes with default adapters. */
   static getSourceAdapterRegistry(): SourceAdapterRegistry {
-    if (!this._sourceAdapterRegistry) this._sourceAdapterRegistry = new SourceAdapterRegistry();
-    return this._sourceAdapterRegistry;
+    return BC.getSourceAdapterRegistry();
   }
 
   /** Returns the document parser. Lazy-initializes router with native + OCR parsers. */
   static getDocumentParser(): DocumentParserPort {
-    if (!this._documentParser) {
-      this._documentParser = new DocumentParserRouter(
-        new NativeDocumentParserAdapter(),
-        new PaddleOcrDocumentParserAdapter(),
-      );
-    }
-    return this._documentParser;
+    return BC.getDocumentParser();
   }
 
   /** Returns the extraction service. Requires LLM provider (GROQ_API_KEY or LLM_API_URL). */
   static getExtractionService(): ExtractionPort {
-    if (!this._extractionService) {
-      const apiKey = process.env.GROQ_API_KEY;
-      const apiUrl = process.env.LLM_API_URL;
-      if (!apiKey && !apiUrl) {
-        throw new Error('ExtractionService requires an LLM provider: set GROQ_API_KEY or LLM_API_URL');
-      }
-      const client: LlmClient = {
-        async complete(request) {
-          const Groq = (await import('groq-sdk')).default;
-          const groq = new Groq({ apiKey });
-          const response = await groq.chat.completions.create({
-            model: 'llama-3.1-8b-instant',
-            messages: [
-              { role: 'system', content: request.systemPrompt },
-              { role: 'user', content: request.content },
-            ],
-            temperature: request.temperature ?? 0.1,
-            max_tokens: request.maxTokens ?? 4096,
-            response_format: { type: 'json_object' },
-          });
-          const content = response.choices[0]?.message?.content ?? '{}';
-          return JSON.parse(content);
-        },
-      };
-      this._extractionService = new LlmExtractionAdapter(client);
-    }
-    return this._extractionService;
+    return BC.getExtractionService();
   }
 
   /** Returns the source processing service. Lazy-initializes with repository. */
   static getSourceProcessingService(): SourceProcessingService {
-    if (!this._sourceProcessingService) {
-      this._sourceProcessingService = new SourceProcessingService(this.getBusinessContextRepository());
-    }
-    return this._sourceProcessingService;
+    return BC.getSourceProcessingService();
   }
 
   /** Returns the job runner. Lazy-initializes with repository. */
   static getJobRunner(): JobRunner {
-    if (!this._jobRunner) this._jobRunner = new JobRunner(this.getBusinessContextRepository());
-    return this._jobRunner;
+    return BC.getJobRunner();
   }
 
   /** Returns a function that registers extraction handlers on a job runner. */
   static getRegisterHandlers(): (runner: JobRunner) => void {
-    return (runner: JobRunner) => {
-      registerExtractionHandlers((type, handler) => runner.registerHandler(type, handler));
-    };
+    return BC.getRegisterHandlers();
   }
 
   /** Resets all services and repositories to their default in-memory state. */
@@ -371,23 +279,7 @@ export class Container {
     this._aiService = null;
     this._healthService = null;
     this._actionCenter = null;
-    this._stripeAdapter = null;
-    this._stripeWebhookParser = null;
-    this._billingStore = new InMemoryBillingStore();
-    this._bcRepo = null;
-    this._bcVisibility = null;
-    this._bcCircuitBreaker = null;
-    this._uploadRepo = null;
-    this._idempotencyRepo = null;
-    this._metaConnectionRepo = null;
-    this._uploadStorage = null;
-    this._malwareScanner = null;
-    this._idempotencyService = null;
-    this._metaResolver = null;
-    this._sourceAdapterRegistry = null;
-    this._documentParser = null;
-    this._extractionService = null;
-    this._sourceProcessingService = null;
-    this._jobRunner = null;
+    BC.resetBusinessContextProviders();
+    Billing.resetBillingProviders();
   }
 }

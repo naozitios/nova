@@ -65,8 +65,7 @@ describe("SourceRepository — atomic archive", () => {
 
     const result = await repo.archiveSource("ws-1", "src-1");
 
-    expect(result.ok).toBe(true);
-    expect(result.data).toBeNull();
+    expect(result).toMatchObject({ ok: true, data: null });
   });
 
   it("archiveSource returns error on non-PGRST116 failure", async () => {

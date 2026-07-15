@@ -56,6 +56,11 @@ export class DocumentParserRouter {
     }
   }
 
+  /** Returns true if at least one sub-parser can handle this MIME type. */
+  supports(mimeType: string): boolean {
+    return this.nativeParser.supports(mimeType) || this.ocrParser.supports(mimeType)
+  }
+
   /**
    * Route parsing: native-first, OCR fallback, image-default-OCR.
    * Merges results without duplicate text when both parsers run.

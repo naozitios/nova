@@ -1,15 +1,19 @@
 import { vi } from "vitest";
 import type { RepositoryPort } from "../../../src/core/business-context/repository.port";
-import { ProfileVersionStatus } from "../../../src/core/business-context/types";
-import type {
-  BusinessProfileVersion,
-  ContextFact,
-  ContextConflict,
-  ContextSource,
-  ContextJob,
-  OnboardingSession,
-  Business,
-} from "../../../src/core/business-context/types";
+import type { ContextFact, ContextJob } from "../../../src/core/business-context/types";
+import {
+  createBusinessData,
+  createOnboardingSessionData,
+} from "./_mock-business-fixture";
+import {
+  createContextSourceData,
+  createContextSourceFromId,
+  createArchivedSourceData,
+  createContextConflictData,
+  createContextConflictListData,
+  createResolvedConflictData,
+  createProfileVersionData,
+} from "./_mock-context-fixture";
 
 export function createMockRepo(
   overrides: Partial<RepositoryPort> = {},
@@ -19,27 +23,11 @@ export function createMockRepo(
     // Businesses
     createBusiness: vi.fn().mockResolvedValue({
       ok: true,
-      data: {
-        id: "biz-1",
-        workspaceId: "ws-1",
-        name: "Acme Corp",
-        websiteUrl: null,
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      } as Business,
+      data: createBusinessData(now),
     }),
     getBusiness: vi.fn().mockResolvedValue({
       ok: true,
-      data: {
-        id: "biz-1",
-        workspaceId: "ws-1",
-        name: "Acme Corp",
-        websiteUrl: null,
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      } as Business,
+      data: createBusinessData(now),
     }),
     listBusinesses: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
     updateBusiness: vi.fn(),
@@ -47,35 +35,13 @@ export function createMockRepo(
     // Onboarding sessions
     createOnboardingSession: vi.fn().mockResolvedValue({
       ok: true,
-      data: {
-        id: "os-1",
-        workspaceId: "ws-1",
-        businessId: "biz-1",
-        status: "created",
-        currentStep: null,
-        startedBy: "user-1",
-        startedAt: now,
-        completedAt: null,
-        error: null,
-      } as OnboardingSession,
+      data: createOnboardingSessionData(now),
     }),
     getOnboardingSession: vi.fn(),
     listOnboardingSessions: vi.fn().mockResolvedValue({
       ok: true,
       data: {
-        items: [
-          {
-            id: "os-1",
-            workspaceId: "ws-1",
-            businessId: "biz-1",
-            status: "created",
-            currentStep: null,
-            startedBy: "user-1",
-            startedAt: now,
-            completedAt: null,
-            error: null,
-          } as OnboardingSession,
-        ],
+        items: [createOnboardingSessionData(now)],
         total: 1,
       },
     }),
@@ -85,79 +51,29 @@ export function createMockRepo(
     createContextSource: vi.fn().mockImplementation((data) =>
       Promise.resolve({
         ok: true,
-        data: {
-          id: `src-${Date.now()}`,
-          ...data,
-          createdAt: now,
-        } as ContextSource,
+        data: { id: `src-${Date.now()}`, ...data, createdAt: now },
       }),
     ),
     getContextSource: vi.fn().mockImplementation((_wsId, sourceId) =>
       Promise.resolve({
         ok: true,
-        data: sourceId === "00000000-0000-0000-0000-000000000099"
-          ? null
-          : ({
-              id: sourceId,
-              workspaceId: "ws-1",
-              businessId: "biz-1",
-              sourceType: "website",
-              sourceName: "Company Website",
-              externalReference: "https://acme.example.com",
-              status: "registered",
-              currentStage: null,
-              terminalOutcome: null,
-              metadata: {},
-              collectedAt: now,
-              createdAt: now,
-            } as ContextSource),
+        data: createContextSourceFromId(sourceId, now),
       }),
     ),
     listContextSources: vi.fn().mockResolvedValue({
       ok: true,
-      data: {
-        items: [
-          {
-            id: "src-1",
-            workspaceId: "ws-1",
-            businessId: "biz-1",
-            sourceType: "website",
-            sourceName: "Company Website",
-            externalReference: "https://acme.example.com",
-            status: "registered",
-            currentStage: null,
-            terminalOutcome: null,
-            metadata: {},
-            collectedAt: now,
-            createdAt: now,
-          } as ContextSource,
-        ],
-        total: 1,
-      },
+      data: { items: [createContextSourceData(now)], total: 1 },
     }),
     updateContextSource: vi.fn().mockImplementation((_wsId, _srcId, data) =>
       Promise.resolve({
         ok: true,
-        data: { id: "src-1", ...data, createdAt: now } as ContextSource,
+        data: { id: "src-1", ...data, createdAt: now },
       }),
     ),
     archiveSource: vi.fn().mockImplementation((_wsId, _srcId) =>
       Promise.resolve({
         ok: true,
-        data: {
-          id: "src-1",
-          workspaceId: "ws-1",
-          businessId: "biz-1",
-          sourceType: "website",
-          sourceName: "Company Website",
-          externalReference: "https://acme.example.com",
-          status: "archived",
-          currentStage: null,
-          terminalOutcome: "archived",
-          metadata: {},
-          collectedAt: now,
-          createdAt: now,
-        } as ContextSource,
+        data: createArchivedSourceData(now),
       }),
     ),
 
@@ -185,61 +101,19 @@ export function createMockRepo(
     getContextConflict: vi.fn().mockImplementation((_wsId, conflictId) =>
       Promise.resolve({
         ok: true,
-        data: conflictId === "00000000-0000-0000-0000-000000000099"
-          ? null
-          : ({
-              id: conflictId,
-              workspaceId: "ws-1",
-              businessId: "biz-1",
-              factKey: "offers.pricing",
-              factIds: ["f-1", "f-2"],
-              status: "open",
-              resolutionFactId: null,
-              resolutionNote: null,
-              resolvedBy: null,
-              createdAt: now,
-              resolvedAt: null,
-            } as ContextConflict),
+        data: createContextConflictData(conflictId, now),
       }),
     ),
     listContextConflicts: vi.fn().mockResolvedValue({
       ok: true,
-      data: {
-        items: [
-          {
-            id: "c-1",
-            workspaceId: "ws-1",
-            businessId: "biz-1",
-            factKey: "offers.pricing",
-            factIds: ["f-1", "f-2"],
-            status: "open",
-            resolutionFactId: null,
-            resolutionNote: null,
-            resolvedBy: null,
-            createdAt: now,
-            resolvedAt: null,
-          } as ContextConflict,
-        ],
-        total: 1,
-      },
+      data: { items: createContextConflictListData(now), total: 1 },
     }),
-    resolveContextConflict: vi.fn().mockImplementation((_wsId, conflictId, resFactId, _resolvedBy, note) =>
-      Promise.resolve({
-        ok: true,
-        data: {
-          id: conflictId,
-          workspaceId: "ws-1",
-          businessId: "biz-1",
-          factKey: "offers.pricing",
-          factIds: ["f-1", "f-2"],
-          status: "resolved",
-          resolutionFactId: resFactId,
-          resolutionNote: note ?? null,
-          resolvedBy: "user-1",
-          createdAt: now,
-          resolvedAt: now,
-        } as ContextConflict,
-      }),
+    resolveContextConflict: vi.fn().mockImplementation(
+      (_wsId, conflictId, resFactId, _resolvedBy, note) =>
+        Promise.resolve({
+          ok: true,
+          data: createResolvedConflictData(conflictId, resFactId, note, now),
+        }),
     ),
 
     // Onboarding questions
@@ -254,20 +128,7 @@ export function createMockRepo(
     // Profile versions
     createProfileVersion: vi.fn().mockResolvedValue({
       ok: true,
-      data: {
-        id: "pv-1",
-        workspaceId: "ws-1",
-        businessId: "biz-1",
-        version: 1,
-        profile: {},
-        profileMarkdown: null,
-        status: ProfileVersionStatus.CURRENT,
-        changeSummary: "Initial",
-        createdBy: "user-1",
-        createdAt: now,
-        approvedBy: "user-1",
-        approvedAt: now,
-      } as BusinessProfileVersion,
+      data: createProfileVersionData(now),
     }),
     getProfileVersion: vi.fn(),
     listProfileVersions: vi.fn().mockResolvedValue({
@@ -283,11 +144,7 @@ export function createMockRepo(
     createContextJob: vi.fn().mockImplementation((data) =>
       Promise.resolve({
         ok: true,
-        data: {
-          id: `job-${Date.now()}`,
-          ...data,
-          createdAt: now,
-        } as ContextJob,
+        data: { id: `job-${Date.now()}`, ...data, createdAt: now } as ContextJob,
       }),
     ),
     getContextJob: vi.fn(),

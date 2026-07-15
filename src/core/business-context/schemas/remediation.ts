@@ -27,7 +27,7 @@ const MetaConnectionStatusValues = Object.values(MetaConnectionStatus)
 export const UploadIntentStatusSchema = z.enum(
   UploadIntentStatusValues as [string, ...string[]],
 )
-export const SourceTypeSchema = z.enum(SourceTypeValues as [string, ...string[]])
+export const RemediationSourceTypeSchema = z.enum(SourceTypeValues as [string, ...string[]])
 export const DocumentClassSchema = z.enum(
   DocumentClassValues as [string, ...string[]],
 )
@@ -51,7 +51,7 @@ export const uploadIntentSchema = z.object({
   workspaceId: UuidSchema,
   businessId: UuidSchema,
   sourceId: UuidSchema.nullable(),
-  sourceType: SourceTypeSchema,
+  sourceType: RemediationSourceTypeSchema,
   sourceName: z.string().min(1),
   documentClass: DocumentClassSchema,
   classificationSource: z.string().min(1),

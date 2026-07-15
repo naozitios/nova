@@ -1,22 +1,25 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Container } from '@/di/container'
+import { UploadRepository } from '@/infrastructure/business-context/repository/upload.repository'
+import { IdempotencyRepository } from '@/infrastructure/business-context/repository/idempotency.repository'
+import { MetaConnectionRepository } from '@/infrastructure/business-context/repository/meta-connection.repository'
 
 describe('Container', () => {
   beforeEach(() => {
     Container.reset()
   })
 
-  // ── Repository Services ──────────────────────────────────────────────────
+  // ── Repository Services (production Supabase-backed) ─────────────────────
 
   describe('getUploadRepository', () => {
     it('resolves without error', () => {
       expect(() => Container.getUploadRepository()).not.toThrow()
     })
 
-    it('returns an object with repository methods', () => {
+    it('returns Supabase-backed UploadRepository (not in-memory)', () => {
       const repo = Container.getUploadRepository()
       expect(repo).toBeDefined()
-      expect(typeof repo).toBe('object')
+      expect(repo).toBeInstanceOf(UploadRepository)
     })
 
     it('returns the same instance on repeated calls (singleton)', () => {
@@ -31,10 +34,10 @@ describe('Container', () => {
       expect(() => Container.getIdempotencyRepository()).not.toThrow()
     })
 
-    it('returns an object with repository methods', () => {
+    it('returns Supabase-backed IdempotencyRepository (not in-memory)', () => {
       const repo = Container.getIdempotencyRepository()
       expect(repo).toBeDefined()
-      expect(typeof repo).toBe('object')
+      expect(repo).toBeInstanceOf(IdempotencyRepository)
     })
 
     it('returns the same instance on repeated calls (singleton)', () => {
@@ -49,16 +52,35 @@ describe('Container', () => {
       expect(() => Container.getMetaConnectionRepository()).not.toThrow()
     })
 
-    it('returns an object with repository methods', () => {
+    it('returns Supabase-backed MetaConnectionRepository (not in-memory)', () => {
       const repo = Container.getMetaConnectionRepository()
       expect(repo).toBeDefined()
-      expect(typeof repo).toBe('object')
+      expect(repo).toBeInstanceOf(MetaConnectionRepository)
     })
 
     it('returns the same instance on repeated calls (singleton)', () => {
       const a = Container.getMetaConnectionRepository()
       const b = Container.getMetaConnectionRepository()
       expect(a).toBe(b)
+    })
+  })
+
+  // ── Services use production repositories ─────────────────────────────────
+
+  describe('service wiring', () => {
+    it('getIdempotencyService wires with Supabase IdempotencyRepository', () => {
+      const svc = Container.getIdempotencyService()
+      expect(svc).toBeDefined()
+      // The service should be wired with the production repo, not in-memory
+      const repo = Container.getIdempotencyRepository()
+      expect(repo).toBeInstanceOf(IdempotencyRepository)
+    })
+
+    it('getMetaResolver wires with Supabase MetaConnectionRepository', () => {
+      const resolver = Container.getMetaResolver()
+      expect(resolver).toBeDefined()
+      const repo = Container.getMetaConnectionRepository()
+      expect(repo).toBeInstanceOf(MetaConnectionRepository)
     })
   })
 
