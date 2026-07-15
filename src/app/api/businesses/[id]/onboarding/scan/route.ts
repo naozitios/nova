@@ -51,5 +51,5 @@ export async function POST(
     return jsonResponse({
       jobs_queued: result.data.length,
     }, 202)
-  })
+  }, { operation: 'queue_scan' as const })
 }

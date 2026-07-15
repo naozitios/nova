@@ -13,6 +13,18 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const resolveWorkspaceId = async (): Promise<string | null> => {
+    const { id: jobId } = await params
+    const client = getSupabaseServiceClient()
+    const { data: job } = await client
+      .from('context_jobs')
+      .select('workspace_id')
+      .eq('id', jobId)
+      .single()
+    return (job?.workspace_id as string) ?? null
+  }
+
+  const wsId = await resolveWorkspaceId()
   return withIdempotency(req, async () => {
     const { id: jobId } = await params
     const client = getSupabaseServiceClient()
@@ -61,5 +73,5 @@ export async function POST(
     }
 
     return Response.json({ ok: true, status: 'queued' }, { status: 202 })
-  })
+  }, { operation: 'retry_job' as const, workspaceId: wsId ?? '' })
 }

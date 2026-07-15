@@ -69,5 +69,5 @@ export async function POST(
       heartbeat_at: j.heartbeatAt?.toISOString() ?? null,
       created_at: j.createdAt.toISOString(),
     }, 202)
-  })
+  }, { operation: 'process_source' as const })
 }

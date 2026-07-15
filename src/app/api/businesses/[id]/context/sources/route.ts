@@ -123,5 +123,5 @@ export async function POST(
       metadata: s.metadata,
       collected_at: s.collectedAt.toISOString(),
     })
-  })
+  }, { operation: 'register_source' as const })
 }

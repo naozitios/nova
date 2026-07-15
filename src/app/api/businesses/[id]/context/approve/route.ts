@@ -74,5 +74,5 @@ export async function POST(
       approved_by: v.approvedBy,
       approved_at: v.approvedAt?.toISOString() ?? null,
     })
-  })
+  }, { operation: 'approve_profile' as const })
 }

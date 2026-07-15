@@ -52,5 +52,5 @@ export async function POST(
     }
 
     return jsonResponse({ profile: result.data })
-  })
+  }, { operation: 'compile_onboarding' as const })
 }

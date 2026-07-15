@@ -51,55 +51,117 @@ export function validateWithSchema<T>(
   }
 }
 
-// ─── Idempotency key enforcement ────────────────────────────────────────────
+// ─── Idempotency key enforcement (durable, workspace-scoped) ────────────────
 
-const idempotencyStore = new Map<string, { response: Response; timestamp: number }>()
-const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+import { createHash } from 'crypto'
+import type { IdempotencyOperation } from '@/core/business-context/types/remediation-entities'
+import { IdempotencyRepository } from '@/infrastructure/business-context/repository/idempotency.repository'
+
+const IDEMPOTENCY_EXPIRY_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+function getIdempotencyRepo(): IdempotencyRepository {
+  return new IdempotencyRepository(getSupabaseServiceClient())
+}
 
 export function getIdempotencyKey(req: NextRequest): string | null {
   return req.headers.get('idempotency-key')
 }
 
-export function checkIdempotency(key: string): Response | null {
-  const cached = idempotencyStore.get(key)
-  if (!cached) return null
-
-  if (Date.now() - cached.timestamp > IDEMPOTENCY_TTL_MS) {
-    idempotencyStore.delete(key)
-    return null
-  }
-
-  return cached.response.clone()
-}
-
-export function storeIdempotency(key: string, response: Response): void {
-  idempotencyStore.set(key, { response: response.clone(), timestamp: Date.now() })
-
-  // Evict expired entries periodically
-  if (idempotencyStore.size > 1000) {
-    const now = Date.now()
-    for (const [k, v] of idempotencyStore) {
-      if (now - v.timestamp > IDEMPOTENCY_TTL_MS) {
-        idempotencyStore.delete(k)
-      }
-    }
-  }
+export function computeFingerprint(body: unknown): string {
+  const canonical = JSON.stringify(body ?? null, Object.keys(body as Record<string, unknown> ?? {}))
+  return createHash('sha256').update(canonical).digest('hex')
 }
 
 export async function withIdempotency(
   req: NextRequest,
   handler: () => Promise<Response>,
+  opts: { operation: IdempotencyOperation; workspaceId?: string | (() => string | null) },
 ): Promise<Response> {
   const key = getIdempotencyKey(req)
-  if (key) {
-    const cached = checkIdempotency(key)
-    if (cached) return cached
+  if (!key) {
+    return Response.json(
+      { error: { code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Idempotency-Key header is required' } },
+      { status: 400 },
+    )
+  }
+
+  const workspaceId = typeof opts.workspaceId === 'function'
+    ? opts.workspaceId()
+    : (opts.workspaceId ?? extractWorkspaceId(req.nextUrl.pathname))
+  if (!workspaceId) {
+    return Response.json(
+      { error: { code: 'WORKSPACE_REQUIRED', message: 'Workspace ID could not be determined' } },
+      { status: 400 },
+    )
+  }
+
+  const body = await req.clone().json().catch(() => null)
+  const fingerprint = computeFingerprint(body)
+  const repo = getIdempotencyRepo()
+
+  const existing = await repo.findByKey(workspaceId, opts.operation, key)
+  if (!existing.ok) {
+    return Response.json(
+      { error: { code: 'IDEMPOTENCY_STORE_ERROR', message: 'Failed to check idempotency' } },
+      { status: 500 },
+    )
+  }
+
+  if (existing.data) {
+    // replay cached response on matching key+payload
+    if (existing.data.requestFingerprint !== fingerprint) {
+      return Response.json(
+        { error: { code: 'IDEMPOTENCY_KEY_REUSED', message: 'Idempotency-Key reused with different payload' } },
+        { status: 409 },
+      )
+    }
+    if (existing.data.state === 'completed' && existing.data.responseBody) {
+      return Response.json(existing.data.responseBody, {
+        status: existing.data.responseStatus ?? 200,
+      })
+    }
+    if (existing.data.state === 'in_progress' || existing.data.state === 'pending') {
+      return Response.json(
+        { error: { code: 'IDEMPOTENCY_IN_PROGRESS', message: 'Request is already being processed' } },
+        { status: 409 },
+      )
+    }
+  }
+
+  const createResult = await repo.createRecord({
+    workspaceId,
+    operation: opts.operation,
+    idempotencyKey: key,
+    requestFingerprint: fingerprint,
+    state: 'in_progress',
+    resourceType: null,
+    resourceId: null,
+    responseStatus: null,
+    responseBody: null,
+    expiresAt: new Date(Date.now() + IDEMPOTENCY_EXPIRY_MS),
+    completedAt: null,
+  })
+  if (!createResult.ok) {
+    return Response.json(
+      { error: { code: 'IDEMPOTENCY_STORE_ERROR', message: 'Failed to create idempotency record' } },
+      { status: 500 },
+    )
   }
 
   const response = await handler()
 
-  if (key && response.ok) {
-    storeIdempotency(key, response)
+  if (response.ok) {
+    const responseBody = await response.clone().json().catch(() => ({}))
+    await repo.updateState(workspaceId, createResult.data.id, 'completed', {
+      responseStatus: response.status,
+      responseBody,
+      completedAt: new Date(),
+    })
+  } else {
+    await repo.updateState(workspaceId, createResult.data.id, 'failed', {
+      responseStatus: response.status,
+      completedAt: new Date(),
+    })
   }
 
   return response

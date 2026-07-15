@@ -71,5 +71,5 @@ export async function POST(
       },
       202,
     )
-  })
+  }, { operation: 'trigger_reconcile' as const })
 }

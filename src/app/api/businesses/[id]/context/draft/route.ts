@@ -53,5 +53,5 @@ export async function POST(
       warnings: result.data.warnings,
       markdown: result.data.markdown,
     })
-  })
+  }, { operation: 'compile_draft' as const })
 }

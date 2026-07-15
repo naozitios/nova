@@ -63,5 +63,5 @@ export async function POST(
       metadata: s.metadata,
       collected_at: s.collectedAt.toISOString(),
     })
-  })
+  }, { operation: 'archive_source' as const })
 }

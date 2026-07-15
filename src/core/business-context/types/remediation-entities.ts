@@ -49,6 +49,22 @@ export const IdempotencyOperation = {
   CHECK_IDEMPOTENCY: 'check_idempotency',
   META_OAUTH_CALLBACK: 'meta_oauth_callback',
   META_ACCOUNT_SELECT: 'meta_account_select',
+  CREATE_BUSINESS: 'create_business',
+  START_ONBOARDING: 'start_onboarding',
+  QUEUE_SCAN: 'queue_scan',
+  SUBMIT_ANSWERS: 'submit_answers',
+  COMPILE_ONBOARDING: 'compile_onboarding',
+  APPROVE_ONBOARDING: 'approve_onboarding',
+  REGISTER_SOURCE: 'register_source',
+  PROCESS_SOURCE: 'process_source',
+  ARCHIVE_SOURCE: 'archive_source',
+  PATCH_FACTS: 'patch_facts',
+  COMPILE_DRAFT: 'compile_draft',
+  APPROVE_PROFILE: 'approve_profile',
+  RESOLVE_CONFLICT: 'resolve_conflict',
+  RESTORE_VERSION: 'restore_version',
+  TRIGGER_RECONCILE: 'trigger_reconcile',
+  RETRY_JOB: 'retry_job',
 } as const
 
 export type IdempotencyOperation =

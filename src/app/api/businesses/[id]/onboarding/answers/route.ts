@@ -71,5 +71,5 @@ export async function POST(
     }
 
     return jsonResponse({ ok: true })
-  })
+  }, { operation: 'submit_answers' as const })
 }

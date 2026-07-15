@@ -67,5 +67,5 @@ export async function POST(
       approved_by: v.approvedBy,
       approved_at: v.approvedAt?.toISOString() ?? null,
     })
-  })
+  }, { operation: 'restore_version' as const })
 }

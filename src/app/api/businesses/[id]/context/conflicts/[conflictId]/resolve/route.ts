@@ -82,5 +82,5 @@ export async function POST(
     }
 
     return jsonResponse(result.data)
-  })
+  }, { operation: 'resolve_conflict' as const })
 }

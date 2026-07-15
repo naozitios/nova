@@ -69,5 +69,5 @@ export async function POST(req: NextRequest) {
       created_at: b.createdAt.toISOString(),
       updated_at: b.updatedAt.toISOString(),
     })
-  })
+  }, { operation: 'create_business' as const })
 }

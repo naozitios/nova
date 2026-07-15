@@ -97,5 +97,5 @@ export async function POST(
       completed_at: s.completedAt?.toISOString() ?? null,
       error: s.error,
     })
-  })
+  }, { operation: 'start_onboarding' as const })
 }
