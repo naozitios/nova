@@ -8,6 +8,8 @@ When CodeGraph is installed and `.codegraph/` exists, use it first for code expl
 
 If agentmemory is installed for this workspace, use it to recover missing project context before editing and to save durable decisions when they matter. Treat it as the source for prior session history, architecture notes, and recurring preferences when repo files are not enough.
 
+Safe agentmemory startup: do not run the long-lived agentmemory daemon inside an agent-managed background task because shell cleanup/SIGHUP can kill the iii engine and make MCP fall back to fragile local memory. Start it detached instead: `nohup agentmemory --verbose > /tmp/agentmemory-fresh.log 2>&1 & echo $! > /tmp/agentmemory-fresh.pid`. Before saving memories, verify real server health with `curl -fsS http://localhost:3111/agentmemory/livez`, `curl -fsS http://localhost:3111/agentmemory/health`, and `agentmemory status` showing `Health: ✓ healthy`. If MCP shows only fallback/local behavior or REST returns 404, stop all `agentmemory`, `agentmemory-mcp`, and `iii` processes, restart detached, and re-verify before trusting saves.
+
 Always Use /"caveman full" skill to reduce verbose responses.
 Always use RTK CLI for bash commands.
 

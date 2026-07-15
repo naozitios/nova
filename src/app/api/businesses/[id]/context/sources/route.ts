@@ -80,12 +80,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id: businessId } = await params
+
+  const wsResult = await resolveWorkspaceFromBusiness(businessId)
+  if ('error' in wsResult) return wsResult.error
+
   return withIdempotency(req, async () => {
-    const { id: businessId } = await params
-
-    const wsResult = await resolveWorkspaceFromBusiness(businessId)
-    if ('error' in wsResult) return wsResult.error
-
     const authz = await requireAuthz(req, wsResult.workspaceId, 'editor')
     if (!authz.ok) return authz.response
 
@@ -123,5 +123,5 @@ export async function POST(
       metadata: s.metadata,
       collected_at: s.collectedAt.toISOString(),
     })
-  }, { operation: 'register_source' as const })
+  }, { operation: 'register_source' as const, workspaceId: wsResult.workspaceId })
 }

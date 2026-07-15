@@ -25,8 +25,19 @@ describe.skipIf(!supabaseServiceKey)(
   "Processing visibility — stage event fields",
   () => {
     it("persists all required stage event fields", async () => {
-      const runId = crypto.randomUUID();
       const sourceId = crypto.randomUUID();
+      await supabase.from("context_sources").insert({
+        id: sourceId,
+        workspace_id: TEST_WORKSPACE,
+        business_id: TEST_BUSINESS,
+        source_type: "website",
+        source_name: "PV Test Source",
+        status: "registered",
+        metadata: {},
+        collected_at: new Date().toISOString(),
+      });
+
+      const runId = crypto.randomUUID();
       const eventId = crypto.randomUUID();
 
       // Create prerequisite run
@@ -103,11 +114,23 @@ describe.skipIf(!supabaseServiceKey)(
       // Cleanup
       await supabase.from("context_processing_stage_events").delete().eq("id", eventId);
       await supabase.from("context_processing_runs").delete().eq("id", runId);
+      await supabase.from("context_sources").delete().eq("id", sourceId);
     });
 
     it("persists sanitized error in stage event", async () => {
-      const runId = crypto.randomUUID();
       const sourceId = crypto.randomUUID();
+      await supabase.from("context_sources").insert({
+        id: sourceId,
+        workspace_id: TEST_WORKSPACE,
+        business_id: TEST_BUSINESS,
+        source_type: "website",
+        source_name: "PV Test Source",
+        status: "registered",
+        metadata: {},
+        collected_at: new Date().toISOString(),
+      });
+
+      const runId = crypto.randomUUID();
       const eventId = crypto.randomUUID();
 
       await supabase.from("context_processing_runs").insert({
@@ -155,11 +178,12 @@ describe.skipIf(!supabaseServiceKey)(
 
       expect(data!.error_class).toBe("provider_timeout");
       expect(data!.error.code).toBe("PROVIDER_TIMEOUT");
-      expect(data!.error).not.toMatch(/secret|password|token/i);
+      expect(JSON.stringify(data!.error).toLowerCase()).not.toMatch(/secret|password|token/i);
 
       // Cleanup
       await supabase.from("context_processing_stage_events").delete().eq("id", eventId);
       await supabase.from("context_processing_runs").delete().eq("id", runId);
+      await supabase.from("context_sources").delete().eq("id", sourceId);
     });
   },
 );
@@ -168,8 +192,19 @@ describe.skipIf(!supabaseServiceKey)(
   "Processing visibility — run aggregate fields",
   () => {
     it("persists all aggregate counters on processing run", async () => {
-      const runId = crypto.randomUUID();
       const sourceId = crypto.randomUUID();
+      await supabase.from("context_sources").insert({
+        id: sourceId,
+        workspace_id: TEST_WORKSPACE,
+        business_id: TEST_BUSINESS,
+        source_type: "upload",
+        source_name: "PV Test Upload Source",
+        status: "registered",
+        metadata: {},
+        collected_at: new Date().toISOString(),
+      });
+
+      const runId = crypto.randomUUID();
 
       const { error: insertError } = await supabase
         .from("context_processing_runs")
@@ -220,6 +255,7 @@ describe.skipIf(!supabaseServiceKey)(
 
       // Cleanup
       await supabase.from("context_processing_runs").delete().eq("id", runId);
+      await supabase.from("context_sources").delete().eq("id", sourceId);
     });
   },
 );
@@ -228,8 +264,19 @@ describe.skipIf(!supabaseServiceKey)(
   "Processing visibility — stage event ordering",
   () => {
     it("returns stage events ordered by started_at for a run", async () => {
-      const runId = crypto.randomUUID();
       const sourceId = crypto.randomUUID();
+      await supabase.from("context_sources").insert({
+        id: sourceId,
+        workspace_id: TEST_WORKSPACE,
+        business_id: TEST_BUSINESS,
+        source_type: "website",
+        source_name: "PV Test Source",
+        status: "registered",
+        metadata: {},
+        collected_at: new Date().toISOString(),
+      });
+
+      const runId = crypto.randomUUID();
 
       await supabase.from("context_processing_runs").insert({
         id: runId,
@@ -278,6 +325,7 @@ describe.skipIf(!supabaseServiceKey)(
         await supabase.from("context_processing_stage_events").delete().eq("id", id);
       }
       await supabase.from("context_processing_runs").delete().eq("id", runId);
+      await supabase.from("context_sources").delete().eq("id", sourceId);
     });
   },
 );

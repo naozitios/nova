@@ -24,7 +24,7 @@ const spawnedProcesses: Set<ProcessHandle> = new Set();
 
 function wrapProcess(
   proc: ChildProcess,
-  onExit?: () => void,
+  onCleanup?: () => void,
 ): ProcessHandle {
   const pid = proc.pid!;
   internalProcessMap.set(pid, proc);
@@ -34,20 +34,28 @@ function wrapProcess(
     kill() {
       proc.kill("SIGTERM");
       internalProcessMap.delete(pid);
-      onExit?.();
+      onCleanup?.();
     },
     waitForExit(): Promise<number> {
       return new Promise((resolve, reject) => {
-        proc.on("exit", (code) => {
+        const cleanup = () => {
+          proc.off("exit", onExitHandler);
+          proc.off("error", onErrorHandler);
+        };
+        const onExitHandler = (code: number | null) => {
           internalProcessMap.delete(pid);
-          onExit?.();
+          onCleanup?.();
+          cleanup();
           resolve(code ?? 1);
-        });
-        proc.on("error", (err) => {
+        };
+        const onErrorHandler = (err: Error) => {
           internalProcessMap.delete(pid);
-          onExit?.();
+          onCleanup?.();
+          cleanup();
           reject(err);
-        });
+        };
+        proc.on("exit", onExitHandler);
+        proc.on("error", onErrorHandler);
       });
     },
   };
@@ -61,8 +69,20 @@ function waitForOutput(
   timeoutMs: number,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+
+    const cleanup = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      proc.stdout?.off("data", onData);
+      proc.stderr?.off("data", onData);
+      proc.off("exit", onExit);
+    };
+
     const timeout = setTimeout(() => {
       proc.kill();
+      cleanup();
       reject(
         new Error(
           `waitForOutput: timed out after ${timeoutMs}ms waiting for ${pattern}`,
@@ -75,18 +95,13 @@ function waitForOutput(
     const onData = (data: Buffer) => {
       buffer += data.toString();
       if (pattern.test(buffer)) {
-        clearTimeout(timeout);
-        proc.stdout?.off("data", onData);
-        proc.stderr?.off("data", onData);
+        cleanup();
         resolve();
       }
     };
 
-    proc.stdout?.on("data", onData);
-    proc.stderr?.on("data", onData);
-
-    proc.on("exit", (code) => {
-      clearTimeout(timeout);
+    const onExit = (code: number | null) => {
+      cleanup();
       if (!pattern.test(buffer)) {
         reject(
           new Error(
@@ -94,7 +109,11 @@ function waitForOutput(
           ),
         );
       }
-    });
+    };
+
+    proc.stdout?.on("data", onData);
+    proc.stderr?.on("data", onData);
+    proc.on("exit", onExit);
   });
 }
 
@@ -154,21 +173,35 @@ export async function startApp(port: number): Promise<ProcessHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// startWorker (deferred to T018)
+// startWorker
 // ---------------------------------------------------------------------------
 
 /**
- * Start a worker process on the given port.
+ * Start a business-context worker process on the given port.
+ * Spawns `worker:business-context` via npx tsx, gives it a unique identity
+ * based on the port, and waits for the polling-ready signal before returning.
  *
- * **DEFERRED**: Worker smoke tests are not implemented until T018.
- * This stub throws if called prematurely.
- *
- * @throws {Error} Always — not yet implemented.
+ * @param port - Port (used as part of the worker identity).
+ * @returns Process handle for lifecycle management.
  */
-export async function startWorker(_port: number): Promise<ProcessHandle> {
-  throw new Error(
-    "startWorker is deferred to T018 — not yet implemented in E2E harness",
-  );
+export async function startWorker(port: number): Promise<ProcessHandle> {
+  const proc = spawn("npx", ["tsx", "src/workers/business-context.ts"], {
+    cwd: process.cwd(),
+    stdio: ["ignore", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      PORT: String(port),
+      WORKER_ID: `test-worker-${port}`,
+    },
+  });
+
+  const handle = wrapProcess(proc, () => releasePort(port));
+  spawnedProcesses.add(handle);
+
+  // Wait for the polling-ready signal
+  await waitForOutput(proc, /\[worker\] polling for jobs/i, 30_000);
+
+  return handle;
 }
 
 // ---------------------------------------------------------------------------

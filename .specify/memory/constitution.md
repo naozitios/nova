@@ -89,15 +89,16 @@ Every external dependency has a port interface; the port is the contract the ser
 
 - File per endpoint: `src/app/api/<domain>/<action>/route.ts`.
 - Handler signature: `async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> })` — **`params` is `await`-ed** (Next 15+ pattern).
-- All responses use `NextResponse.json(...)`.
-- **Success body** is the domain DTO directly (no `{ data, success }` wrapper).
+- All JSON responses use `NextResponse.json(...)`. A validated OAuth callback MAY use `NextResponse.redirect(...)` with `303`; no other route may bypass the JSON envelope.
+- **Success body** is the domain DTO directly (no `{ data, success }` wrapper). Validated `303` OAuth redirects are bodyless.
 - **Error body** has a fixed shape:
   ```ts
   { error: { code: string, message: string, details?: unknown } }
   ```
-- **Error codes** (canonical set — extend, do not invent):
-  `VALIDATION_ERROR | AUTH_ERROR | NOT_FOUND | INTERNAL_ERROR | META_API_ERROR | WEBHOOK_ERROR`
-- **Status codes** used: `400 | 401 | 404 | 500 | 502`.
+- **Error codes** use a canonical typed registry. Baseline codes are
+  `VALIDATION_ERROR | AUTH_ERROR | NOT_FOUND | INTERNAL_ERROR | META_API_ERROR | WEBHOOK_ERROR`.
+  Domains MAY extend this registry with stable, documented codes required by their spec and OpenAPI contract (for example idempotency, lifecycle, retry, or stale-version conflicts). Route-local ad hoc strings are forbidden.
+- **Success status codes**: `200 | 201 | 202 | 204 | 303`. **Error status codes**: `400 | 401 | 403 | 404 | 409 | 500 | 502`. Use `202` only for accepted asynchronous work, `303` only for validated OAuth callback redirects, `403` for authenticated-but-forbidden access, and `409` for idempotency, lifecycle, concurrency, replay, or stale-version conflicts.
 - Every handler is wrapped in try/catch returning a 500 with `{ code: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : 'Unknown error' }`.
 - **Every handler has JSDoc** describing the endpoint.
 - **All services via `Container.getXxx()`.** No `new MetaApiAdapter()` / `new HealthService()` / `new ActionCenter()` at the route level. The existing offenders in `/api/optimization/*` and `/api/analytics/*` are tracked for migration.
@@ -164,12 +165,14 @@ Every external dependency has a port interface; the port is the contract the ser
 
 ## IX. Testing (when adopted)
 
-Per PRD 005 §13 — **Vitest** for unit, **Playwright** for E2E. Neither is currently installed; adoption is a tracked migration item.
+Per PRD 005 §13 — **Vitest** for unit/integration/contract/RLS suites and **Playwright** for browser E2E. Backend process-level E2E may use Vitest when it owns app/worker/service startup and cleanup.
 
 **When tests are introduced:**
-- Test files are co-located: `*.test.ts` next to the source file.
+- Pure unit tests are co-located: `*.test.ts` next to the source file.
+- Real-boundary integration, contract, RLS, process-level E2E, fixtures, and shared harnesses live under `tests/{integration,contract,rls,e2e,fixtures}/` because they span modules or own external process/database lifecycle.
 - **Mock via port interfaces, never via concrete adapters.** `vi.mock('@/core/campaign/repository.port')` is correct; `vi.mock('@/infrastructure/persistence/campaign/drizzle.repository')` is not.
-- TDD for new ports, new services, and new domain logic: tests written first, must fail before implementation.
+- Hybrid staged verification: implementation may precede or accompany focused tests inside a bounded dependency wave. New/changed behavior cannot be marked complete until focused unit/typecheck and required subsystem gate pass. Bug fixes require regression coverage demonstrating prior failure before being marked verified.
+- Integration/contract/RLS gate each assembled subsystem; E2E gates completed user stories; full suite gates release.
 - Existing `Container.useInMemory()` and `Container.reset()` hooks are the test seams — use them.
 
 ---
@@ -199,6 +202,7 @@ Amend this list to add a dependency. Do not add dependencies casually.
 - **State / data**: @tanstack/react-query 5.90.16
 - **Testing** (when adopted): Vitest + Playwright
 - **Validation**: Zod 4
+- **Security runtime**: `clamav/clamav:1.4.3`, pinned by image digest in deployment configuration, reachable only on a private network through a core malware-scanner port. No public clamd exposure and no document contents in scanner logs.
 
 **Do not introduce** without amending this constitution: a new UI library, a new state library, a new ORM, a new auth provider, a new payments provider, a new LLM SDK, Tailwind alternatives (UnoCSS, etc.), CSS-in-JS.
 
@@ -223,6 +227,8 @@ These are known inconsistencies. New work MUST NOT add to them. When editing a f
 13. **Drizzle has no migration files** — generate them; commit.
 14. **Duplicate JSDoc lines** in `core/ai/service.ts:5-6`, `infrastructure/llm/groq.adapter.ts:7-8`, `infrastructure/meta/meta-api.adapter.ts:5-6`, `core/ai/llm-client.port.ts:6` — strip duplicates.
 15. **`mapObjective` and `mapObjectiveReverse` in `infrastructure/meta/meta-mapper.ts:62-80` are byte-identical** — Meta's outcome enums (LEAD, SALES, etc.) are not handled. Either implement the reverse map or document the limitation.
+16. **API status/error normalization** — existing routes already emit `202`, `403`, `409`, and domain-specific codes inconsistently. New or touched domains MUST define codes in a typed registry and OpenAPI contract; migrate untouched routes when next modified rather than performing an unsafe mass rewrite.
+17. **Test layout migration** — move pure unit tests currently under `tests/unit/` beside their production modules when those tests are next changed. Keep integration, contract, RLS, process-level E2E, fixtures, and shared harnesses centralized under `tests/`.
 
 ---
 
@@ -251,4 +257,10 @@ These are known inconsistencies. New work MUST NOT add to them. When editing a f
 - **Compliance verification**: every spec MUST include a "Constitution Compliance" section listing which §I–XII rules it adheres to. `/speckit.analyze` checks for missing sections.
 - All PRs MUST reference a spec in `specs/`. A PR without a spec needs an explicit "out of scope" reason in the PR description.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-14 | **Last Amended**: 2026-07-14
+**Version**: 1.3.0 | **Ratified**: 2026-07-14 | **Last Amended**: 2026-07-15
+
+### Amendment History
+
+| Version | Date | Summary |
+|---------|------|---------|
+| 1.3.0 | 2026-07-15 | §IX: replaced mandatory per-function TDD with hybrid staged verification. Implementation may precede focused tests within bounded waves; completion requires unit/typecheck + subsystem gates. Regression coverage required for bug fixes. |

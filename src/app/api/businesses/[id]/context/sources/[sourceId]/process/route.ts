@@ -31,12 +31,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; sourceId: string }> },
 ) {
+  const { id: businessId, sourceId } = await params
+
+  const wsResult = await resolveWorkspaceFromBusiness(businessId)
+  if ('error' in wsResult) return wsResult.error
+
   return withIdempotency(req, async () => {
-    const { id: businessId, sourceId } = await params
-
-    const wsResult = await resolveWorkspaceFromBusiness(businessId)
-    if ('error' in wsResult) return wsResult.error
-
     const authz = await requireAuthz(req, wsResult.workspaceId, 'editor')
     if (!authz.ok) return authz.response
 
@@ -69,5 +69,5 @@ export async function POST(
       heartbeat_at: j.heartbeatAt?.toISOString() ?? null,
       created_at: j.createdAt.toISOString(),
     }, 202)
-  }, { operation: 'process_source' as const })
+  }, { operation: 'process_source' as const, workspaceId: wsResult.workspaceId })
 }

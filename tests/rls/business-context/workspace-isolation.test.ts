@@ -126,7 +126,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — viewer mutation denied", () => {
         JOIN pg_namespace pn ON pn.oid = pc.relnamespace
         WHERE pc.relname = 'businesses'
           AND pn.nspname = 'public'
-          AND pol.polcmd IN ('INSERT', 'ALL')
+          AND pol.polcmd IN ('a', '*')
       `,
     });
 
@@ -146,7 +146,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — policy existence checks", () => {
         JOIN pg_namespace pn ON pn.oid = pc.relnamespace
         WHERE pc.relname = 'context_sources'
           AND pn.nspname = 'public'
-          AND pol.polcmd IN ('SELECT', 'ALL')
+          AND pol.polcmd IN ('r', '*')
       `,
     });
     expect(error).toBeNull();
@@ -163,7 +163,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — policy existence checks", () => {
         JOIN pg_namespace pn ON pn.oid = pc.relnamespace
         WHERE pc.relname = 'context_sources'
           AND pn.nspname = 'public'
-          AND pol.polcmd IN ('INSERT', 'ALL')
+          AND pol.polcmd IN ('a', '*')
       `,
     });
     expect(error).toBeNull();
@@ -180,7 +180,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — policy existence checks", () => {
         JOIN pg_namespace pn ON pn.oid = pc.relnamespace
         WHERE pc.relname = 'business_profile_versions'
           AND pn.nspname = 'public'
-          AND pol.polcmd IN ('UPDATE', 'ALL')
+          AND pol.polcmd IN ('w', '*')
       `,
     });
     expect(error).toBeNull();
@@ -197,7 +197,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — policy existence checks", () => {
         JOIN pg_namespace pn ON pn.oid = pc.relnamespace
         WHERE pc.relname = 'context_facts'
           AND pn.nspname = 'public'
-          AND pol.polcmd IN ('SELECT', 'ALL')
+          AND pol.polcmd IN ('r', '*')
       `,
     });
     expect(error).toBeNull();

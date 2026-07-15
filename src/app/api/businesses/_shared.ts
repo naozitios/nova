@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import type { NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 import type { AuthzContext } from '@/infrastructure/business-context/authz'
 import { resolveWorkspaceAuth, requireRole } from '@/infrastructure/business-context/authz'
 import { getSupabaseServiceClient } from '@/infrastructure/business-context/supabase-client'
+import { config } from '@/infrastructure/config'
 import type { WorkspaceRole } from '@/core/business-context/types'
 
 // ─── JSON body parsing ──────────────────────────────────────────────────────
@@ -182,9 +184,16 @@ export async function requireAuthz(
   const token = authHeader?.replace('Bearer ', '')
 
   // In development, allow X-User-Id header for testing
-  const userId = token
-    ? (await client.auth.getUser(token)).data.user?.id
-    : req.headers.get('x-user-id')
+  let userId: string | null = null
+  if (token) {
+    userId = (await client.auth.getUser(token)).data.user?.id ?? null
+  } else if (req.headers.get('x-user-id')) {
+    userId = req.headers.get('x-user-id')
+  } else {
+    // Try NextAuth session cookie (dev/test)
+    const sessionToken = await getToken({ req, secret: config.auth.nextAuthSecret })
+    userId = sessionToken?.sub ?? null
+  }
 
   if (!userId) {
     return {

@@ -1,0 +1,478 @@
+openapi: 3.1.0
+info:
+  title: Business Context Remediation API
+  version: 0.6.2
+security:
+  - nextAuthSession: []
+components:
+  securitySchemes:
+    nextAuthSession: { type: apiKey, in: cookie, name: next-auth.session-token, description: Verified NextAuth server session; production may use the secure cookie alias. }
+  parameters:
+    BusinessId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    SourceId: { name: sourceId, in: path, required: true, schema: { type: string, format: uuid } }
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 200 } }
+  responses:
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Unauthorized: { description: Authentication required, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Forbidden: { description: Insufficient role or wrong workspace, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: Resource not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Conflict: { description: Idempotency, lifecycle, readiness, or stale-version conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    DefaultError: { description: Structured authentication, authorization, validation, not-found, conflict, provider, or internal error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  schemas:
+    ErrorCode:
+      type: string
+      enum: [VALIDATION_ERROR, AUTH_ERROR, UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, INTERNAL_ERROR, META_API_ERROR, WEBHOOK_ERROR, WORKSPACE_NOT_FOUND, IDEMPOTENCY_KEY_REUSED, OAUTH_CALLBACK_REPLAYED, STALE_PROFILE_VERSION, OCR_REQUIRED, LEGACY_FORMAT_UNSUPPORTED, MALWARE_DETECTED, MALWARE_SCAN_UNAVAILABLE, UPLOAD_EXPIRED, UPLOAD_INVALID, SOURCE_ARCHIVED, JOB_NOT_RETRYABLE]
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { $ref: '#/components/schemas/ErrorCode' }
+            message: { type: string }
+            details: { type: object, additionalProperties: true }
+    BusinessCreate:
+      type: object
+      required: [workspace_id, name, primary_market, primary_advertising_objective, primary_business_outcome]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        name: { type: string, minLength: 1 }
+        primary_market: { type: string, minLength: 1 }
+        primary_advertising_objective: { type: string, minLength: 1 }
+        primary_business_outcome: { type: string, minLength: 1 }
+        website_url: { type: [string, 'null'], format: uri }
+        business_type: { type: [string, 'null'] }
+    Business:
+      type: object
+      required: [id, workspace_id, name, status]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        name: { type: string }
+        website_url: { type: [string, 'null'] }
+        status: { type: string }
+        onboarding: { $ref: '#/components/schemas/Readiness' }
+    QuestionOption:
+      type: object
+      required: [value, label]
+      properties:
+        value: { type: string }
+        label: { type: string }
+    Question:
+      type: object
+      required: [id, fact_key, prompt, control_type, allows_unknown, reason, priority, status]
+      properties:
+        id: { type: string, format: uuid }
+        fact_key: { type: string }
+        prompt: { type: string, minLength: 1 }
+        control_type: { type: string, enum: [single_choice, multiple_choice, currency, number, short_text, long_text, confirmation] }
+        options: { type: [array, 'null'], items: { $ref: '#/components/schemas/QuestionOption' } }
+        allows_unknown: { type: boolean }
+        reason: { type: string }
+        priority: { type: integer }
+        status: { type: string, enum: [open, answered, dismissed] }
+        answer: { oneOf: [{ type: string }, { type: number }, { type: boolean }, { type: array, items: { type: string } }, { type: 'null' }] }
+        answer_is_unknown: { type: boolean, default: false }
+    Blocker:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        entity_id: { type: [string, 'null'], format: uuid }
+        recommended_action: { type: [string, 'null'] }
+    Readiness:
+      type: object
+      required: [session, route_stage, source_counts, active_job_count, active_jobs, questions, blockers, section_readiness, approval_ready]
+      properties:
+        session:
+          type: object
+          required: [id, mode, status]
+          properties:
+            id: { type: string, format: uuid }
+            mode: { type: string, enum: [initial, update] }
+            status: { type: string, enum: [created, scanning, extracting, awaiting_review, awaiting_answers, ready_for_approval, approved, failed] }
+            current_step: { type: [string, 'null'] }
+            base_profile_version_id: { type: [string, 'null'], format: uuid }
+        route_stage: { type: string, enum: [business, sources, review, context, complete] }
+        source_counts: { type: object, additionalProperties: { type: integer } }
+        active_job_count: { type: integer }
+        active_jobs: { type: array, items: { $ref: '#/components/schemas/ContextJob' } }
+        questions: { type: array, items: { $ref: '#/components/schemas/Question' } }
+        blockers: { type: array, items: { $ref: '#/components/schemas/Blocker' } }
+        section_readiness:
+          type: array
+          items:
+            type: object
+            required: [section, status, missing_fact_keys, conflict_count]
+            properties:
+              section: { type: string }
+              status: { type: string, enum: [ready, incomplete, blocked] }
+              missing_fact_keys: { type: array, items: { type: string } }
+              conflict_count: { type: integer }
+        approval_ready: { type: boolean }
+        current_profile_version_id: { type: [string, 'null'], format: uuid }
+        draft_profile_version_id: { type: [string, 'null'], format: uuid }
+    UploadIntent:
+      type: object
+      required: [id, document_class, classification_source, upload_url, expires_at, status, malware_scan_status]
+      properties:
+        id: { type: string, format: uuid }
+        document_class: { type: string, enum: [marketing_campaign, business_plan, financial_report, brand_material, product_material, research] }
+        classification_source: { type: string, enum: [user_selected, system_proposed] }
+        upload_url: { type: string, format: uri }
+        expires_at: { type: string, format: date-time }
+        status: { type: string, enum: [pending, uploaded, completed, expired, rejected] }
+        malware_scan_status: { type: string, enum: [pending, clean, infected, suspicious, unavailable, failed] }
+        malware_scan_code: { type: [string, 'null'] }
+    ClassificationProposal:
+      type: object
+      required: [proposal_token, document_class, expires_at]
+      properties:
+        proposal_token: { type: string, minLength: 32 }
+        document_class: { type: string, enum: [marketing_campaign, business_plan, financial_report, brand_material, product_material, research] }
+        expires_at: { type: string, format: date-time }
+    UploadCreate:
+      oneOf:
+        - type: object
+          required: [source_type, source_name, document_class, file_name, mime_type, size_bytes]
+          properties:
+            source_type: { type: string }
+            source_name: { type: string }
+            document_class: { type: string, enum: [marketing_campaign, business_plan, financial_report, brand_material, product_material, research] }
+            file_name: { type: string }
+            mime_type: { type: string }
+            size_bytes: { type: integer, minimum: 1, maximum: 52428800 }
+        - type: object
+          required: [source_type, source_name, classification_proposal_token, file_name, mime_type, size_bytes]
+          properties:
+            source_type: { type: string }
+            source_name: { type: string }
+            classification_proposal_token: { type: string, minLength: 32 }
+            file_name: { type: string }
+            mime_type: { type: string }
+            size_bytes: { type: integer, minimum: 1, maximum: 52428800 }
+    SourceSummary:
+      type: object
+      required: [id, source_type, source_name, status, retryable, counts]
+      properties:
+        id: { type: string, format: uuid }
+        source_type: { type: string }
+        source_name: { type: string }
+        document_class: { type: [string, 'null'] }
+        status: { type: string, enum: [registered, queued, processing, processed, processed_with_warnings, blocked_needs_user_action, failed_permanent, archived] }
+        current_stage: { type: [string, 'null'], enum: [registered, queued, acquiring, stored, parsing, normalizing, extracting, reconciling, quality_checking, completed, null] }
+        terminal_outcome: { type: [string, 'null'], enum: [processed, processed_with_warnings, blocked_needs_user_action, failed_permanent, archived, null] }
+        failure: { oneOf: [{ $ref: '#/components/schemas/Blocker' }, { type: 'null' }] }
+        retryable: { type: boolean }
+        added_at: { type: string, format: date-time }
+        effective_at: { type: [string, 'null'], format: date-time }
+        counts:
+          type: object
+          properties:
+            documents: { type: integer }
+            facts: { type: integer }
+            warnings: { type: integer }
+            pages: { type: integer }
+            slides: { type: integer }
+    Evidence:
+      type: object
+      required: [source_id, source_name, excerpt]
+      properties:
+        source_id: { type: string, format: uuid }
+        source_name: { type: string }
+        source_document_id: { type: [string, 'null'], format: uuid }
+        excerpt: { type: [string, 'null'] }
+        locator: { type: [object, 'null'], additionalProperties: true }
+    Fact:
+      type: object
+      required: [id, fact_key, value, confidence, verification_status, evidence]
+      properties:
+        id: { type: string, format: uuid }
+        fact_key: { type: string }
+        value: {}
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        confidence_state: { type: string, enum: [verified, supported, uncertain, conflicting] }
+        verification_status: { type: string }
+        evidence: { $ref: '#/components/schemas/Evidence' }
+        updated_at: { type: string, format: date-time }
+    ProcessingRun:
+      type: object
+      required: [id, source_id, status, current_stage, attempts, stages, quality_results]
+      properties:
+        id: { type: string, format: uuid }
+        source_id: { type: string, format: uuid }
+        status: { type: string, enum: [running, succeeded, succeeded_with_warnings, blocked, failed, dead_lettered, cancelled] }
+        current_stage: { type: string, enum: [registered, queued, acquiring, stored, parsing, normalizing, extracting, reconciling, quality_checking, completed] }
+        terminal_outcome: { type: [string, 'null'], enum: [processed, processed_with_warnings, blocked_needs_user_action, failed_permanent, archived, null] }
+        attempts: { type: integer }
+        counts: { type: object, additionalProperties: { type: number } }
+        stages: { type: array, items: { type: object, additionalProperties: true } }
+        quality_results: { type: array, items: { type: object, additionalProperties: true } }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+        failure: { oneOf: [{ $ref: '#/components/schemas/Blocker' }, { type: 'null' }] }
+    ContextJob:
+      type: object
+      required: [id, business_id, source_id, status, attempts, max_attempts, retryable, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        business_id: { type: string, format: uuid }
+        source_id: { type: string, format: uuid }
+        processing_run_id: { type: [string, 'null'], format: uuid }
+        status: { type: string, enum: [queued, scheduled, running, retry_waiting, succeeded, failed_retryable, failed_permanent, stalled, dead_lettered, cancelled] }
+        attempts: { type: integer }
+        max_attempts: { type: integer }
+        retryable: { type: boolean }
+        next_run_at: { type: [string, 'null'], format: date-time }
+        heartbeat_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        failure: { oneOf: [{ $ref: '#/components/schemas/Blocker' }, { type: 'null' }] }
+    Profile:
+      type: object
+      required: [id, version, status, profile, updated_at, section_readiness, draft_change_count]
+      properties:
+        id: { type: string, format: uuid }
+        version: { type: integer }
+        status: { type: string, enum: [draft, current, superseded, restored_snapshot] }
+        profile: { type: object, additionalProperties: true }
+        base_version_id: { type: [string, 'null'], format: uuid }
+        approved_by: { type: [string, 'null'], format: uuid }
+        approved_at: { type: [string, 'null'], format: date-time }
+        updated_at: { type: string, format: date-time }
+        change_summary: { type: [string, 'null'] }
+        draft_change_count: { type: integer }
+        section_readiness: { type: array, items: { type: object, additionalProperties: true } }
+    Conflict:
+      type: object
+      required: [id, fact_key, status, candidates, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        fact_key: { type: string }
+        status: { type: string, enum: [open, resolved, dismissed] }
+        candidates:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            required: [fact_id, value, source_name]
+            properties:
+              fact_id: { type: string, format: uuid }
+              value: {}
+              source_name: { type: string }
+              effective_at: { type: [string, 'null'], format: date-time }
+        proposed_fact_id: { type: [string, 'null'], format: uuid }
+        question_id: { type: [string, 'null'], format: uuid }
+        resolution_note: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+    ProfileDiff:
+      type: object
+      required: [base_version_id, draft_version_id, changes]
+      properties:
+        base_version_id: { type: [string, 'null'], format: uuid }
+        draft_version_id: { type: string, format: uuid }
+        changes:
+          type: array
+          items:
+            type: object
+            required: [section, fact_key, previous_value, proposed_value, reason]
+            properties:
+              section: { type: string }
+              fact_key: { type: string }
+              previous_value: {}
+              proposed_value: {}
+              source_id: { type: [string, 'null'], format: uuid }
+              source_name: { type: [string, 'null'] }
+              reason: { type: string }
+    SourceCreate:
+      oneOf:
+        - type: object
+          required: [source_type, source_name, metadata]
+          properties:
+            source_type: { const: website }
+            source_name: { type: string, minLength: 1 }
+            document_class: { type: [string, 'null'] }
+            metadata:
+              type: object
+              required: [url]
+              properties: { url: { type: string, format: uri } }
+              additionalProperties: false
+        - type: object
+          required: [source_type, source_name, metadata]
+          properties:
+            source_type: { const: meta }
+            source_name: { type: string, minLength: 1 }
+            document_class: { type: [string, 'null'] }
+            metadata:
+              type: object
+              required: [connection_id, ad_account_id]
+              properties: { connection_id: { type: string, format: uuid }, ad_account_id: { type: string } }
+              additionalProperties: false
+        - type: object
+          required: [source_type, source_name, metadata]
+          properties:
+            source_type: { const: user_answer }
+            source_name: { type: string, minLength: 1 }
+            document_class: { type: [string, 'null'] }
+            metadata:
+              type: object
+              required: [text]
+              properties: { text: { type: string, minLength: 1 }, effective_at: { type: [string, 'null'], format: date-time } }
+              additionalProperties: false
+      discriminator: { propertyName: source_type }
+    FactCorrection:
+      type: object
+      required: [fact_key, value, reason]
+      properties:
+        fact_key: { type: string }
+        value: {}
+        reason: { type: string, minLength: 1 }
+    ApprovalRequest:
+      type: object
+      required: [draft_version_id, expected_base_version_id]
+      properties:
+        draft_version_id: { type: string, format: uuid }
+        expected_base_version_id: { type: [string, 'null'], format: uuid }
+    MetaConnectionStatus:
+      type: object
+      required: [status, accounts]
+      properties:
+        status: { type: string, enum: [connected, expired, disconnected, error] }
+        selected_ad_account_id: { type: [string, 'null'] }
+        accounts: { type: array, items: { type: object, required: [id, name], properties: { id: { type: string }, name: { type: string }, status: { type: string } } } }
+paths:
+  /api/businesses:
+    post:
+      summary: Create business, initial facts, optional website source, and onboarding
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/BusinessCreate' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Business' } } } }, '409': { description: Idempotency conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/onboarding:
+    parameters: [{ $ref: '#/components/parameters/BusinessId' }]
+    get: { summary: Get readiness, responses: { '200': { description: Readiness, content: { application/json: { schema: { $ref: '#/components/schemas/Readiness' } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+    post:
+      summary: Start or resume initial/update session
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [mode], properties: { mode: { type: string, enum: [initial, update] } } } } } }
+      responses: { '200': { description: Resumed, content: { application/json: { schema: { $ref: '#/components/schemas/Readiness' } } } }, '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Readiness' } } } }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/onboarding/questions:
+    get: { summary: List generated questions, parameters: [{ $ref: '#/components/parameters/BusinessId' }], responses: { '200': { description: Questions, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Question' } } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/onboarding/answers:
+    post:
+      summary: Answer questions as verified facts
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [answers], properties: { answers: { type: array, minItems: 1, items: { type: object, required: [question_id, is_unknown], properties: { question_id: { type: string, format: uuid }, value: {}, is_unknown: { type: boolean } } } } } } } } }
+      responses: { '200': { description: Updated readiness, content: { application/json: { schema: { $ref: '#/components/schemas/Readiness' } } } }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/onboarding/compile:
+    post: { summary: Compile fact-backed draft, parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/onboarding/approve:
+    post:
+      summary: Approve initial/update profile
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ApprovalRequest' } } } }
+      responses: { '200': { description: Published profile, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }, '409': { description: Blocked or stale, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/context/uploads:
+    post:
+      summary: Create private upload intent
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UploadCreate' } } } }
+      responses: { '201': { description: Intent, content: { application/json: { schema: { $ref: '#/components/schemas/UploadIntent' } } } }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/context/uploads/classification-proposals:
+    post:
+      summary: Propose a signed, expiring document classification without persisting upload state
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [source_name, file_name, mime_type], properties: { source_name: { type: string }, file_name: { type: string }, mime_type: { type: string } } } } } }
+      responses: { '200': { description: Signed proposal, content: { application/json: { schema: { $ref: '#/components/schemas/ClassificationProposal' } } } }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/context/uploads/{uploadId}/complete:
+    post:
+      summary: Verify upload and queue processing
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { name: uploadId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [storage_path], properties: { storage_path: { type: string }, checksum_sha256: { type: [string, 'null'] } } } } } }
+      responses: { '202': { description: Source and job queued, content: { application/json: { schema: { type: object, required: [upload, source, job], properties: { upload: { $ref: '#/components/schemas/UploadIntent' }, source: { $ref: '#/components/schemas/SourceSummary' }, job: { $ref: '#/components/schemas/ContextJob' } } } } } }, '409': { $ref: '#/components/responses/Conflict' }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/context/sources:
+    get: { summary: List source summaries, parameters: [{ $ref: '#/components/parameters/BusinessId' }], responses: { '200': { description: Sources, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SourceSummary' } } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+    post:
+      summary: Register typed website, Meta, or manual source
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SourceCreate' } } } }
+      responses: { '201': { description: Source, content: { application/json: { schema: { $ref: '#/components/schemas/SourceSummary' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { $ref: '#/components/responses/Conflict' }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/context/sources/{sourceId}:
+    get: { summary: Inspect source, evidence, and processing, parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/SourceId' }], responses: { '200': { description: Source detail, content: { application/json: { schema: { type: object, required: [source, facts, runs], properties: { source: { $ref: '#/components/schemas/SourceSummary' }, facts: { type: array, items: { $ref: '#/components/schemas/Fact' } }, runs: { type: array, items: { $ref: '#/components/schemas/ProcessingRun' } } } } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/context/sources/{sourceId}/process:
+    post: { summary: Queue idempotent processing, parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/SourceId' }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '202': { description: Job queued, content: { application/json: { schema: { $ref: '#/components/schemas/ContextJob' } } } }, '409': { $ref: '#/components/responses/Conflict' }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/context/sources/{sourceId}/archive:
+    post: { summary: Archive without erasing evidence, parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/SourceId' }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: Archived source, content: { application/json: { schema: { $ref: '#/components/schemas/SourceSummary' } } } }, '409': { $ref: '#/components/responses/Conflict' }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/context-jobs/{id}:
+    get: { summary: Poll job, parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }], responses: { '200': { description: Job state, content: { application/json: { schema: { $ref: '#/components/schemas/ContextJob' } } } }, '404': { $ref: '#/components/responses/NotFound' }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/context-jobs/{id}/retry:
+    post: { summary: Retry eligible job, parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '202': { description: Retry queued, content: { application/json: { schema: { $ref: '#/components/schemas/ContextJob' } } } }, '409': { $ref: '#/components/responses/Conflict' }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/context/processing-runs:
+    get: { summary: List processing runs, parameters: [{ $ref: '#/components/parameters/BusinessId' }], responses: { '200': { description: Runs, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ProcessingRun' } } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/context/processing-runs/{runId}:
+    get: { summary: Inspect stages and quality, parameters: [{ $ref: '#/components/parameters/BusinessId' }, { name: runId, in: path, required: true, schema: { type: string, format: uuid } }], responses: { '200': { description: Run, content: { application/json: { schema: { $ref: '#/components/schemas/ProcessingRun' } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/context:
+    get: { summary: Get current profile/readiness summary, parameters: [{ $ref: '#/components/parameters/BusinessId' }], responses: { '200': { description: Current profile, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/context/facts:
+    get: { summary: List facts with evidence, parameters: [{ $ref: '#/components/parameters/BusinessId' }], responses: { '200': { description: Facts, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Fact' } } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+    patch:
+      summary: Create provenance-preserving correction fact
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FactCorrection' } } } }
+      responses: { '200': { description: Correction fact and draft change, content: { application/json: { schema: { type: object, required: [fact, draft], properties: { fact: { $ref: '#/components/schemas/Fact' }, draft: { $ref: '#/components/schemas/Profile' } } } } } }, '409': { $ref: '#/components/responses/Conflict' }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/context/conflicts:
+    get: { summary: List conflicts, parameters: [{ $ref: '#/components/parameters/BusinessId' }], responses: { '200': { description: Conflicts, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Conflict' } } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/context/conflicts/{conflictId}/resolve:
+    post:
+      summary: Resolve conflict into draft
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }, { name: conflictId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [selected_fact_id, resolution_note], properties: { selected_fact_id: { type: string, format: uuid }, resolution_note: { type: string, minLength: 1 } } } } } }
+      responses: { '200': { description: Resolved conflict, content: { application/json: { schema: { type: object, required: [conflict, draft], properties: { conflict: { $ref: '#/components/schemas/Conflict' }, draft: { $ref: '#/components/schemas/Profile' } } } } } }, '409': { $ref: '#/components/responses/Conflict' }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/context/draft:
+    post: { summary: Compile base-linked draft, parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/context/diff:
+    get: { summary: Get attributed field diff, parameters: [{ $ref: '#/components/parameters/BusinessId' }], responses: { '200': { description: Diff, content: { application/json: { schema: { $ref: '#/components/schemas/ProfileDiff' } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/context/approve:
+    post:
+      summary: Publish expected-base draft
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ApprovalRequest' } } } }
+      responses: { '200': { description: Published profile, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }, '409': { $ref: '#/components/responses/Conflict' }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/context/versions:
+    get: { summary: List immutable versions, parameters: [{ $ref: '#/components/parameters/BusinessId' }], responses: { '200': { description: Versions, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Profile' } } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+  /api/businesses/{id}/context/versions/compare:
+    get:
+      summary: Compare any two immutable versions
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }, { name: from, in: query, required: true, schema: { type: string, format: uuid } }, { name: to, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Attributed version diff, content: { application/json: { schema: { $ref: '#/components/schemas/ProfileDiff' } } } }, '404': { $ref: '#/components/responses/NotFound' }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/context/versions/{versionId}:
+    get:
+      summary: View one immutable version
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }, { name: versionId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Version detail, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }, '404': { $ref: '#/components/responses/NotFound' }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/businesses/{id}/context/versions/{versionId}/restore:
+    post:
+      summary: Restore snapshot as new version
+      parameters: [{ $ref: '#/components/parameters/BusinessId' }, { name: versionId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expected_current_version_id], properties: { expected_current_version_id: { type: string, format: uuid }, reason: { type: string } } } } } }
+      responses: { '200': { description: New restored version, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }, '409': { $ref: '#/components/responses/Conflict' }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/meta/connections:
+    get: { summary: Get sanitized workspace Meta connection status, responses: { '200': { description: Status, content: { application/json: { schema: { $ref: '#/components/schemas/MetaConnectionStatus' } } } }, default: { $ref: '#/components/responses/DefaultError' } } }
+    post:
+      summary: Start authenticated workspace-scoped OAuth
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [workspace_id, return_path], properties: { workspace_id: { type: string, format: uuid }, return_path: { type: string, pattern: '^/' } } } } } }
+      responses: { '200': { description: Authorization URL, content: { application/json: { schema: { type: object, required: [authorization_url, expires_at], properties: { authorization_url: { type: string, format: uri }, expires_at: { type: string, format: date-time } } } } } }, '409': { $ref: '#/components/responses/Conflict' }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/meta/connections/callback:
+    get:
+      summary: Validate signed state, exchange code, and persist encrypted workspace connection
+      security: []
+      parameters: [{ name: code, in: query, required: true, schema: { type: string } }, { name: state, in: query, required: true, schema: { type: string } }]
+      responses: { '303': { description: Redirect to signed return path without credentials, headers: { Location: { schema: { type: string, format: uri-reference } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { description: Signed state or provider code already consumed, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }, '502': { description: Meta token exchange failed, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }, default: { $ref: '#/components/responses/DefaultError' } }
+  /api/meta/connections/select-account:
+    post:
+      summary: Select owned ad account
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [workspace_id, ad_account_id], properties: { workspace_id: { type: string, format: uuid }, ad_account_id: { type: string } } } } } }
+      responses: { '200': { description: Updated status, content: { application/json: { schema: { $ref: '#/components/schemas/MetaConnectionStatus' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { $ref: '#/components/responses/Conflict' }, default: { $ref: '#/components/responses/DefaultError' } }

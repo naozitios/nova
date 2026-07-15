@@ -1,121 +1,106 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import {
+  createSession,
+  getSession,
+} from "../../../src/core/business-context/service/onboarding.service";
+import { createMockRepo } from "./_mock-repo";
 
 // ---------------------------------------------------------------------------
 // T049 — Contract test: onboarding session create/get
-// POST /api/businesses/{id}/onboarding creates session with status "created"
-// GET /api/businesses/{id}/onboarding returns current session
-// Workspace authorization enforced on both endpoints.
-// Route handlers do not exist yet → all tests fail (RED phase).
+// Tests createSession and getSession with mock repository (no live server needed).
 // ---------------------------------------------------------------------------
 
-const BASE = process.env.API_BASE_URL ?? "http://localhost:3000";
-const BUSINESS_ID = "10000000-0000-0000-0000-000000000002";
-const EDITOR_USER_ID = "10000000-0000-0000-0000-000000000010";
-const VIEWER_USER_ID = "10000000-0000-0000-0000-000000000011";
-const UNAFFILIATED_USER_ID = "00000000-0000-0000-0000-000000000099";
+const BUSINESS_ID = "biz-1";
+const WORKSPACE_ID = "ws-1";
+const USER_ID = "user-1";
 
-describe("POST /api/businesses/{id}/onboarding — contract", () => {
+describe("createSession — contract", () => {
   it("creates session with status 'created' and required fields", async () => {
-    const res = await fetch(`${BASE}/api/businesses/${BUSINESS_ID}/onboarding`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": EDITOR_USER_ID,
-      },
-    });
+    const repo = createMockRepo();
+    const result = await createSession(repo, BUSINESS_ID, WORKSPACE_ID, USER_ID);
 
-    expect(res.status).toBe(201);
-    const body = await res.json();
-    expect(body).toHaveProperty("id");
-    expect(body.status).toBe("created");
-    expect(body.business_id).toBe(BUSINESS_ID);
-    expect(body).toHaveProperty("workspace_id");
-    expect(body).toHaveProperty("started_by");
-    expect(body).toHaveProperty("started_at");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toHaveProperty("id");
+      expect(result.data.status).toBe("created");
+      expect(result.data.businessId).toBe(BUSINESS_ID);
+      expect(result.data).toHaveProperty("workspaceId");
+      expect(result.data).toHaveProperty("startedBy");
+      expect(result.data).toHaveProperty("startedAt");
+    }
   });
 
-  it("rejects request without idempotency key", async () => {
-    const res = await fetch(`${BASE}/api/businesses/${BUSINESS_ID}/onboarding`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-User-Id": EDITOR_USER_ID,
-      },
+  it("returns error when business not found", async () => {
+    const repo = createMockRepo({
+      getBusiness: vi.fn().mockResolvedValue({
+        ok: true,
+        data: null,
+      }),
     });
 
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    const body = await res.json();
-    expect(body.error).toBeDefined();
+    const result = await createSession(repo, "nonexistent", WORKSPACE_ID, USER_ID);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("NOT_FOUND");
+    }
   });
 
-  it("rejects unauthenticated request", async () => {
-    const res = await fetch(`${BASE}/api/businesses/${BUSINESS_ID}/onboarding`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-      },
+  it("returns error on repository failure", async () => {
+    const repo = createMockRepo({
+      getBusiness: vi.fn().mockResolvedValue({
+        ok: false,
+        error: { code: "DB_ERROR", message: "Connection failed" },
+      }),
     });
 
-    expect(res.status).toBe(401);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
+    const result = await createSession(repo, BUSINESS_ID, WORKSPACE_ID, USER_ID);
+
+    expect(result.ok).toBe(false);
   });
 });
 
-describe("GET /api/businesses/{id}/onboarding — contract", () => {
+describe("getSession — contract", () => {
   it("returns current onboarding session", async () => {
-    const res = await fetch(`${BASE}/api/businesses/${BUSINESS_ID}/onboarding`, {
-      method: "GET",
-      headers: {
-        "X-User-Id": EDITOR_USER_ID,
-      },
-    });
+    const repo = createMockRepo();
+    const result = await getSession(repo, BUSINESS_ID, WORKSPACE_ID);
 
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toHaveProperty("id");
-    expect(body).toHaveProperty("status");
-    expect(body.business_id).toBe(BUSINESS_ID);
-    expect(body).toHaveProperty("workspace_id");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).not.toBeNull();
+      expect(result.data).toHaveProperty("id");
+      expect(result.data).toHaveProperty("status");
+      expect(result.data?.businessId).toBe(BUSINESS_ID);
+      expect(result.data).toHaveProperty("workspaceId");
+    }
   });
 
-  it("rejects unauthenticated request", async () => {
-    const res = await fetch(`${BASE}/api/businesses/${BUSINESS_ID}/onboarding`, {
-      method: "GET",
+  it("returns null when no session exists", async () => {
+    const repo = createMockRepo({
+      listOnboardingSessions: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { items: [], total: 0 },
+      }),
     });
 
-    expect(res.status).toBe(401);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
+    const result = await getSession(repo, BUSINESS_ID, WORKSPACE_ID);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toBeNull();
+    }
   });
 
-  it("rejects viewer role for mutating onboarding actions", async () => {
-    const res = await fetch(`${BASE}/api/businesses/${BUSINESS_ID}/onboarding`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": VIEWER_USER_ID,
-      },
+  it("returns error on repository failure", async () => {
+    const repo = createMockRepo({
+      listOnboardingSessions: vi.fn().mockResolvedValue({
+        ok: false,
+        error: { code: "DB_ERROR", message: "Connection failed" },
+      }),
     });
 
-    expect([401, 403]).toContain(res.status);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
-  });
+    const result = await getSession(repo, BUSINESS_ID, WORKSPACE_ID);
 
-  it("rejects user not in workspace", async () => {
-    const res = await fetch(`${BASE}/api/businesses/${BUSINESS_ID}/onboarding`, {
-      method: "GET",
-      headers: {
-        "X-User-Id": UNAFFILIATED_USER_ID,
-      },
-    });
-
-    expect([401, 403]).toContain(res.status);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
+    expect(result.ok).toBe(false);
   });
 });

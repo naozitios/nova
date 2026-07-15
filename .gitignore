@@ -56,3 +56,14 @@ docs/superpowers/specs/
 
 # Local env cache for the agent-context extension
 .specify/extensions/agent-context/agent-context-config.yml
+
+# Local agent state and editor settings
+/data/
+/.vscode/
+
+# Python virtual environments
+**/.venv/
+
+# User-provided business document fixtures (public repo)
+/tests/fixtures/documents/*
+!/tests/fixtures/documents/README.md

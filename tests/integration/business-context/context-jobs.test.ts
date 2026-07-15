@@ -1,4 +1,4 @@
-import { describe, expect, it, afterAll } from "vitest";
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------
@@ -22,6 +22,14 @@ let client: SupabaseClient | null = null;
 
 const TEST_WORKSPACE = "30000000-0000-0000-0000-000000000001";
 const TEST_BUSINESS = "30000000-0000-0000-0000-000000000002";
+
+beforeAll(() => {
+  if (supabaseServiceKey) {
+    client = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false },
+    });
+  }
+});
 
 // Track created rows for cleanup
 const createdJobs: string[] = [];

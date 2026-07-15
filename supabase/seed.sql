@@ -1,6 +1,34 @@
 -- Test fixtures for cross-workspace RLS testing.
 -- Two workspaces with members in owner, admin, editor, viewer roles.
 
+-- Test workspace (used by repository contract tests with hardcoded IDs)
+insert into workspaces (id, name) values
+  ('10000000-0000-0000-0000-000000000001', 'Test Workspace'),
+  ('20000000-0000-0000-0000-000000000001', 'Processing Visibility Test Workspace'),
+  ('30000000-0000-0000-0000-000000000001', 'Job Lifecycle Test Workspace');
+
+-- Test businesses (used by repository contract tests)
+insert into businesses (id, workspace_id, name, website_url, status) values
+  ('10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Test Business', 'https://test.example.com', 'active'),
+  ('20000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', 'Processing Visibility Test Business', 'https://pv.example.com', 'active'),
+  ('30000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', 'Job Lifecycle Test Business', 'https://jl.example.com', 'active');
+
+-- Test workspace members (used by RLS tests)
+insert into workspace_members (workspace_id, user_id, role) values
+  ('10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000010', 'editor'),
+  ('20000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000010', 'editor'),
+  ('30000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000010', 'editor');
+
+-- Test context sources (parent rows for FK references in test fixtures)
+insert into context_sources (id, workspace_id, business_id, source_type, source_name, status, metadata) values
+  ('10000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 'website', 'Test Source', 'registered', '{}'),
+  ('20000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'website', 'PV Test Source', 'registered', '{}'),
+  ('30000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002', 'website', 'Extraction Test Source', 'registered', '{}');
+
+-- Test source document (parent row for FK reference in extraction tests)
+insert into source_documents (id, workspace_id, business_id, source_id, title, document_type, content_hash, retrieved_at) values
+  ('30000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000003', 'Test Document', 'webpage', 'test-hash-001', now());
+
 -- Workspace 1
 insert into workspaces (id, name) values
   ('11111111-1111-1111-1111-111111111111', 'Acme Corp');

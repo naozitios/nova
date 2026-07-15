@@ -24,7 +24,7 @@ export async function scrapePage(
     body: JSON.stringify({
       url,
       formats: ['markdown'],
-      limit: 1,
+      onlyMainContent: true,
       timeout: 30000,
     }),
     signal: AbortSignal.timeout(60000),

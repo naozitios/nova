@@ -25,3 +25,24 @@ as $$
 $$;
 
 -- Business Context migrations start here (next migration: 202607140001_business_context.sql)
+
+-- Enable RLS on readiness tables
+alter table workspaces enable row level security;
+alter table workspace_members enable row level security;
+
+-- Test helper: execute arbitrary SQL and return rows as JSON
+-- Required by tests/rls and tests/integration test suites
+create or replace function public.exec_sql(query text)
+returns setof json
+language plpgsql
+security definer
+as $$
+declare
+  rec json;
+begin
+  for rec in execute 'select row_to_json(t) from (' || query || ') t'
+  loop
+    return next rec;
+  end loop;
+end;
+$$;

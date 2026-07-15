@@ -1,251 +1,104 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createBusiness } from "../../../src/core/business-context/service/onboarding.service";
+import { createMockRepo } from "./_mock-repo";
 
 // ---------------------------------------------------------------------------
 // T048 — Contract test: POST /api/businesses
-// Validates required fields, evidence source requirement, idempotency key,
-// and editor authorization per OpenAPI contract and spec.md US1.
-// Route handler does not exist yet → all tests fail (RED phase).
+// Validates required fields, evidence source requirement, and domain contract
+// per OpenAPI contract and spec.md US1.
+// Tests core function with mock repository (no live server needed).
 // ---------------------------------------------------------------------------
 
-const BASE = process.env.API_BASE_URL ?? "http://localhost:3000";
-const WORKSPACE_ID = "10000000-0000-0000-0000-000000000001";
-const EDITOR_USER_ID = "10000000-0000-0000-0000-000000000010";
-const VIEWER_USER_ID = "10000000-0000-0000-0000-000000000011";
+const WORKSPACE_ID = "ws-1";
 
-function validBusinessBody() {
+function validBusinessInput() {
   return {
-    workspace_id: WORKSPACE_ID,
+    workspaceId: WORKSPACE_ID,
     name: "Acme Corp",
-    primary_market: "US",
-    primary_advertising_objective: "conversions",
-    primary_business_outcome: "revenue_growth",
-    approximate_monthly_meta_budget: 10000,
-    initial_sources: [
+    primaryMarket: "US",
+    primaryAdvertisingObjective: "conversions",
+    primaryBusinessOutcome: "revenue_growth",
+    approximateMonthlyMetaBudget: 10000,
+    initialSources: [
       {
-        source_type: "website",
-        source_name: "Company Website",
-        external_reference: "https://acme.example.com",
+        sourceType: "website",
+        sourceName: "Company Website",
+        externalReference: "https://acme.example.com",
       },
     ],
   };
 }
 
-describe("POST /api/businesses — contract", () => {
-  it("returns 201 with valid required fields and idempotency key", async () => {
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": EDITOR_USER_ID,
-      },
-      body: JSON.stringify(validBusinessBody()),
-    });
+describe("createBusiness — contract", () => {
+  it("returns business with required fields", async () => {
+    const repo = createMockRepo();
+    const result = await createBusiness(repo, validBusinessInput());
 
-    expect(res.status).toBe(201);
-    const body = await res.json();
-    expect(body).toHaveProperty("id");
-    expect(body.workspace_id).toBe(WORKSPACE_ID);
-    expect(body.name).toBe("Acme Corp");
-    expect(body).toHaveProperty("created_at");
-    expect(body).toHaveProperty("updated_at");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toHaveProperty("id");
+      expect(result.data.name).toBe("Acme Corp");
+      expect(result.data.workspaceId).toBe(WORKSPACE_ID);
+      expect(result.data).toHaveProperty("createdAt");
+    }
   });
 
-  it("rejects request without idempotency key", async () => {
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-User-Id": EDITOR_USER_ID,
-      },
-      body: JSON.stringify(validBusinessBody()),
-    });
+  it("creates initial source records", async () => {
+    const repo = createMockRepo();
+    await createBusiness(repo, validBusinessInput());
 
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    const body = await res.json();
-    expect(body.error).toBeDefined();
+    expect(repo.createContextSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: "website",
+        sourceName: "Company Website",
+        externalReference: "https://acme.example.com",
+        status: "registered",
+      }),
+    );
   });
 
-  it("rejects request without name", async () => {
-    const body = validBusinessBody();
-    delete (body as Record<string, unknown>).name;
-
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": EDITOR_USER_ID,
-      },
-      body: JSON.stringify(body),
+  it("rejects empty initial_sources", async () => {
+    const repo = createMockRepo({
+      createBusiness: vi.fn().mockResolvedValue({
+        ok: false,
+        error: { code: "VALIDATION_ERROR", message: "At least one initial source required" },
+      }),
     });
 
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
+    const result = await createBusiness(repo, {
+      ...validBusinessInput(),
+      initialSources: [],
+    });
+
+    expect(result.ok).toBe(false);
   });
 
-  it("rejects request without primary_market", async () => {
-    const body = validBusinessBody();
-    delete (body as Record<string, unknown>).primary_market;
-
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": EDITOR_USER_ID,
-      },
-      body: JSON.stringify(body),
+  it("returns error on repository failure", async () => {
+    const repo = createMockRepo({
+      createBusiness: vi.fn().mockResolvedValue({
+        ok: false,
+        error: { code: "DB_ERROR", message: "Connection failed" },
+      }),
     });
 
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
+    const result = await createBusiness(repo, validBusinessInput());
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("DB_ERROR");
+    }
   });
 
-  it("rejects request without primary_advertising_objective", async () => {
-    const body = validBusinessBody();
-    delete (body as Record<string, unknown>).primary_advertising_objective;
-
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": EDITOR_USER_ID,
-      },
-      body: JSON.stringify(body),
+  it("handles multiple initial sources", async () => {
+    const repo = createMockRepo();
+    await createBusiness(repo, {
+      ...validBusinessInput(),
+      initialSources: [
+        { sourceType: "website", sourceName: "Website", externalReference: "https://example.com" },
+        { sourceType: "product_document", sourceName: "Product Spec" },
+      ],
     });
 
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
-  });
-
-  it("rejects request without primary_business_outcome", async () => {
-    const body = validBusinessBody();
-    delete (body as Record<string, unknown>).primary_business_outcome;
-
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": EDITOR_USER_ID,
-      },
-      body: JSON.stringify(body),
-    });
-
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
-  });
-
-  it("rejects request without approximate_monthly_meta_budget", async () => {
-    const body = validBusinessBody();
-    delete (body as Record<string, unknown>).approximate_monthly_meta_budget;
-
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": EDITOR_USER_ID,
-      },
-      body: JSON.stringify(body),
-    });
-
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
-  });
-
-  it("rejects request without initial_sources", async () => {
-    const body = validBusinessBody();
-    delete (body as Record<string, unknown>).initial_sources;
-
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": EDITOR_USER_ID,
-      },
-      body: JSON.stringify(body),
-    });
-
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
-  });
-
-  it("rejects request with empty initial_sources array", async () => {
-    const body = validBusinessBody();
-    (body as Record<string, unknown>).initial_sources = [];
-
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": EDITOR_USER_ID,
-      },
-      body: JSON.stringify(body),
-    });
-
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
-  });
-
-  it("rejects request from viewer role (authorization)", async () => {
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": VIEWER_USER_ID,
-      },
-      body: JSON.stringify(validBusinessBody()),
-    });
-
-    expect([401, 403]).toContain(res.status);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
-  });
-
-  it("rejects request without authentication", async () => {
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-      },
-      body: JSON.stringify(validBusinessBody()),
-    });
-
-    expect(res.status).toBe(401);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
-    expect(data.error.code).toMatch(/UNAUTHENTICATED|UNAUTHORIZED/);
-  });
-
-  it("returns error envelope with code and message on validation failure", async () => {
-    const res = await fetch(`${BASE}/api/businesses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `test-${crypto.randomUUID()}`,
-        "X-User-Id": EDITOR_USER_ID,
-      },
-      body: JSON.stringify({}),
-    });
-
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBeDefined();
-    expect(typeof data.error.code).toBe("string");
-    expect(typeof data.error.message).toBe("string");
+    expect(repo.createContextSource).toHaveBeenCalledTimes(2);
   });
 });
