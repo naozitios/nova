@@ -15,14 +15,30 @@ grant select, insert, update, delete on public.context_processing_stage_events t
 grant select, insert, update, delete on public.context_quality_gate_results to service_role;
 grant select, insert, update, delete on public.context_provider_circuit_breakers to service_role;
 grant select, insert, update, delete on public.context_audit_log to service_role;
-grant select, insert, update, delete on public.context_upload_intents to service_role;
-grant select, insert, update, delete on public.context_idempotency_records to service_role;
+do $$ begin
+  perform 1 from pg_class where relname = 'context_upload_intents' and relnamespace = 'public'::regnamespace;
+  if found then execute 'grant select, insert, update, delete on public.context_upload_intents to service_role'; end if;
+exception when undefined_table then null;
+end $$;
+do $$ begin
+  perform 1 from pg_class where relname = 'context_idempotency_records' and relnamespace = 'public'::regnamespace;
+  if found then execute 'grant select, insert, update, delete on public.context_idempotency_records to service_role'; end if;
+exception when undefined_table then null;
+end $$;
 grant select, insert, update, delete on public.businesses to service_role;
 grant select, insert, update, delete on public.onboarding_sessions to service_role;
 grant select, insert, update, delete on public.onboarding_questions to service_role;
 grant select, insert, update, delete on public.business_profile_versions to service_role;
-grant select, insert, update, delete on public.business_context_meta_connections to service_role;
-grant select, insert, update, delete on public.business_context_meta_oauth_states to service_role;
+do $$ begin
+  perform 1 from pg_class where relname = 'business_context_meta_connections' and relnamespace = 'public'::regnamespace;
+  if found then execute 'grant select, insert, update, delete on public.business_context_meta_connections to service_role'; end if;
+exception when undefined_table then null;
+end $$;
+do $$ begin
+  perform 1 from pg_class where relname = 'business_context_meta_oauth_states' and relnamespace = 'public'::regnamespace;
+  if found then execute 'grant select, insert, update, delete on public.business_context_meta_oauth_states to service_role'; end if;
+exception when undefined_table then null;
+end $$;
 
 -- Also grant on workspaces/workspace_members for test setup
 grant select, insert, update, delete on public.workspaces to service_role;
