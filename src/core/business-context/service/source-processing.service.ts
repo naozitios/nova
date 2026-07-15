@@ -4,18 +4,19 @@ import type { CollectedSource } from '../source-adapter.port'
 import type { ContextSource, ContextJob, ServiceResult } from '../types'
 import { SourceProcessingStage, JobStatus } from '../types'
 import { archiveSource } from './source.service'
-
-const NO_PARSE_TYPES = new Set(['user_answer'])
-
-const PIPELINE_STAGES = [
-  'claim',
-  'parse',
-  'extract',
-  'reconcile',
-  'quality',
-] as const
-
-type PipelineStage = (typeof PIPELINE_STAGES)[number]
+import {
+  NO_PARSE_TYPES,
+  PIPELINE_STAGES,
+  getPipelineType,
+} from './source-processing.types'
+import {
+  createSkippedStageEvents,
+  createMixedStageEvents,
+  createSucceededStageEvents,
+  extractDocumentWarnings,
+  buildJobInput,
+  serializeError,
+} from './pipeline-executor'
 
 export class SourceProcessingService {
   private readonly adapters: SourceAdapterPort[] = []
@@ -75,7 +76,7 @@ export class SourceProcessingService {
       maxAttempts: 3,
       idempotencyKey,
       stage: SourceProcessingStage.QUEUED,
-      input: { sourceId, sourceType: source.sourceType },
+      input: buildJobInput(sourceId, source.sourceType),
       output: null,
       error: null,
       errorClass: null,
@@ -100,7 +101,7 @@ export class SourceProcessingService {
       businessId,
       sourceId,
       jobId: job.id,
-      pipelineType: this.getPipelineType(source.sourceType),
+      pipelineType: getPipelineType(source.sourceType),
       status: 'running',
       currentStage: SourceProcessingStage.QUEUED,
       terminalOutcome: null,
@@ -122,34 +123,12 @@ export class SourceProcessingService {
     const needsOcrBlock = source.metadata?.ocrRequired === true && source.metadata?.ocrResolved === false
 
     if (needsOcrBlock) {
-      for (const stage of PIPELINE_STAGES) {
-        await this.repo.createStageEvent({
-          workspaceId,
-          businessId,
-          runId,
-          jobId: job.id,
-          sourceId,
-          stage: stage as any,
-          status: 'skipped',
-          attempt: 0,
-          workerId: null,
-          provider: null,
-          providerRequestId: null,
-          startedAt: new Date(),
-          completedAt: new Date(),
-          durationMs: 0,
-          pagesProcessed: 0,
-          slidesProcessed: 0,
-          bytesProcessed: 0,
-          documentsCreated: 0,
-          factsExtracted: 0,
-          warningsCount: 0,
-          creditsConsumed: 0,
-          errorClass: null,
-          error: null,
-          metadata: { reason: 'ocr_blocked' },
-        })
-      }
+      await createSkippedStageEvents(
+        this.repo,
+        { workspaceId, businessId, runId, jobId: job.id, sourceId },
+        PIPELINE_STAGES,
+        'ocr_blocked',
+      )
 
       await this.repo.updateProcessingRun(workspaceId, runId, {
         status: 'blocked',
@@ -175,7 +154,7 @@ export class SourceProcessingService {
     if (!collected.ok) {
       await this.repo.updateContextJob(workspaceId, job.id, {
         status: JobStatus.FAILED_PERMANENT,
-        error: collected.error,
+        error: serializeError(collected.error),
       })
       await this.repo.updateContextSource(workspaceId, sourceId, {
         status: 'failed_permanent',
@@ -185,77 +164,24 @@ export class SourceProcessingService {
     }
 
     const shouldSkipParse = NO_PARSE_TYPES.has(source.sourceType)
-    const warnings: string[] = []
 
-    for (const stage of PIPELINE_STAGES) {
-      if (stage === 'parse' && shouldSkipParse) {
-        await this.repo.createStageEvent({
-          workspaceId,
-          businessId,
-          runId,
-          jobId: job.id,
-          sourceId,
-          stage: stage as any,
-          status: 'skipped',
-          attempt: 0,
-          workerId: null,
-          provider: null,
-          providerRequestId: null,
-          startedAt: new Date(),
-          completedAt: new Date(),
-          durationMs: 0,
-          pagesProcessed: 0,
-          slidesProcessed: 0,
-          bytesProcessed: 0,
-          documentsCreated: 0,
-          factsExtracted: 0,
-          warningsCount: 0,
-          creditsConsumed: 0,
-          errorClass: null,
-          error: null,
-          metadata: { reason: 'source_type_does_not_require_parsing' },
-        })
-        continue
-      }
-
-      await this.repo.createStageEvent({
-        workspaceId,
-        businessId,
-        runId,
-        jobId: job.id,
-        sourceId,
-        stage: stage as any,
-        status: 'succeeded',
-        attempt: 1,
-        workerId: null,
-        provider: null,
-        providerRequestId: null,
-        startedAt: new Date(),
-        completedAt: new Date(),
-        durationMs: 0,
-        pagesProcessed: 0,
-        slidesProcessed: 0,
-        bytesProcessed: 0,
-        documentsCreated: 0,
-        factsExtracted: 0,
-        warningsCount: 0,
-        creditsConsumed: 0,
-        errorClass: null,
-        error: null,
-        metadata: {},
-      })
+    if (shouldSkipParse) {
+      await createMixedStageEvents(
+        this.repo,
+        { workspaceId, businessId, runId, jobId: job.id, sourceId },
+        PIPELINE_STAGES,
+        'parse',
+        'source_type_does_not_require_parsing',
+      )
+    } else {
+      await createSucceededStageEvents(
+        this.repo,
+        { workspaceId, businessId, runId, jobId: job.id, sourceId },
+        PIPELINE_STAGES,
+      )
     }
 
-    for (const doc of collected.data.documents) {
-      if (doc.metadata?.warnings) {
-        const docWarnings = Array.isArray(doc.metadata.warnings)
-          ? doc.metadata.warnings
-          : [doc.metadata.warnings]
-        for (const w of docWarnings) {
-          if (typeof w === 'string') warnings.push(w)
-        }
-      }
-    }
+    const warnings = extractDocumentWarnings(collected.data)
 
     const terminalStatus = warnings.length > 0
       ? 'processed_with_warnings'
@@ -264,7 +190,7 @@ export class SourceProcessingService {
     await this.repo.updateProcessingRun(workspaceId, runId, {
       status: terminalStatus === 'processed_with_warnings' ? 'succeeded_with_warnings' : 'succeeded',
       currentStage: SourceProcessingStage.COMPLETED,
-      terminalOutcome: terminalStatus as any,
+      terminalOutcome: terminalStatus as 'processed' | 'processed_with_warnings',
       completedAt: new Date(),
       documentsCreated: collected.data.documents.length,
       warningsCount: warnings.length,
@@ -276,8 +202,8 @@ export class SourceProcessingService {
     })
 
     await this.repo.updateContextSource(workspaceId, sourceId, {
-      status: terminalStatus as any,
-      terminalOutcome: terminalStatus as any,
+      status: terminalStatus,
+      terminalOutcome: terminalStatus as 'processed' | 'processed_with_warnings',
     })
 
     return { ok: true, data: { status: terminalStatus, warnings } }
@@ -288,25 +214,6 @@ export class SourceProcessingService {
     workspaceId: string,
     sourceId: string,
   ): Promise<ServiceResult<ContextSource>> {
-    return archiveSource(this.repo, businessId, workspaceId, sourceId)
-  }
-
-  private mapStageName(pipelineStage: PipelineStage): SourceProcessingStage {
-    switch (pipelineStage) {
-      case 'claim': return SourceProcessingStage.ACQUIRING
-      case 'parse': return SourceProcessingStage.PARSING
-      case 'extract': return SourceProcessingStage.EXTRACTING
-      case 'reconcile': return SourceProcessingStage.RECONCILING
-      case 'quality': return SourceProcessingStage.QUALITY_CHECKING
-    }
-  }
-
-  private getPipelineType(sourceType: string): string {
-    switch (sourceType) {
-      case 'website': return 'website'
-      case 'meta': return 'meta'
-      case 'user_answer': return 'manual'
-      default: return 'upload'
-    }
+    return archiveSource(this.repo, businessId, workspaceId, sourceId) as Promise<ServiceResult<ContextSource>>
   }
 }
