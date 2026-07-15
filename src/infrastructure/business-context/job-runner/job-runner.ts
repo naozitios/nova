@@ -20,7 +20,7 @@ import type {
   Provider,
 } from '@/core/business-context/types'
 import type { RepositoryPort } from '@/core/business-context/repository.port'
-import { CircuitBreakerAdapter } from '../circuit-breaker'
+import { CircuitBreakerAdapter } from '../breaker/circuit-breaker'
 import { ProcessingVisibilityWriter } from '../processing-visibility'
 import { claimJobs } from './lease'
 import { sweepStalled } from './dead-letter'
