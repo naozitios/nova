@@ -19,6 +19,7 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
@@ -29,6 +30,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -63,6 +65,14 @@ docs/superpowers/specs/
 
 # Python virtual environments
 **/.venv/
+**/venv/
+**/__pycache__/
+*.pyc
+
+# editors and temporary files
+/.idea/
+*.tmp
+*.swp
 
 # User-provided business document fixtures (public repo)
 /tests/fixtures/documents/*
