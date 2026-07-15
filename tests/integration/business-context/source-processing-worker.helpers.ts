@@ -1,4 +1,4 @@
-import { beforeAll, afterEach } from "vitest";
+import { beforeAll, beforeEach, afterEach } from "vitest";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { JobRunner } from "@/infrastructure/business-context/job-runner/job-runner";
 import type { RepositoryPort } from "@/core/business-context/repository.port";
@@ -41,6 +41,17 @@ beforeAll(() => {
 
 // Track created rows for cleanup
 const createdJobs: string[] = [];
+
+// Clean up ALL jobs from the test namespace before each test.
+// fileParallelism:false makes this safe — no cross-file races.
+beforeEach(async () => {
+  if (!_client) return;
+  const { error } = await _client
+    .from("context_jobs")
+    .delete()
+    .like("idempotency_key", "t015-%");
+  if (error) throw error;
+});
 
 afterEach(async () => {
   if (!_client) return;

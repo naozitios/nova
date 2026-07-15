@@ -196,3 +196,68 @@ describe("startWorker", () => {
     expect(exitListeners).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Production WORKER_ID guard — spawns the REAL worker entrypoint
+// ---------------------------------------------------------------------------
+
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+
+describe("production WORKER_ID guard", () => {
+  const WORKER_PATH = "src/workers/business-context.ts";
+
+  it("exits nonzero with safe error when WORKER_ID is absent in production", async () => {
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      NODE_ENV: "production",
+      DATABASE_URL: "file:./test.db",
+      NEXTAUTH_SECRET: "test-secret",
+      META_ENCRYPTION_KEY: "test-key",
+    };
+    delete env.WORKER_ID;
+
+    let exitCode: number | undefined;
+    let output = "";
+    try {
+      await execFileAsync("npx", ["tsx", WORKER_PATH], {
+        env,
+        timeout: 10_000,
+      });
+    } catch (err: any) {
+      exitCode = typeof err.code === "number" ? err.code : undefined;
+      output = `${err.stdout ?? ""}${err.stderr ?? ""}`;
+    }
+    expect(exitCode).toBeDefined();
+    expect(exitCode).toBeGreaterThan(0);
+    expect(output).toMatch(/WORKER_ID/i);
+  }, 15_000);
+
+  it("exits nonzero when WORKER_ID is blank in production", async () => {
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      NODE_ENV: "production",
+      WORKER_ID: "   ",
+      DATABASE_URL: "file:./test.db",
+      NEXTAUTH_SECRET: "test-secret",
+      META_ENCRYPTION_KEY: "test-key",
+    };
+
+    let exitCode: number | undefined;
+    let output = "";
+    try {
+      await execFileAsync("npx", ["tsx", WORKER_PATH], {
+        env,
+        timeout: 10_000,
+      });
+    } catch (err: any) {
+      exitCode = typeof err.code === "number" ? err.code : undefined;
+      output = `${err.stdout ?? ""}${err.stderr ?? ""}`;
+    }
+    expect(exitCode).toBeDefined();
+    expect(exitCode).toBeGreaterThan(0);
+    expect(output).toMatch(/WORKER_ID/i);
+  }, 15_000);
+});

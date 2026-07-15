@@ -10,7 +10,7 @@ import type {
   SourceProcessingStage,
 } from '@/core/business-context/types'
 import type { RepositoryPort } from '@/core/business-context/repository.port'
-import type { CircuitBreakerAdapter } from '../circuit-breaker'
+import type { CircuitBreakerAdapter } from '../breaker/circuit-breaker';
 import type { ProcessingVisibilityWriter } from '../processing-visibility'
 import type { JobHandler } from './handlers/extract.handler'
 import { startHeartbeat } from './heartbeat'
@@ -56,7 +56,7 @@ export async function executeJob(ctx: ExecutionContext): Promise<void> {
     const result = await handler(job)
     const completedAt = new Date()
     const durationMs = completedAt.getTime() - startedAt.getTime()
-    clearInterval(heartbeatTimer)
+    heartbeatTimer.stop()
 
     await repo.updateContextJob(job.workspaceId, job.id, {
       status: 'succeeded',
@@ -102,7 +102,7 @@ export async function executeJob(ctx: ExecutionContext): Promise<void> {
       }
     }
   } catch (err) {
-    clearInterval(heartbeatTimer)
+    heartbeatTimer.stop()
     await handleJobFailure({
       job,
       err,

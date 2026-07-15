@@ -9,7 +9,24 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"],
     setupFiles: ["./tests/setup.ts"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "default",
+          include: ["tests/**/*.test.ts", "tests/**/*.test.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"],
+          exclude: ["tests/integration/business-context/source-processing-worker.*.test.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "sequential",
+          include: ["tests/integration/business-context/source-processing-worker.*.test.ts"],
+          fileParallelism: false,
+        },
+      },
+    ],
   },
 });

@@ -13,6 +13,10 @@ import { isDisallowedByRobots } from './website-source.robots'
 import { sanitizeContent, applyLinePrefix } from './website-source.sanitize'
 import { dedupeByCanonical, dedupeByContentHash } from './website-source.dedupe'
 
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+const MAX_REDIRECT_HOPS = 5
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface WebsiteSourceAdapterOptions {
@@ -122,29 +126,79 @@ export class WebsiteSourceAdapter implements SourceAdapterPort {
       }
     }
 
-    // ── Pre-flight redirect check ─────────────────────────────────────────
-    const preflight = await fetch(url, { redirect: 'manual' })
-    if (preflight.status >= 300 && preflight.status < 400) {
+    // ── Redirect chain validation ──────────────────────────────────────────
+    let currentUrl = url
+    let hops = 0
+    while (hops < MAX_REDIRECT_HOPS) {
+      const preflight = await fetch(currentUrl, { redirect: 'manual' })
+      if (!(preflight.status >= 300 && preflight.status < 400)) break
+
       const location = preflight.headers.get('Location')
-      if (location) {
-        const redirectParsed = parseUrl(
-          location.startsWith('http')
-            ? location
-            : `${parsed.protocol}//${parsed.hostname}${location}`,
-        )
-        if (
-          redirectParsed &&
-          (isLocalhost(redirectParsed.hostname) ||
-            isPrivateNetwork(redirectParsed.hostname))
-        ) {
-          return {
-            ok: false,
-            error: {
-              code: 'SSRF_REDIRECT_BLOCKED',
-              message: 'Redirect targets private network',
-            },
-          }
+      if (!location || location.trim() === '') {
+        return {
+          ok: false,
+          error: {
+            code: 'SSRF_REDIRECT_BLOCKED',
+            message: `Redirect ${preflight.status} missing or invalid Location header`,
+          },
         }
+      }
+
+      if (!location.startsWith('http') && !location.startsWith('/')) {
+        return {
+          ok: false,
+          error: {
+            code: 'SSRF_REDIRECT_BLOCKED',
+            message: 'Redirect missing or invalid Location header',
+          },
+        }
+      }
+      const redirectParsed = parseUrl(
+        location.startsWith('http')
+          ? location
+          : `${parsed.protocol}//${parsed.hostname}${location}`,
+      )
+      if (!redirectParsed) {
+        return {
+          ok: false,
+          error: {
+            code: 'SSRF_REDIRECT_BLOCKED',
+            message: 'Redirect missing or invalid Location header',
+          },
+        }
+      }
+      if (
+        isLocalhost(redirectParsed.hostname) ||
+        isPrivateNetwork(redirectParsed.hostname)
+      ) {
+        return {
+          ok: false,
+          error: {
+            code: 'SSRF_REDIRECT_BLOCKED',
+            message: 'Redirect targets private network',
+          },
+        }
+      }
+      if (!isDomainApproved(redirectParsed.hostname, approvedDomains)) {
+        return {
+          ok: false,
+          error: {
+            code: 'SSRF_REDIRECT_BLOCKED',
+            message: `Redirect targets non-approved domain ${redirectParsed.hostname}`,
+          },
+        }
+      }
+
+      currentUrl = redirectParsed.href
+      hops++
+    }
+    if (hops >= MAX_REDIRECT_HOPS) {
+      return {
+        ok: false,
+        error: {
+          code: 'SSRF_REDIRECT_CHAIN_EXCEEDED',
+          message: `Redirect chain exceeded ${MAX_REDIRECT_HOPS} hops`,
+        },
       }
     }
 
@@ -216,16 +270,33 @@ export class WebsiteSourceAdapter implements SourceAdapterPort {
     // ── Post-redirect SSRF on each page URL ───────────────────────────────
     for (const page of uniquePages) {
       const pageParsed = parseUrl(page.url)
+      if (!pageParsed) {
+        return {
+          ok: false,
+          error: {
+            code: 'SSRF_REDIRECT_BLOCKED',
+            message: `Page ${page.url} has malformed URL`,
+          },
+        }
+      }
       if (
-        pageParsed &&
-        (isLocalhost(pageParsed.hostname) ||
-          isPrivateNetwork(pageParsed.hostname))
+        isLocalhost(pageParsed.hostname) ||
+        isPrivateNetwork(pageParsed.hostname)
       ) {
         return {
           ok: false,
           error: {
             code: 'SSRF_REDIRECT_BLOCKED',
             message: `Page ${page.url} targets private network`,
+          },
+        }
+      }
+      if (!isDomainApproved(pageParsed.hostname, approvedDomains)) {
+        return {
+          ok: false,
+          error: {
+            code: 'SSRF_REDIRECT_BLOCKED',
+            message: `Page ${page.url} targets non-approved domain ${pageParsed.hostname}`,
           },
         }
       }

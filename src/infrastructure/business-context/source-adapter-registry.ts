@@ -1,4 +1,4 @@
-import type { SourceType } from '@/core/business-context/types'
+import { SourceType } from '@/core/business-context/types/enums'
 import type { SourceAdapterPort } from '@/core/business-context/source-adapter.port'
 
 // ─── Error codes ────────────────────────────────────────────────────────────
@@ -17,17 +17,7 @@ export class SourceAdapterRegistry {
   register(adapter: SourceAdapterPort): void {
     // A single adapter may support multiple source types.
     // We store it under every type it claims to support.
-    const probeTypes: SourceType[] = [
-      'website',
-      'brand_deck',
-      'brand_playbook',
-      'product_document',
-      'campaign_brief',
-      'research_document',
-      'user_answer',
-      'meta',
-      'system_inference',
-    ]
+    const probeTypes: SourceType[] = Object.values(SourceType)
     for (const t of probeTypes) {
       if (adapter.supports(t)) {
         this.adapters.set(t, adapter)

@@ -13,7 +13,7 @@ import type {
   SourceProcessingStage,
 } from '@/core/business-context/types'
 import type { JobHandler, StageEventUpdate } from './extract.handler'
-import { Container } from '@/di/container'
+import type { SourceProcessingService } from '@/core/business-context/service/source-processing.service'
 
 const PIPELINE_STAGES: SourceProcessingStage[] = [
   'acquiring',
@@ -26,7 +26,9 @@ const PIPELINE_STAGES: SourceProcessingStage[] = [
   'completed',
 ]
 
-export function createSourceProcessingHandler(): JobHandler {
+export function createSourceProcessingHandler(
+  serviceOverride?: SourceProcessingService,
+): JobHandler {
   return async (job: ContextJob) => {
     const sourceId = job.input.sourceId as string
     const businessId = job.businessId
@@ -45,20 +47,16 @@ export function createSourceProcessingHandler(): JobHandler {
       metadata: { sourceId, pipeline: 'source_processing' },
     })
 
-    const service = Container.getSourceProcessingService()
+    // Lazy-resolve service to avoid static Container import cycle.
+    // In tests, pass serviceOverride; in production, dynamic import() breaks the cycle.
+    const service = serviceOverride
+      ?? (await import('@/di/container')).Container.getSourceProcessingService()
     const result = await service.processSource(businessId, workspaceId, sourceId)
 
     if (!result.ok) {
-      stageEvents.push({
-        stage: 'acquiring',
-        status: 'failed_retryable',
-        attempt,
-        startedAt,
-        completedAt: new Date(),
-        durationMs: Date.now() - startedAt.getTime(),
-        error: result.error,
-      })
-      return { stageEvents }
+      const err = new Error(result.error.message) as Error & { code: string }
+      err.code = result.error.code
+      throw err
     }
 
     // Emit pipeline stages completed
@@ -76,7 +74,8 @@ export function createSourceProcessingHandler(): JobHandler {
     const output: Record<string, JsonValue> = {
       sourceId,
       businessId,
-      jobId: result.data.id,
+      status: result.data.status,
+      warnings: result.data.warnings,
       stagesCompleted: PIPELINE_STAGES,
       completedAt: new Date().toISOString(),
     }

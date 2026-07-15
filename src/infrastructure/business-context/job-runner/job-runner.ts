@@ -25,6 +25,7 @@ import { ProcessingVisibilityWriter } from '../processing-visibility'
 import { claimJobs } from './lease'
 import { sweepStalled } from './dead-letter'
 import { dispatchJob } from './execution'
+import { sanitizeError } from './errors'
 import type { JobHandler } from './handlers/extract.handler'
 
 export type { JobHandler, StageEventUpdate } from './handlers/extract.handler'
@@ -43,6 +44,8 @@ export interface JobRunnerConfig {
   stallSweepIntervalMs: number
   /** Provider to check circuit breaker for before dispatch. */
   providerOverride?: Provider
+  /** Max ms to wait for in-flight jobs during stop() before returning. */
+  shutdownTimeoutMs: number
 }
 
 const DEFAULT_CONFIG: JobRunnerConfig = {
@@ -51,6 +54,7 @@ const DEFAULT_CONFIG: JobRunnerConfig = {
   workerId: 'worker-1',
   maxConcurrency: 5,
   stallSweepIntervalMs: 60_000,
+  shutdownTimeoutMs: 30_000,
 }
 
 export class JobRunner {
@@ -61,9 +65,11 @@ export class JobRunner {
   private handlers: Map<string, JobHandler> = new Map()
   private running = new Set<string>()
   private runningCount = 0
-  private pollTimer: ReturnType<typeof setInterval> | null = null
-  private stallTimer: ReturnType<typeof setInterval> | null = null
-  private stopped = false
+  private pollTimer: ReturnType<typeof setTimeout> | null = null
+  private stallTimer: ReturnType<typeof setTimeout> | null = null
+  private stopped = true
+  private activeCycles = 0
+  private pollAbort: AbortController | null = null
 
   constructor(repo: RepositoryPort, config?: Partial<JobRunnerConfig>) {
     this.repo = repo
@@ -77,43 +83,91 @@ export class JobRunner {
   }
 
   start(): void {
+    if (!this.stopped) return
     this.stopped = false
-    this.pollTimer = setInterval(() => this.pollCycle(), this.config.pollIntervalMs)
-    this.stallTimer = setInterval(() => this.sweepStalled(), this.config.stallSweepIntervalMs)
+    this.schedulePoll()
+    this.scheduleStallSweep()
   }
 
   async stop(): Promise<void> {
     this.stopped = true
-    if (this.pollTimer) clearInterval(this.pollTimer)
-    if (this.stallTimer) clearInterval(this.stallTimer)
-    while (this.runningCount > 0) {
-      await new Promise((r) => setTimeout(r, 100))
+    if (this.pollTimer !== null) {
+      clearTimeout(this.pollTimer)
+      this.pollTimer = null
     }
+    if (this.stallTimer !== null) {
+      clearTimeout(this.stallTimer)
+      this.stallTimer = null
+    }
+    const ac = new AbortController()
+    this.pollAbort = ac
+    const deadline = new Promise<void>((resolve) => {
+      const id = setTimeout(resolve, this.config.shutdownTimeoutMs)
+      ac.signal.addEventListener('abort', () => clearTimeout(id))
+    })
+
+    const waitForDrain = (async () => {
+      while (
+        (this.activeCycles > 0 || this.runningCount > 0) &&
+        !ac.signal.aborted
+      ) {
+        await new Promise((r) => setTimeout(r, 10))
+      }
+    })()
+
+    await Promise.race([waitForDrain, deadline])
+    ac.abort()
+  }
+
+  private schedulePoll(): void {
+    if (this.stopped) return
+    this.pollTimer = setTimeout(() => {
+      this.pollCycle()
+        .catch((e) => console.error('[JobRunner] poll error', sanitizeError(e)))
+        .finally(() => this.schedulePoll())
+    }, this.config.pollIntervalMs)
+  }
+
+  private scheduleStallSweep(): void {
+    if (this.stopped) return
+    this.stallTimer = setTimeout(() => {
+      this.sweepStalled()
+        .catch((e) => console.error('[JobRunner] stall-sweep error', sanitizeError(e)))
+        .finally(() => this.scheduleStallSweep())
+    }, this.config.stallSweepIntervalMs)
   }
 
   private async pollCycle(): Promise<void> {
     if (this.stopped) return
-    if (this.runningCount >= this.config.maxConcurrency) return
+    this.activeCycles++
+    try {
+      if (this.runningCount >= this.config.maxConcurrency) return
 
-    const availableSlots = this.config.maxConcurrency - this.runningCount
-    const limit = Math.min(this.config.batchSize, availableSlots)
-    if (limit <= 0) return
+      const availableSlots = this.config.maxConcurrency - this.runningCount
+      const limit = Math.min(this.config.batchSize, availableSlots)
+      if (limit <= 0) return
 
-    if (this.config.providerOverride) {
-      const cbCheck = await this.checkCircuitBreaker(this.config.providerOverride)
-      if (!cbCheck) return
-    }
+      if (this.config.providerOverride) {
+        const cbCheck = await this.checkCircuitBreaker(this.config.providerOverride)
+        if (!cbCheck) return
+      }
 
-    const claimed = await claimJobs(this.repo, this.config.workerId, limit)
-    if (claimed.length === 0) return
+      const claimed = await claimJobs(this.repo, this.config.workerId, limit)
+      if (this.pollAbort?.signal.aborted) return
+      if (claimed.length === 0) return
 
-    for (const job of claimed) {
-      this.runningCount++
-      this.running.add(job.id)
-      this.dispatch(job).finally(() => {
-        this.runningCount--
-        this.running.delete(job.id)
-      })
+      for (const job of claimed) {
+        this.runningCount++
+        this.running.add(job.id)
+        this.dispatch(job)
+          .catch((e) => console.error('[JobRunner] dispatch error', sanitizeError(e)))
+          .finally(() => {
+            this.runningCount--
+            this.running.delete(job.id)
+          })
+      }
+    } finally {
+      this.activeCycles--
     }
   }
 
@@ -129,8 +183,13 @@ export class JobRunner {
   }
 
   private async sweepStalled(): Promise<void> {
-    if (this.stopped) return
-    await sweepStalled(this.repo, this.config.workerId, this.config.batchSize)
+    this.activeCycles++
+    try {
+      if (this.stopped) return
+      await sweepStalled(this.repo, this.config.workerId, this.config.batchSize)
+    } finally {
+      this.activeCycles--
+    }
   }
 
   private async checkCircuitBreaker(provider: Provider): Promise<boolean> {

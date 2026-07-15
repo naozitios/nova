@@ -12,12 +12,17 @@ export function startHeartbeat(
   job: ContextJob,
   repo: RepositoryPort,
   isActive: () => boolean,
-): ReturnType<typeof setInterval> {
+): { stop: () => void } {
   const interval = heartbeatIntervalMs()
-  return setInterval(async () => {
+  const id = setInterval(async () => {
     if (!isActive() || !job) return
-    await repo.updateContextJob(job.workspaceId, job.id, {
-      heartbeatAt: new Date(),
-    })
+    try {
+      await repo.updateContextJob(job.workspaceId, job.id, {
+        heartbeatAt: new Date(),
+      })
+    } catch {
+      // swallow — heartbeat failure must not kill the runner
+    }
   }, interval)
+  return { stop: () => clearInterval(id) }
 }

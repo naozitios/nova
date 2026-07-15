@@ -16,6 +16,13 @@ import { registerHandlers } from '@/infrastructure/business-context/job-runner/r
 const WORKER_ID = config.workerId
 const logger = console
 
+if (process.env.NODE_ENV === 'production' && !process.env.WORKER_ID?.trim()) {
+  console.error(
+    '[worker] WORKER_ID is required in production. Set the WORKER_ID environment variable before starting.',
+  )
+  process.exit(1)
+}
+
 async function main(): Promise<void> {
   logger.log(`[worker] starting business-context worker id=${WORKER_ID}`)
 
