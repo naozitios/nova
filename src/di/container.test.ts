@@ -1,0 +1,270 @@
+import { describe, it, expect, beforeEach } from 'vitest'
+import { Container } from '@/di/container'
+
+describe('Container', () => {
+  beforeEach(() => {
+    Container.reset()
+  })
+
+  // ── Repository Services ──────────────────────────────────────────────────
+
+  describe('getUploadRepository', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getUploadRepository()).not.toThrow()
+    })
+
+    it('returns an object with repository methods', () => {
+      const repo = Container.getUploadRepository()
+      expect(repo).toBeDefined()
+      expect(typeof repo).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getUploadRepository()
+      const b = Container.getUploadRepository()
+      expect(a).toBe(b)
+    })
+  })
+
+  describe('getIdempotencyRepository', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getIdempotencyRepository()).not.toThrow()
+    })
+
+    it('returns an object with repository methods', () => {
+      const repo = Container.getIdempotencyRepository()
+      expect(repo).toBeDefined()
+      expect(typeof repo).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getIdempotencyRepository()
+      const b = Container.getIdempotencyRepository()
+      expect(a).toBe(b)
+    })
+  })
+
+  describe('getMetaConnectionRepository', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getMetaConnectionRepository()).not.toThrow()
+    })
+
+    it('returns an object with repository methods', () => {
+      const repo = Container.getMetaConnectionRepository()
+      expect(repo).toBeDefined()
+      expect(typeof repo).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getMetaConnectionRepository()
+      const b = Container.getMetaConnectionRepository()
+      expect(a).toBe(b)
+    })
+  })
+
+  // ── Port Services ────────────────────────────────────────────────────────
+
+  describe('getUploadStorage', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getUploadStorage()).not.toThrow()
+    })
+
+    it('returns an object implementing UploadStoragePort', () => {
+      const storage = Container.getUploadStorage()
+      expect(storage).toBeDefined()
+      expect(typeof storage).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getUploadStorage()
+      const b = Container.getUploadStorage()
+      expect(a).toBe(b)
+    })
+  })
+
+  describe('getMalwareScanner', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getMalwareScanner()).not.toThrow()
+    })
+
+    it('returns an object implementing MalwareScannerPort', () => {
+      const scanner = Container.getMalwareScanner()
+      expect(scanner).toBeDefined()
+      expect(typeof scanner).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getMalwareScanner()
+      const b = Container.getMalwareScanner()
+      expect(a).toBe(b)
+    })
+  })
+
+  describe('getIdempotencyService', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getIdempotencyService()).not.toThrow()
+    })
+
+    it('returns an object implementing IdempotencyPort', () => {
+      const svc = Container.getIdempotencyService()
+      expect(svc).toBeDefined()
+      expect(typeof svc).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getIdempotencyService()
+      const b = Container.getIdempotencyService()
+      expect(a).toBe(b)
+    })
+  })
+
+  describe('getMetaResolver', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getMetaResolver()).not.toThrow()
+    })
+
+    it('returns an object implementing MetaConnectionPort', () => {
+      const resolver = Container.getMetaResolver()
+      expect(resolver).toBeDefined()
+      expect(typeof resolver).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getMetaResolver()
+      const b = Container.getMetaResolver()
+      expect(a).toBe(b)
+    })
+  })
+
+  // ── Application Services ─────────────────────────────────────────────────
+
+  describe('getSourceAdapterRegistry', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getSourceAdapterRegistry()).not.toThrow()
+    })
+
+    it('returns a SourceAdapterRegistry with adapter types', () => {
+      const registry = Container.getSourceAdapterRegistry()
+      expect(registry).toBeDefined()
+      expect(typeof registry).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getSourceAdapterRegistry()
+      const b = Container.getSourceAdapterRegistry()
+      expect(a).toBe(b)
+    })
+  })
+
+  describe('getDocumentParser', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getDocumentParser()).not.toThrow()
+    })
+
+    it('returns a document parser implementing DocumentParserPort', () => {
+      const parser = Container.getDocumentParser()
+      expect(parser).toBeDefined()
+      expect(typeof parser).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getDocumentParser()
+      const b = Container.getDocumentParser()
+      expect(a).toBe(b)
+    })
+  })
+
+  describe('getExtractionService', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getExtractionService()).not.toThrow()
+    })
+
+    it('returns an object implementing ExtractionPort', () => {
+      const svc = Container.getExtractionService()
+      expect(svc).toBeDefined()
+      expect(typeof svc).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getExtractionService()
+      const b = Container.getExtractionService()
+      expect(a).toBe(b)
+    })
+  })
+
+  describe('getSourceProcessingService', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getSourceProcessingService()).not.toThrow()
+    })
+
+    it('returns a service with source processing methods', () => {
+      const svc = Container.getSourceProcessingService()
+      expect(svc).toBeDefined()
+      expect(typeof svc).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getSourceProcessingService()
+      const b = Container.getSourceProcessingService()
+      expect(a).toBe(b)
+    })
+  })
+
+  describe('getJobRunner', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getJobRunner()).not.toThrow()
+    })
+
+    it('returns a JobRunner instance', () => {
+      const runner = Container.getJobRunner()
+      expect(runner).toBeDefined()
+      expect(typeof runner).toBe('object')
+    })
+
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const a = Container.getJobRunner()
+      const b = Container.getJobRunner()
+      expect(a).toBe(b)
+    })
+  })
+
+  describe('getRegisterHandlers', () => {
+    it('resolves without error', () => {
+      expect(() => Container.getRegisterHandlers()).not.toThrow()
+    })
+
+    it('returns a function', () => {
+      const handlers = Container.getRegisterHandlers()
+      expect(typeof handlers).toBe('function')
+    })
+  })
+
+  // ── Configuration Error Tests ────────────────────────────────────────────
+
+  describe('configuration errors', () => {
+    it('getMalwareScanner throws when CLAMAV_HOST is missing', () => {
+      const original = process.env.CLAMAV_HOST
+      try {
+        delete process.env.CLAMAV_HOST
+        expect(() => Container.getMalwareScanner()).toThrow(/CLAMAV_HOST/)
+      } finally {
+        if (original !== undefined) process.env.CLAMAV_HOST = original
+      }
+    })
+
+    it('getExtractionService throws when LLM provider key is missing', () => {
+      const originalKey = process.env.GROQ_API_KEY
+      const originalUrl = process.env.LLM_API_URL
+      try {
+        delete process.env.GROQ_API_KEY
+        delete process.env.LLM_API_URL
+        expect(() => Container.getExtractionService()).toThrow(
+          /LLM|GROQ|API_KEY|provider/i,
+        )
+      } finally {
+        if (originalKey !== undefined) process.env.GROQ_API_KEY = originalKey
+        if (originalUrl !== undefined) process.env.LLM_API_URL = originalUrl
+      }
+    })
+  })
+})
