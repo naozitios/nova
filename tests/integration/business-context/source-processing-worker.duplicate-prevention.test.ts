@@ -28,7 +28,7 @@ describe.skipIf(!supabaseServiceKey)(
         const j = await readJob(jobId);
         lockedByDuringProcessing = j.locked_by;
         await new Promise((r) => setTimeout(r, 900));
-        return { output: null };
+        return {};
       });
 
       workerA.start();
@@ -37,9 +37,7 @@ describe.skipIf(!supabaseServiceKey)(
       // Worker B tries to claim — should get nothing
       const workerB = createWorker("worker-dup-b");
 
-      workerB.registerHandler("crawl_website", async () => ({
-        output: null,
-      }));
+      workerB.registerHandler("crawl_website", async () => ({}));
 
       workerB.start();
       await new Promise((r) => setTimeout(r, 500));
@@ -61,6 +59,7 @@ describe.skipIf(!supabaseServiceKey)(
         1,
       );
       expect(result1.ok).toBe(true);
+      if (!result1.ok) throw new Error("First claim failed");
       expect(result1.data).toHaveLength(1);
       expect(result1.data[0].id).toBe(jobId);
 
@@ -71,6 +70,7 @@ describe.skipIf(!supabaseServiceKey)(
         1,
       );
       expect(result2.ok).toBe(true);
+      if (!result2.ok) throw new Error("Second claim failed");
       expect(result2.data).toHaveLength(0);
     });
   },

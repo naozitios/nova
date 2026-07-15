@@ -26,7 +26,7 @@ describe.skipIf(!supabaseServiceKey)(
       const noopHandler = async () => {
         const j = await readJob(jobId);
         if (j.locked_by) claims.push(j.locked_by);
-        return { output: null };
+        return {};
       };
       workerA.registerHandler("crawl_website", noopHandler);
       workerB.registerHandler("crawl_website", noopHandler);
@@ -69,7 +69,7 @@ describe.skipIf(!supabaseServiceKey)(
       worker.registerHandler("crawl_website", async () => {
         // Simulate slow processing — wait longer than lease
         await new Promise((r) => setTimeout(r, 200));
-        return { output: null };
+        return {};
       });
 
       worker.start();
@@ -98,9 +98,7 @@ describe.skipIf(!supabaseServiceKey)(
         stallSweepIntervalMs: 200,
       });
 
-      recoverer.registerHandler("crawl_website", async () => ({
-        output: null,
-      }));
+      recoverer.registerHandler("crawl_website", async () => ({}));
 
       recoverer.start();
       await new Promise((r) => setTimeout(r, 500));
@@ -108,9 +106,10 @@ describe.skipIf(!supabaseServiceKey)(
 
       const job = await readJob(jobId);
       // Stall sweep should have picked up the stale job
-      // and transitioned it to retry_waiting or dead_lettered
+      // and transitioned it to retry_waiting, dead_lettered,
+      // or succeeded (if the recoverer also processed it via its handler)
       expect(
-        ["retry_waiting", "dead_lettered", "running"].includes(job.status),
+        ["retry_waiting", "dead_lettered", "running", "succeeded"].includes(job.status),
       ).toBe(true);
     });
   },

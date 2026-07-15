@@ -23,7 +23,7 @@ describe.skipIf(!supabaseServiceKey)(
       worker.registerHandler("crawl_website", async () => {
         await new Promise((r) => setTimeout(r, 300));
         handlerCompleted = true;
-        return { output: null };
+        return {};
       });
 
       worker.start();
@@ -53,7 +53,7 @@ describe.skipIf(!supabaseServiceKey)(
 
       worker.registerHandler("crawl_website", async () => {
         await new Promise((r) => setTimeout(r, 200));
-        return { output: null };
+        return {};
       });
 
       worker.start();
@@ -94,9 +94,7 @@ describe.skipIf(!supabaseServiceKey)(
         stallSweepIntervalMs: 200,
       });
 
-      recoverer.registerHandler("crawl_website", async () => ({
-        output: null,
-      }));
+      recoverer.registerHandler("crawl_website", async () => ({}));
 
       recoverer.start();
       await new Promise((r) => setTimeout(r, 600));
@@ -131,9 +129,7 @@ describe.skipIf(!supabaseServiceKey)(
         stallSweepIntervalMs: 200,
       });
 
-      recoverer.registerHandler("crawl_website", async () => ({
-        output: null,
-      }));
+      recoverer.registerHandler("crawl_website", async () => ({}));
 
       recoverer.start();
       await new Promise((r) => setTimeout(r, 600));

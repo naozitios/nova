@@ -27,7 +27,7 @@ describe.skipIf(!supabaseServiceKey)(
         midHeartbeat = mid.heartbeat_at;
         // Continue processing
         await new Promise((r) => setTimeout(r, 400));
-        return { output: null };
+        return {};
       });
 
       worker.start();
@@ -81,9 +81,7 @@ describe.skipIf(!supabaseServiceKey)(
 
       const worker = createWorker("worker-retry-claim");
 
-      worker.registerHandler("crawl_website", async () => ({
-        output: null,
-      }));
+      worker.registerHandler("crawl_website", async () => ({}));
 
       worker.start();
       await new Promise((r) => setTimeout(r, 500));
