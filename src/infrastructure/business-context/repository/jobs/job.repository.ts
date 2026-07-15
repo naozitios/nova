@@ -119,6 +119,39 @@ export class ContextJobRepository {
   ): Promise<ServiceResult<ContextJob[]>> {
     const now = new Date().toISOString()
 
+    // Stall recovery mode: find running jobs with stale heartbeats.
+    // These jobs may be locked by a dead worker, so we don't filter on
+    // locked_by IS NULL — we try to claim any stale job.
+    if (filter.heartbeatExpired) {
+      const staleThreshold = filter.heartbeatExpired.toISOString()
+      let query = this.db
+        .from('context_jobs')
+        .select('*')
+        .eq('status', filter.status)
+        .lt('heartbeat_at', staleThreshold)
+        .limit(limit)
+
+      if (filter.jobType) query = query.eq('job_type', filter.jobType)
+
+      const { data: candidates, error: readErr } = await query
+      if (readErr) return err('READ_FAILED', readErr.message)
+      if (!candidates || candidates.length === 0) return { ok: true, data: [] }
+
+      const ids = candidates.map((r: Row) => r.id as string)
+      const { data: locked, error: lockErr } = await this.db
+        .from('context_jobs')
+        .update({
+          locked_by: workerId,
+          locked_at: now,
+        })
+        .in('id', ids)
+        .select()
+
+      if (lockErr) return err('UPDATE_FAILED', lockErr.message)
+      return { ok: true, data: (locked ?? []).map(mapContextJob) }
+    }
+
+    // Normal claim: find unlocked jobs in the given status.
     let query = this.db
       .from('context_jobs')
       .select('*')
