@@ -226,4 +226,24 @@ export class SourceRepository {
     if (error) return err('UPDATE_FAILED', error.message)
     return { ok: true, data: mapSourceDocument(row) }
   }
+
+  async archiveSource(
+    workspaceId: string,
+    sourceId: string,
+  ): Promise<ServiceResult<ContextSource | null>> {
+    const { data, error } = await this.db
+      .from('context_sources')
+      .update({ status: 'archived', terminal_outcome: 'archived' })
+      .eq('workspace_id', workspaceId)
+      .eq('id', sourceId)
+      .neq('status', 'archived')
+      .select()
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') return { ok: true, data: null }
+      return err('ARCHIVE_FAILED', error.message)
+    }
+    return { ok: true, data: mapContextSource(data) }
+  }
 }

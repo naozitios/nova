@@ -74,4 +74,9 @@ export interface SourceRepositoryPort {
     documentId: string,
     data: Partial<Pick<SourceDocument, 'metadata' | 'storagePath'>>,
   ): Promise<ServiceResult<SourceDocument>>
+
+  archiveSource(
+    workspaceId: string,
+    sourceId: string,
+  ): Promise<ServiceResult<ContextSource | null>>
 }

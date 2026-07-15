@@ -106,6 +106,9 @@ export class SupabaseRepository implements RepositoryPort {
     data: Parameters<SourceRepository['updateSourceDocument']>[2],
   ) => this.source.updateSourceDocument(workspaceId, documentId, data)
 
+  archiveSource = (workspaceId: string, sourceId: string) =>
+    this.source.archiveSource(workspaceId, sourceId)
+
   // ── Context facts ────────────────────────────────────────────────────────
   createContextFact = (
     data: Parameters<FactRepository['createContextFact']>[0],

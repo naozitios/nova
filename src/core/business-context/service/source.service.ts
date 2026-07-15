@@ -115,11 +115,23 @@ export async function archiveSource(
   if (!source.data || source.data.businessId !== businessId) {
     return { ok: false, error: { code: 'NOT_FOUND', message: 'Source not found' } }
   }
+  if (source.data.status === 'archived') {
+    return { ok: false, error: { code: 'ALREADY_ARCHIVED', message: 'Source is already archived' } }
+  }
 
-  return repo.updateContextSource(workspaceId, sourceId, {
-    status: 'archived',
-    terminalOutcome: 'archived' as any,
-  })
+  const archived = await repo.archiveSource(workspaceId, sourceId)
+  if (!archived.ok) return archived
+
+  if (archived.data) {
+    return { ok: true, data: archived.data }
+  }
+
+  const reread = await repo.getContextSource(workspaceId, sourceId)
+  if (!reread.ok) return reread
+  if (!reread.data) {
+    return { ok: false, error: { code: 'NOT_FOUND', message: 'Source not found' } }
+  }
+  return { ok: true, data: reread.data }
 }
 
 export async function queueScan(

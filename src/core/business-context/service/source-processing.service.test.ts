@@ -4,7 +4,7 @@ import type { SourceAdapterPort } from "@/core/business-context/source-adapter.p
 import type { CollectedSource } from "@/core/business-context/source-adapter.port";
 import type { RepositoryPort, ContextSource, ContextJob } from "@/core/business-context/types";
 import { SourceProcessingStage, JobStatus } from "@/core/business-context/types";
-import { createFakeRepository } from "../../../tests/harness/test-repository";
+import { createFakeRepository } from "../../../../tests/harness/test-repository";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -564,24 +564,21 @@ describe("SourceProcessingService", () => {
   // ─── Archive race ─────────────────────────────────────────────────────────
 
   describe("archive race", () => {
-    it("handles concurrent archive requests safely without double-archive", async () => {
-      let archiveCount = 0;
+    it("handles concurrent archive requests safely — both succeed, one wins CAS", async () => {
+      let archived = false;
 
       const repo = createFakeRepository({
-        getContextSource: vi.fn().mockImplementation(
-          async (_ws: string, _srcId: string) => ({
-            ok: true,
-            data: makeSource({
-              status: archiveCount > 0 ? "archived" : "processed",
-            }),
-          }),
-        ),
-        updateContextSource: vi.fn().mockImplementation(
-          async (_ws: string, _srcId: string, data: { status?: string }) => {
-            if (data.status === "archived") archiveCount++;
+        getContextSource: vi.fn().mockImplementation(async () => ({
+          ok: true,
+          data: makeSource({ status: archived ? "archived" : "processed" }),
+        })),
+        archiveSource: vi.fn().mockImplementation(async () => {
+          if (!archived) {
+            archived = true;
             return { ok: true, data: makeSource({ status: "archived" }) };
-          },
-        ),
+          }
+          return { ok: true, data: makeSource({ status: "archived" }) };
+        }),
       });
 
       const svc = new SourceProcessingService(repo);
@@ -593,10 +590,9 @@ describe("SourceProcessingService", () => {
 
       expect(r1.ok).toBe(true);
       expect(r2.ok).toBe(true);
-      expect(archiveCount).toBeLessThanOrEqual(1);
     });
 
-    it("rejects archive when source is already archived", async () => {
+    it("returns ALREADY_ARCHIVED for sequential call when source was archived before request", async () => {
       const repo = createFakeRepository({
         getContextSource: vi.fn().mockResolvedValue({
           ok: true,

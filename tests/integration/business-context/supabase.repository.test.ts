@@ -78,12 +78,85 @@ describe.skipIf(!supabaseServiceKey)("Repository — context_sources", () => {
 
     await cleanup("context_sources", sourceId);
   });
+
+  it("atomically archives a source — returns row when status != archived", async () => {
+    const sourceId = crypto.randomUUID();
+    track("context_sources", sourceId);
+    await client.from("context_sources").insert({
+      id: sourceId,
+      workspace_id: TEST_WORKSPACE,
+      business_id: TEST_BUSINESS,
+      source_type: "website",
+      source_name: "Archive Test Source",
+      status: "processed",
+      metadata: {},
+      collected_at: new Date().toISOString(),
+    });
+
+    const { data, error } = await client
+      .from("context_sources")
+      .update({ status: "archived", terminal_outcome: "archived" })
+      .eq("workspace_id", TEST_WORKSPACE)
+      .eq("id", sourceId)
+      .neq("status", "archived")
+      .select()
+      .single();
+
+    expect(error).toBeNull();
+    expect(data).toBeDefined();
+    expect(data!.status).toBe("archived");
+
+    await cleanup("context_sources", sourceId);
+  });
+
+  it("atomic archive returns error when source is already archived", async () => {
+    const sourceId = crypto.randomUUID();
+    track("context_sources", sourceId);
+    await client.from("context_sources").insert({
+      id: sourceId,
+      workspace_id: TEST_WORKSPACE,
+      business_id: TEST_BUSINESS,
+      source_type: "website",
+      source_name: "Already Archived Source",
+      status: "archived",
+      metadata: {},
+      collected_at: new Date().toISOString(),
+    });
+
+    const { data, error } = await client
+      .from("context_sources")
+      .update({ status: "archived", terminal_outcome: "archived" })
+      .eq("workspace_id", TEST_WORKSPACE)
+      .eq("id", sourceId)
+      .neq("status", "archived")
+      .select()
+      .single();
+
+    // Supabase returns PGRST116 when no rows match the filter
+    expect(error).toBeDefined();
+    expect(error!.code).toBe("PGRST116");
+
+    await cleanup("context_sources", sourceId);
+  });
 });
 
 // ── Source documents ───────────────────────────────────────────────────────
 
 describe.skipIf(!supabaseServiceKey)("Repository — source_documents", () => {
   it("creates and reads a source document", async () => {
+    const sourceId = crypto.randomUUID();
+    track("context_sources", sourceId);
+    await client.from("context_sources").insert({
+      id: sourceId,
+      workspace_id: TEST_WORKSPACE,
+      business_id: TEST_BUSINESS,
+      source_type: "website",
+      source_name: "Test Source",
+      status: "registered",
+      metadata: {},
+      collected_at: new Date().toISOString(),
+    });
+
     const docId = crypto.randomUUID();
     track("source_documents", docId);
 
@@ -91,7 +164,7 @@ describe.skipIf(!supabaseServiceKey)("Repository — source_documents", () => {
       id: docId,
       workspace_id: TEST_WORKSPACE,
       business_id: TEST_BUSINESS,
-      source_id: crypto.randomUUID(),
+      source_id: sourceId,
       url: "https://example.com/page",
       title: "Test Page",
       content_text: "# Test Content",
@@ -110,6 +183,7 @@ describe.skipIf(!supabaseServiceKey)("Repository — source_documents", () => {
     expect(data!.content_hash).toBe("sha256:abc123");
 
     await cleanup("source_documents", docId);
+    await cleanup("context_sources", sourceId);
   });
 });
 
@@ -117,6 +191,19 @@ describe.skipIf(!supabaseServiceKey)("Repository — source_documents", () => {
 
 describe.skipIf(!supabaseServiceKey)("Repository — context_facts", () => {
   it("creates and reads a context fact", async () => {
+    const sourceId = crypto.randomUUID();
+    track("context_sources", sourceId);
+    await client.from("context_sources").insert({
+      id: sourceId,
+      workspace_id: TEST_WORKSPACE,
+      business_id: TEST_BUSINESS,
+      source_type: "website",
+      source_name: "Test Source",
+      status: "registered",
+      metadata: {},
+      collected_at: new Date().toISOString(),
+    });
+
     const factId = crypto.randomUUID();
     track("context_facts", factId);
 
@@ -126,7 +213,7 @@ describe.skipIf(!supabaseServiceKey)("Repository — context_facts", () => {
       business_id: TEST_BUSINESS,
       fact_key: "offers.primary.name",
       value: { name: "Test Product" },
-      source_id: crypto.randomUUID(),
+      source_id: sourceId,
       confidence: 0.85,
       verification_status: "extracted",
       valid_from: new Date().toISOString(),
@@ -145,6 +232,7 @@ describe.skipIf(!supabaseServiceKey)("Repository — context_facts", () => {
     expect(Number(data!.confidence)).toBeCloseTo(0.85);
 
     await cleanup("context_facts", factId);
+    await cleanup("context_sources", sourceId);
   });
 });
 
@@ -252,6 +340,19 @@ describe.skipIf(!supabaseServiceKey)("Repository — context_jobs", () => {
 
 describe.skipIf(!supabaseServiceKey)("Repository — context_processing_runs", () => {
   it("creates and reads a processing run", async () => {
+    const sourceId = crypto.randomUUID();
+    track("context_sources", sourceId);
+    await client.from("context_sources").insert({
+      id: sourceId,
+      workspace_id: TEST_WORKSPACE,
+      business_id: TEST_BUSINESS,
+      source_type: "website",
+      source_name: "Test Source",
+      status: "registered",
+      metadata: {},
+      collected_at: new Date().toISOString(),
+    });
+
     const runId = crypto.randomUUID();
     track("context_processing_runs", runId);
 
@@ -261,7 +362,7 @@ describe.skipIf(!supabaseServiceKey)("Repository — context_processing_runs", (
         id: runId,
         workspace_id: TEST_WORKSPACE,
         business_id: TEST_BUSINESS,
-        source_id: crypto.randomUUID(),
+        source_id: sourceId,
         pipeline_type: "website",
         status: "running",
         current_stage: "acquiring",
@@ -280,6 +381,7 @@ describe.skipIf(!supabaseServiceKey)("Repository — context_processing_runs", (
     expect(data!.status).toBe("running");
 
     await cleanup("context_processing_runs", runId);
+    await cleanup("context_sources", sourceId);
   });
 });
 
@@ -287,6 +389,32 @@ describe.skipIf(!supabaseServiceKey)("Repository — context_processing_runs", (
 
 describe.skipIf(!supabaseServiceKey)("Repository — context_processing_stage_events", () => {
   it("creates and reads a stage event", async () => {
+    const sourceId = crypto.randomUUID();
+    track("context_sources", sourceId);
+    await client.from("context_sources").insert({
+      id: sourceId,
+      workspace_id: TEST_WORKSPACE,
+      business_id: TEST_BUSINESS,
+      source_type: "website",
+      source_name: "Test Source",
+      status: "registered",
+      metadata: {},
+      collected_at: new Date().toISOString(),
+    });
+
+    const runId = crypto.randomUUID();
+    track("context_processing_runs", runId);
+    await client.from("context_processing_runs").insert({
+      id: runId,
+      workspace_id: TEST_WORKSPACE,
+      business_id: TEST_BUSINESS,
+      source_id: sourceId,
+      pipeline_type: "website",
+      status: "running",
+      current_stage: "acquiring",
+      started_at: new Date().toISOString(),
+    });
+
     const eventId = crypto.randomUUID();
     track("context_processing_stage_events", eventId);
 
@@ -296,8 +424,8 @@ describe.skipIf(!supabaseServiceKey)("Repository — context_processing_stage_ev
         id: eventId,
         workspace_id: TEST_WORKSPACE,
         business_id: TEST_BUSINESS,
-        run_id: crypto.randomUUID(),
-        source_id: crypto.randomUUID(),
+        run_id: runId,
+        source_id: sourceId,
         stage: "acquiring",
         status: "started",
         attempt: 1,
@@ -316,6 +444,8 @@ describe.skipIf(!supabaseServiceKey)("Repository — context_processing_stage_ev
     expect(data!.status).toBe("started");
 
     await cleanup("context_processing_stage_events", eventId);
+    await cleanup("context_processing_runs", runId);
+    await cleanup("context_sources", sourceId);
   });
 });
 
