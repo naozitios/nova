@@ -47,4 +47,40 @@ export const config = {
     paddleocrWorkerMode: process.env.PADDLEOCR_WORKER_MODE || 'cpu',
     paddleocrVlEnabled: process.env.PADDLEOCR_VL_ENABLED === 'true',
   },
+  /** ClamAV malware scanner configuration. */
+  clamav: {
+    host: process.env.CLAMAV_HOST || 'localhost',
+    port: parseInt(process.env.CLAMAV_PORT || '3310'),
+    healthCheckTimeoutMs: parseInt(process.env.CLAMAV_HEALTH_TIMEOUT_MS || '5000'),
+    healthCheckRetries: parseInt(process.env.CLAMAV_HEALTH_RETRIES || '3'),
+    healthCheckIntervalMs: parseInt(process.env.CLAMAV_HEALTH_INTERVAL_MS || '2000'),
+  },
+  /** Encryption key for Meta OAuth tokens and other sensitive persisted data. */
+  metaEncryptionKey: process.env.META_ENCRYPTION_KEY || '',
+  /** Unique worker identity for distributed job claiming. */
+  workerId: process.env.WORKER_ID || `worker-${process.pid}`,
 };
+
+/** Required environment variables that must be set in production. */
+const REQUIRED_IN_PRODUCTION = [
+  'META_ENCRYPTION_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'NEXTAUTH_SECRET',
+] as const;
+
+/**
+ * Validate required environment variables at startup.
+ * Call once during application/worker bootstrap.
+ * Throws descriptive error listing all missing variables.
+ */
+export function validateRequiredConfig(): void {
+  if (process.env.NODE_ENV === 'production') {
+    const missing = REQUIRED_IN_PRODUCTION.filter((key) => !process.env[key]);
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing required environment variables for production: ${missing.join(', ')}. ` +
+          'Set these before starting the application.',
+      );
+    }
+  }
+}
