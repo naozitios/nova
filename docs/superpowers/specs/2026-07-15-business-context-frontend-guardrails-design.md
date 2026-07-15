@@ -98,6 +98,21 @@ Source UX must distinguish `OCR_REQUIRED`, `LEGACY_FORMAT_UNSUPPORTED`, malware 
 
 Each frontend user story needs browser verification for desktop and mobile-web viewports. Verification covers happy paths, empty/loading/error/blocked states, keyboard navigation, focus behavior, responsive overflow, and critical authorization boundaries. Browser tasks use `agent-browser`; automated E2E uses project-approved browser tooling when added during planning.
 
+## Onboarding Flow Contract
+
+PRD 007 remains source of detailed screen content. Frontend specification and planning must preserve this browser flow:
+
+1. **Resolve entry and resume state**: The authenticated app loads accessible businesses through `GET /api/businesses`. No business opens `/onboarding/business`. An active session resumes at backend `route_stage`. A business without an active session opens Business Context or starts initial/update setup from an explicit user action.
+2. **Brand** (`/onboarding/business`): Initial setup collects brand name, primary market, advertising objective, business outcome, optional website, and optional business type. Submission creates the business, initial facts, onboarding session, and optional queued website source. Update setup reuses the existing business and session.
+3. **Sources** (`/onboarding/sources`): User adds website, Meta, or uploaded evidence. Uploads support user-selected or server-proposed document class. Every source has independent upload, processing, warning, blocked, failure, retry, and archive state. User may continue while processing remains active.
+4. **Critical gaps** (`/onboarding/review`): Screen renders backend-authored questions and readiness, preserves unsent answers during transient failure, supports explicit unknown answers, and updates without losing input as jobs finish. Backend blockers and `route_stage` control whether review can continue.
+5. **Context review** (`/onboarding/context`): User reviews section readiness, material facts, evidence, uncertainty, and conflicts; may add provenance-preserving corrections; compiles a draft; and approves only when backend `approval_ready` is true. Update mode includes attributed field diff and stale-base recovery before approval.
+6. **Complete** (`/onboarding/complete`): Confirm published version and source/Meta summary, preserve selected business/version, then hand off to Dashboard or permanent Business Context according to initial/update mode.
+
+All onboarding routes use dedicated shell with brand identity, five-stage progress, save state, exit/resume action, and contextual help. Global Navbar is hidden only under `/onboarding/**`. Direct route access is guarded by backend readiness; frontend never calculates next valid stage itself.
+
+Initial setup publishes v1. Repeat setup preserves current approved profile while new evidence and corrections remain draft, resumes one active update session, and publishes only after diff review and expected-base approval.
+
 ## Frontend Feature Specification
 
 Create `specs/007-business-context-frontend/spec.md` as a technology-aware project specification derived from PRD 007 and current repository constraints. It must include independently testable stories for:
