@@ -27,7 +27,7 @@ import type { ExtractionPort } from '@/core/business-context/extraction.port';
 import { ProcessingVisibilityWriter } from '@/infrastructure/business-context/processing-visibility';
 import { CircuitBreakerAdapter } from '@/infrastructure/business-context/breaker';
 import { SourceAdapterRegistry } from '@/infrastructure/business-context/source-adapter-registry';
-import { SourceProcessingService } from '@/infrastructure/business-context/source-processing.service';
+import { SourceProcessingService } from '@/core/business-context/service/source-processing.service';
 import { JobRunner } from '@/infrastructure/business-context/job-runner';
 import * as BC from './providers/business-context';
 import * as Billing from './providers/billing';

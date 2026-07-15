@@ -2,7 +2,6 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 12
-const AUTH_TAG_LENGTH = 16
 
 function getKey(): Buffer {
   const keyHex = process.env.META_ENCRYPTION_KEY
@@ -46,13 +45,13 @@ export function decrypt(encrypted: string): string {
   const key = getKey()
   const parts = encrypted.split(':')
 
-  if (parts.length !== 4 || parts[0] !== 'enc' || parts[1] !== 'v1') {
+  if (parts.length !== 5 || parts[0] !== 'enc' || parts[1] !== 'v1') {
     throw new Error('Invalid encrypted token format')
   }
 
   const iv = Buffer.from(parts[2], 'base64')
   const ciphertext = parts[3]
-  const authTag = Buffer.from(encrypted.slice(-AUTH_TAG_LENGTH * 2), 'base64')
+  const authTag = Buffer.from(parts[4], 'base64')
 
   const decipher = createDecipheriv(ALGORITHM, key, iv)
   decipher.setAuthTag(authTag)

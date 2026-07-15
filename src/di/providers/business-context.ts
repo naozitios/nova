@@ -21,13 +21,16 @@ import { ClamavMalwareScanner } from '@/infrastructure/business-context/clamav-m
 import { IdempotencyService } from '@/infrastructure/business-context/idempotency.service';
 import { MetaResolver } from '@/infrastructure/business-context/meta-resolver.service';
 import { SourceAdapterRegistry } from '@/infrastructure/business-context/source-adapter-registry';
+import { WebsiteSourceAdapter } from '@/infrastructure/business-context/website-source.adapter';
+import { MetaSourceAdapter } from '@/infrastructure/business-context/meta/meta-adapter';
+import { ManualSourceAdapter } from '@/infrastructure/business-context/manual-source.adapter';
 import { NativeDocumentParserAdapter } from '@/infrastructure/business-context/native-document.parser.adapter';
 import { PaddleOcrDocumentParserAdapter } from '@/infrastructure/business-context/paddleocr-document-parser.adapter';
 import { DocumentParserRouter } from '@/infrastructure/business-context/document-parser-router';
 import { LlmExtractionAdapter, type LlmClient } from '@/infrastructure/business-context/llm-extraction.adapter';
-import { SourceProcessingService } from '@/infrastructure/business-context/source-processing.service';
+import { SourceProcessingService } from '@/core/business-context/service/source-processing.service';
 import { JobRunner } from '@/infrastructure/business-context/job-runner';
-import { registerExtractionHandlers } from '@/infrastructure/business-context/job-runner';
+import { registerHandlers } from '@/infrastructure/business-context/job-runner/register-handlers';
 
 let _bcRepo: RepositoryPort | null = null;
 let _bcVisibility: ProcessingVisibilityWriter | null = null;
@@ -129,7 +132,25 @@ export function getMetaResolver(): MetaConnectionPort {
 
 /** Returns the source adapter registry. Lazy-initializes with default adapters. */
 export function getSourceAdapterRegistry(): SourceAdapterRegistry {
-  if (!_sourceAdapterRegistry) _sourceAdapterRegistry = new SourceAdapterRegistry();
+  if (!_sourceAdapterRegistry) {
+    const firecrawlKey = process.env.FIRECRAWL_API_KEY;
+    if (!firecrawlKey) {
+      throw new Error(
+        'FIRECRAWL_API_KEY environment variable is required for WebsiteSourceAdapter',
+      );
+    }
+    _sourceAdapterRegistry = new SourceAdapterRegistry();
+    _sourceAdapterRegistry.register(new WebsiteSourceAdapter({ apiKey: firecrawlKey }));
+    _sourceAdapterRegistry.register(new MetaSourceAdapter());
+    _sourceAdapterRegistry.register(new ManualSourceAdapter());
+
+    // Stable unsupported outcomes for stored-document types until B16 adapters land
+    _sourceAdapterRegistry.registerUnsupported('brand_deck', 'No adapter for brand_deck yet (B16 pending)');
+    _sourceAdapterRegistry.registerUnsupported('brand_playbook', 'No adapter for brand_playbook yet (B16 pending)');
+    _sourceAdapterRegistry.registerUnsupported('product_document', 'No adapter for product_document yet (B16 pending)');
+    _sourceAdapterRegistry.registerUnsupported('campaign_brief', 'No adapter for campaign_brief yet (B16 pending)');
+    _sourceAdapterRegistry.registerUnsupported('research_document', 'No adapter for research_document yet (B16 pending)');
+  }
   return _sourceAdapterRegistry;
 }
 
@@ -177,10 +198,19 @@ export function getExtractionService(): ExtractionPort {
   return _extractionService;
 }
 
-/** Returns the source processing service. Lazy-initializes with repository. */
+/** Returns the source processing service. Lazy-initializes with repository and registers adapters from the registry. */
 export function getSourceProcessingService(): SourceProcessingService {
   if (!_sourceProcessingService) {
     _sourceProcessingService = new SourceProcessingService(getBusinessContextRepository());
+    const registry = getSourceAdapterRegistry();
+    const seen = new Set<object>();
+    for (const sourceType of registry.listSupportedTypes()) {
+      const result = registry.resolve(sourceType);
+      if ('adapter' in result && !seen.has(result.adapter)) {
+        _sourceProcessingService.registerAdapter(result.adapter);
+        seen.add(result.adapter);
+      }
+    }
   }
   return _sourceProcessingService;
 }
@@ -191,10 +221,14 @@ export function getJobRunner(): JobRunner {
   return _jobRunner;
 }
 
-/** Returns a function that registers extraction handlers on a job runner. */
+/** Returns a function that registers all handlers on a job runner. */
 export function getRegisterHandlers(): (runner: JobRunner) => void {
   return (runner: JobRunner) => {
-    registerExtractionHandlers((type, handler) => runner.registerHandler(type, handler));
+    const handlers = new Map()
+    registerHandlers(handlers)
+    for (const [jobType, handler] of handlers) {
+      runner.registerHandler(jobType, handler)
+    }
   };
 }
 

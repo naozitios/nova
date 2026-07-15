@@ -18,7 +18,6 @@ import {
   mapMetaProviderCodeHash,
   err,
 } from './_shared'
-import { encrypt, decrypt } from '../token-encryption'
 
 export class MetaConnectionRepository implements MetaConnectionRepositoryPort {
   constructor(private db: SupabaseClient) {}

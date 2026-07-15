@@ -33,29 +33,29 @@ Statuses describe current worktree state and must be refreshed after each gate.
 
 ## Wave 1 — DB Migration (serial)
 
-- [ ] T001–T002 | B02 | Clean-reset migration: upload intents, idempotency records, Meta connections, one-time OAuth states, provider-code hashes, session/draft fields, active-session/conflict/question uniqueness, worker indexes. Safe backfill.
-  <!-- STATUS: IMPLEMENTED_UNVERIFIED — migration file exists; no fresh gate evidence -->
+- [x] T001–T002 | B02 | Clean-reset migration: upload intents, idempotency records, Meta connections, one-time OAuth states, provider-code hashes, session/draft fields, active-session/conflict/question uniqueness, worker indexes. Safe backfill.
+  <!-- STATUS: VERIFIED — clean reset applied all migrations and 5 focused migration/remediation integration files passed -->
 
 ## Wave 2 — Core Entities + Repos
 
-- [ ] T004–T005 | B03 | Entities, unions, Zod schemas, repository ports, mappers for all remediation tables.
-  <!-- STATUS: IMPLEMENTED_UNVERIFIED — entity/port files exist; no fresh typecheck/test gate evidence -->
-- [ ] T006 | B04 | Upload, idempotency, meta-connection repositories. Encrypt Meta tokens with Node crypto + server-only key.
-  <!-- STATUS: IMPLEMENTED_UNVERIFIED — repository files exist; no fresh typecheck/test gate evidence -->
-- [P] T003 | B05 | Real-user-JWT RLS matrix for all Business Context tables and Storage paths. Service role seeds/inspects only.
-  <!-- STATUS: IMPLEMENTED_UNVERIFIED — RLS test files exist; no fresh passing gate evidence -->
+- [x] T004–T005 | B03 | Entities, unions, Zod schemas, repository ports, mappers for all remediation tables.
+  <!-- STATUS: VERIFIED — 9 focused core Business Context test files passed (62 tests) -->
+- [x] T006 | B04 | Upload, idempotency, meta-connection repositories. Encrypt Meta tokens with Node crypto + server-only key.
+  <!-- STATUS: VERIFIED — token round-trip bug fixed; 6 focused repository/crypto files passed (41 tests); review clean -->
+- [x] T003 | B05 | Real-user-JWT RLS matrix for all Business Context tables and Storage paths. Service role seeds/inspects only.
+  <!-- STATUS: VERIFIED — clean reset passed and all 6 Business Context RLS files passed after least-privilege grant fix -->
 
 ## Wave 3 — Idempotency + DI
 
-- [ ] T007–T008 | B06 | Durable idempotency: workspace/operation/fingerprint across all mutating routes. Return `IDEMPOTENCY_KEY_REUSED` on key/payload mismatch.
-  <!-- STATUS: IMPLEMENTED_UNVERIFIED — idempotency port/repo exist; no fresh gate evidence -->
-- [ ] T009–T010 | B07 | Composition root: register repositories, upload storage, malware scanner, idempotency, Meta resolver, source registry, parser, extraction, orchestration, worker in Container.
-  <!-- STATUS: IMPLEMENTED_UNVERIFIED — container.ts exists; no fresh typecheck/test gate evidence -->
+- [x] T007–T008 | B06 | Durable idempotency: workspace/operation/fingerprint across all mutating routes. Return `IDEMPOTENCY_KEY_REUSED` on key/payload mismatch.
+  <!-- STATUS: VERIFIED — mutation inventory plus real-Supabase persistence/replay/fingerprint conflict gate passed; review clean -->
+- [x] T009–T010 | B07 | Composition root: register repositories, upload storage, malware scanner, idempotency, Meta resolver, source registry, parser, extraction, orchestration, worker in Container.
+  <!-- STATUS: VERIFIED — core production orchestrator now receives real registry adapters; 57 container tests passed; review clean -->
 
 ## Wave 4 — E2E Harness
 
-- [ ] T011–T012 | B08 | E2E utilities: Supabase reset, real NextAuth sessions, separate Auth users/JWTs/memberships, isolated ports, process control, authenticated fetch, deadline polling, cleanup. Scripts: worker, scanner, E2E, providers. ClamAV digest pin + health-checked lifecycle. Strict runtime config. Harness owns scanner start/wait/cleanup.
-  <!-- STATUS: PARTIAL — harness scaffolding exists; full lifecycle including ClamAV health-check and scanner ownership not verified -->
+- [x] T011–T012 | B08 | E2E utilities: Supabase reset, real NextAuth sessions, separate Auth users/JWTs/memberships, isolated ports, process control, authenticated fetch, deadline polling, cleanup. Scripts: worker, scanner, E2E, providers. ClamAV digest pin + health-checked lifecycle. Strict runtime config. Harness owns scanner start/wait/cleanup.
+  <!-- STATUS: VERIFIED — strict alias-aware setup, scanner PING/PONG lifecycle, all-resource cleanup, scripts, and immutable digest verified; review clean -->
 
 ## Wave 5 — US1: Background Source Processing (P1)
 

@@ -59,6 +59,10 @@ grant select on context_quality_gate_results to authenticated;
 grant select on context_provider_circuit_breakers to authenticated;
 grant select on context_audit_log to authenticated;
 
+-- workspace_members: authenticated needs SELECT for policy evaluation
+-- (storage policies and remediation policies query workspace_members directly)
+grant select on workspace_members to authenticated;
+
 -- Ensure service_role retains full access on remediation tables.
 grant select, insert, update, delete on context_upload_intents to service_role;
 grant select, insert, update, delete on context_idempotency_records to service_role;

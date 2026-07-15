@@ -3,6 +3,10 @@ import { Container } from '@/di/container'
 import { UploadRepository } from '@/infrastructure/business-context/repository/upload.repository'
 import { IdempotencyRepository } from '@/infrastructure/business-context/repository/idempotency.repository'
 import { MetaConnectionRepository } from '@/infrastructure/business-context/repository/meta-connection.repository'
+import { ManualSourceAdapter } from '@/infrastructure/business-context/manual-source.adapter'
+import { WebsiteSourceAdapter } from '@/infrastructure/business-context/website-source.adapter'
+import { RegistryErrors } from '@/infrastructure/business-context/source-adapter-registry'
+import { SourceProcessingService } from '@/core/business-context/service/source-processing.service'
 
 describe('Container', () => {
   beforeEach(() => {
@@ -261,6 +265,121 @@ describe('Container', () => {
     })
   })
 
+  // ── Source Adapter Registry Registrations ─────────────────────────────────
+
+  describe('getSourceAdapterRegistry adapters', () => {
+    it('registers website adapter for "website" source type', () => {
+      const registry = Container.getSourceAdapterRegistry()
+      expect(registry.hasAdapter('website')).toBe(true)
+    })
+
+    it('registers meta adapter for "meta" source type', () => {
+      const registry = Container.getSourceAdapterRegistry()
+      expect(registry.hasAdapter('meta')).toBe(true)
+    })
+
+    it('registers manual adapter for "user_answer" source type', () => {
+      const registry = Container.getSourceAdapterRegistry()
+      expect(registry.hasAdapter('user_answer')).toBe(true)
+    })
+
+    it('registers manual adapter for "system_inference" source type', () => {
+      const registry = Container.getSourceAdapterRegistry()
+      expect(registry.hasAdapter('system_inference')).toBe(true)
+    })
+
+    it('registers at least 3 distinct adapter types', () => {
+      const registry = Container.getSourceAdapterRegistry()
+      const types = registry.listSupportedTypes()
+      expect(types.length).toBeGreaterThanOrEqual(3)
+    })
+
+    it('resolve(user_answer) returns adapter, not NO_ADAPTER error', () => {
+      const registry = Container.getSourceAdapterRegistry()
+      const result = registry.resolve('user_answer')
+      expect('adapter' in result).toBe(true)
+      expect('error' in result).toBe(false)
+      if ('adapter' in result) {
+        expect(result.adapter).toBeInstanceOf(ManualSourceAdapter)
+      }
+    })
+
+    it('resolve(website) returns website adapter', () => {
+      const registry = Container.getSourceAdapterRegistry()
+      const result = registry.resolve('website')
+      expect('adapter' in result).toBe(true)
+      if ('adapter' in result) {
+        expect(result.adapter).toBeInstanceOf(WebsiteSourceAdapter)
+      }
+    })
+  })
+
+  // ── Source Processing Service — production pipeline ──────────────────────
+
+  describe('getSourceProcessingService production pipeline', () => {
+    it('collectWithAdapter(user_answer) succeeds instead of returning NO_ADAPTER', async () => {
+      const originalKey = process.env.FIRECRAWL_API_KEY
+      try {
+        process.env.FIRECRAWL_API_KEY = originalKey ?? 'test-key'
+        Container.reset()
+        const svc = Container.getSourceProcessingService()
+        const result = await svc.collectWithAdapter('ws-1', 'biz-1', {
+          id: 'src-1',
+          workspaceId: 'ws-1',
+          businessId: 'biz-1',
+          sourceType: 'user_answer',
+          sourceName: 'Test Answer',
+          externalReference: null,
+          status: 'registered',
+          currentStage: null,
+          terminalOutcome: null,
+          metadata: { content: 'Test answer content' },
+          collectedAt: new Date(),
+        })
+        expect(result.ok).toBe(true)
+      } finally {
+        if (originalKey !== undefined) process.env.FIRECRAWL_API_KEY = originalKey
+        else delete process.env.FIRECRAWL_API_KEY
+      }
+    })
+
+    it('returns an instance of the core SourceProcessingService', () => {
+      const originalKey = process.env.FIRECRAWL_API_KEY
+      try {
+        process.env.FIRECRAWL_API_KEY = originalKey ?? 'test-key'
+        Container.reset()
+        const svc = Container.getSourceProcessingService()
+        expect(svc).toBeInstanceOf(SourceProcessingService)
+      } finally {
+        if (originalKey !== undefined) process.env.FIRECRAWL_API_KEY = originalKey
+        else delete process.env.FIRECRAWL_API_KEY
+      }
+    })
+  })
+
+  // ── Unsupported Source Types (stable error until B16 adapters land) ──────
+
+  describe('unsupported source types', () => {
+    const unsupportedTypes = [
+      'brand_deck',
+      'brand_playbook',
+      'product_document',
+      'campaign_brief',
+      'research_document',
+    ] as const
+
+    for (const sourceType of unsupportedTypes) {
+      it(`resolve("${sourceType}") returns explicit UNSUPPORTED_SOURCE_TYPE error`, () => {
+        const registry = Container.getSourceAdapterRegistry()
+        const result = registry.resolve(sourceType)
+        expect('error' in result).toBe(true)
+        if ('error' in result) {
+          expect(result.error.code).toBe(RegistryErrors.UNSUPPORTED_SOURCE_TYPE)
+        }
+      })
+    }
+  })
+
   // ── Configuration Error Tests ────────────────────────────────────────────
 
   describe('configuration errors', () => {
@@ -271,6 +390,18 @@ describe('Container', () => {
         expect(() => Container.getMalwareScanner()).toThrow(/CLAMAV_HOST/)
       } finally {
         if (original !== undefined) process.env.CLAMAV_HOST = original
+      }
+    })
+
+    it('getSourceAdapterRegistry throws when FIRECRAWL_API_KEY is missing', () => {
+      const original = process.env.FIRECRAWL_API_KEY
+      try {
+        delete process.env.FIRECRAWL_API_KEY
+        expect(() => Container.getSourceAdapterRegistry()).toThrow(
+          /FIRECRAWL_API_KEY|Firecrawl.*key|firecrawl/i,
+        )
+      } finally {
+        if (original !== undefined) process.env.FIRECRAWL_API_KEY = original
       }
     })
 
