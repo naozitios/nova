@@ -126,7 +126,8 @@ describe('JobRunner', () => {
       )
       mockedDispatch.mockResolvedValue(undefined)
 
-      runner = new JobRunner(makeRepo(), {
+      const repo = makeRepo()
+      runner = new JobRunner(repo, {
         pollIntervalMs: 10_000,
         stallSweepIntervalMs: 10_000,
         shutdownTimeoutMs: 50,
@@ -146,6 +147,61 @@ describe('JobRunner', () => {
       await cyclePromise
 
       expect(mockedDispatch).not.toHaveBeenCalled()
+
+      // Each late-claimed job must be restored to full queued runnable state
+      expect(repo.updateContextJob).toHaveBeenCalledWith(
+        job.workspaceId,
+        job.id,
+        {
+          status: 'queued',
+          startedAt: null,
+          lockedBy: null,
+          lockedAt: null,
+          heartbeatAt: null,
+        },
+      )
+    })
+
+    it('restart after stop: new claims dispatch', async () => {
+      const { claimJobs } = await import('./lease')
+      const { dispatchJob } = await import('./execution')
+      const mockedClaim = vi.mocked(claimJobs)
+      const mockedDispatch = vi.mocked(dispatchJob)
+
+      const job = makeJob({ id: 'restart-job' })
+      mockedClaim
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([job])
+      mockedDispatch.mockResolvedValue(undefined)
+
+      runner = new JobRunner(makeRepo(), {
+        pollIntervalMs: 10_000,
+        stallSweepIntervalMs: 10_000,
+        shutdownTimeoutMs: 5_000,
+        maxConcurrency: 5,
+      })
+
+      // First cycle — no jobs claimed
+      runner.start()
+      const cycle1 = (runner as any).pollCycle() as Promise<void>
+      await cycle1
+      expect(mockedClaim).toHaveBeenCalledTimes(1)
+      expect(mockedDispatch).not.toHaveBeenCalled()
+
+      await runner.stop()
+      vi.clearAllMocks()
+
+      // Restart — must dispatch fresh claim
+      mockedClaim.mockResolvedValueOnce([job])
+      mockedDispatch.mockResolvedValue(undefined)
+      runner.start()
+      const cycle2 = (runner as any).pollCycle() as Promise<void>
+      await waitForCall(mockedDispatch)
+      await cycle2
+
+      expect(mockedClaim).toHaveBeenCalledTimes(1)
+      expect(mockedDispatch).toHaveBeenCalled()
+      await runner.stop()
     })
   })
 })

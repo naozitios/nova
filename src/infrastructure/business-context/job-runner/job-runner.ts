@@ -85,6 +85,7 @@ export class JobRunner {
   start(): void {
     if (!this.stopped) return
     this.stopped = false
+    this.pollAbort = new AbortController()
     this.schedulePoll()
     this.scheduleStallSweep()
   }
@@ -153,7 +154,31 @@ export class JobRunner {
       }
 
       const claimed = await claimJobs(this.repo, this.config.workerId, limit)
-      if (this.pollAbort?.signal.aborted) return
+      if (this.pollAbort?.signal.aborted) {
+        // Release each claimed job back to queued runnable state so later
+        // workers can pick them up.  Use allSettled so one failed release
+        // doesn't block or prevent the others.
+        const results = await Promise.allSettled(
+          claimed.map((job) =>
+            this.repo.updateContextJob(job.workspaceId, job.id, {
+              status: 'queued',
+              startedAt: null,
+              lockedBy: null,
+              lockedAt: null,
+              heartbeatAt: null,
+            }),
+          ),
+        )
+        for (const r of results) {
+          if (r.status === 'rejected') {
+            console.error(
+              '[JobRunner] release after abort failed',
+              sanitizeError(r.reason),
+            )
+          }
+        }
+        return
+      }
       if (claimed.length === 0) return
 
       for (const job of claimed) {

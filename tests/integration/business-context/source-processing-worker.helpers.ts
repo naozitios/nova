@@ -42,10 +42,27 @@ beforeAll(() => {
 // Track created rows for cleanup
 const createdJobs: string[] = [];
 
-// Clean up ALL jobs from the test namespace before each test.
-// fileParallelism:false makes this safe — no cross-file races.
+// Seed parent rows idempotently, then clean up jobs.
+// E2E reset can wipe seed.sql fixtures; re-seeding here keeps FK constraints satisfied.
 beforeEach(async () => {
   if (!_client) return;
+
+  // Workspace (FK target for context_jobs.workspace_id)
+  const { error: wsErr } = await _client
+    .from("workspaces")
+    .upsert({ id: TEST_WORKSPACE, name: "Job Lifecycle Test Workspace" }, { onConflict: "id" });
+  if (wsErr) throw wsErr;
+
+  // Business (FK target for context_jobs.business_id)
+  const { error: bizErr } = await _client
+    .from("businesses")
+    .upsert(
+      { id: TEST_BUSINESS, workspace_id: TEST_WORKSPACE, name: "Job Lifecycle Test Business", website_url: "https://jl.example.com", status: "active" },
+      { onConflict: "id" },
+    );
+  if (bizErr) throw bizErr;
+
+  // Clean up test jobs
   const { error } = await _client
     .from("context_jobs")
     .delete()

@@ -65,8 +65,8 @@ Statuses describe current worktree state and must be refreshed after each gate.
   <!-- STATUS: IMPLEMENTED_UNVERIFIED — substantial implementation and tests exist; no fresh whole-block gate -->
 - [ ] T014 | B10 | Handler registration: prove real `source_processing` registration with real JobRunner.
   <!-- STATUS: IMPLEMENTED_UNVERIFIED — substantial implementation and tests exist; no fresh whole-block gate -->
-- [ ] T015 | B11 | Worker real-Supabase: claim race, lease, heartbeat, retry wait, shutdown, stale recovery, duplicate prevention.
-  <!-- STATUS: IMPLEMENTED_UNVERIFIED — substantial implementation and tests exist; no fresh whole-block gate -->
+- [x] T015 | B11 | Worker real-Supabase: claim race, lease, heartbeat, retry wait, shutdown, stale recovery, duplicate prevention.
+  <!-- STATUS: VERIFIED — late claims after bounded shutdown are released to runnable state; focused JobRunner regression and 4-file real-Supabase worker gate passed (12 tests) -->
 - [ ] T016–T017 | B12 | Source processing service + adapter registry: orchestrate source/run/collection/parse/documents/extraction/reconciliation/quality/events/terminal state. Website, stored document, Meta, manual, inference adapters with hardening.
   <!-- STATUS: IMPLEMENTED_UNVERIFIED — substantial implementation and tests exist; no fresh whole-block gate -->
 - [ ] T018–T019 | B13 | Job handler + worker: centralized register-handlers, entrypoint, signals, unique identity. Lease-loss, graceful stop, heartbeat, retry, dead-letter, stage visibility. Deterministic caller keys.

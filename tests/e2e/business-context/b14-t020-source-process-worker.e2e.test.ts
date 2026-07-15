@@ -47,7 +47,6 @@ const hasDeps = !!supabaseServiceKey && !!supabaseAnonKey;
 // ---------------------------------------------------------------------------
 
 const wsId = "b14e20a0-0000-0000-0000-000000000001";
-const userId = "b14e20a0-0000-0000-0000-000000000002";
 const bizId = "b14e20a0-0000-0000-0000-000000000003";
 
 // Expected pipeline stages (from source-processing.types PIPELINE_STAGES)
@@ -145,19 +144,16 @@ describe.skipIf(!hasDeps)(
         role: "editor",
       });
 
-      // Start app + worker
+      // Start app + worker (handles auto-registered in spawnedProcesses)
       appPort = getRandomPort();
       workerPort = getRandomPort();
-      const app = await startApp(appPort);
-      const worker = await startWorker(workerPort);
-
-      // Register cleanup
-      afterAll(async () => {
-        worker.kill();
-        app.kill();
-        await cleanup();
-      });
+      await startApp(appPort);
+      await startWorker(workerPort);
     }, 120_000);
+
+    afterAll(async () => {
+      await cleanup();
+    });
 
     it("full happy path: register → process → worker → processed", { timeout: 90_000 }, async () => {
       const baseUrl = `http://localhost:${appPort}`;
@@ -222,6 +218,9 @@ describe.skipIf(!hasDeps)(
         30_000,
         1_000,
       );
+      if (!source) {
+        throw new Error("Source did not reach processed state within timeout");
+      }
       expect(source.status).toMatch(/^processed/);
       expect(source.terminal_outcome).toMatch(/^processed/);
 

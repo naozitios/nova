@@ -19,6 +19,42 @@ const internalProcessMap = new Map<number, ChildProcess>();
 const spawnedProcesses: Set<ProcessHandle> = new Set();
 
 // ---------------------------------------------------------------------------
+// Process group kill helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Kill a process group (negative PID) on Linux, falling back to killing the
+ * individual process if group signalling fails (e.g. non-Linux or wrapper
+ * already exited).
+ */
+function killProcessGroup(
+  proc: ChildProcess,
+  signal: NodeJS.Signals = "SIGTERM",
+): void {
+  const pid = proc.pid;
+  if (pid == null) {
+    throw new Error(
+      "killProcessGroup: ChildProcess has no pid (process not spawned or already exited)",
+    );
+  }
+  try {
+    process.kill(-pid, signal);
+  } catch (err: unknown) {
+    // Only fall back to single-process kill when the process group doesn't
+    // exist (ESRCH).  Propagate EPERM and other real errors.
+    if (
+      err instanceof Error &&
+      "code" in err &&
+      (err as NodeJS.ErrnoException).code === "ESRCH"
+    ) {
+      proc.kill(signal);
+    } else {
+      throw err;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -32,9 +68,12 @@ function wrapProcess(
   const handle: ProcessHandle = {
     pid,
     kill() {
-      proc.kill("SIGTERM");
-      internalProcessMap.delete(pid);
-      onCleanup?.();
+      try {
+        killProcessGroup(proc);
+      } finally {
+        internalProcessMap.delete(pid);
+        onCleanup?.();
+      }
     },
     waitForExit(): Promise<number> {
       return new Promise((resolve, reject) => {
@@ -81,11 +120,18 @@ function waitForOutput(
     };
 
     const timeout = setTimeout(() => {
-      proc.kill();
+      let killFailure = "";
+      try {
+        killProcessGroup(proc);
+      } catch (err: unknown) {
+        killFailure = err instanceof Error ? ` (${err.message})` : "";
+      }
       cleanup();
       reject(
         new Error(
-          `waitForOutput: timed out after ${timeoutMs}ms waiting for ${pattern}`,
+          `waitForOutput: timed out after ${timeoutMs}ms waiting for ${pattern}` +
+            (killFailure ? `\nkill failed:${killFailure}` : "") +
+            (buffer ? `\nstdout/stderr:\n${buffer}` : ""),
         ),
       );
     }, timeoutMs);
@@ -105,7 +151,8 @@ function waitForOutput(
       if (!pattern.test(buffer)) {
         reject(
           new Error(
-            `waitForOutput: process exited (${code}) before pattern ${pattern} was found`,
+            `waitForOutput: process exited (${code}) before pattern ${pattern} was found` +
+              (buffer ? `\nstdout/stderr:\n${buffer}` : ""),
           ),
         );
       }
@@ -161,6 +208,7 @@ export async function startApp(port: number): Promise<ProcessHandle> {
     cwd: process.cwd(),
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, PORT: String(port) },
+    detached: true,
   });
 
   const handle = wrapProcess(proc, () => releasePort(port));
@@ -193,6 +241,7 @@ export async function startWorker(port: number): Promise<ProcessHandle> {
       PORT: String(port),
       WORKER_ID: `test-worker-${port}`,
     },
+    detached: true,
   });
 
   const handle = wrapProcess(proc, () => releasePort(port));
@@ -264,17 +313,35 @@ export function captureLogs(proc: ProcessHandle | ChildProcess): LogCapture {
 // ---------------------------------------------------------------------------
 
 /**
- * Kill all spawned processes and release ports.
- * Called by cleanup() in harness.ts.
+ * Force-kill every tracked detached process group with SIGKILL.
+ * ESRCH (already gone) is tolerated; non-ESRCH errors propagate.
+ * Called by cleanup() in harness.ts — must be fast (no grace period).
  */
 export function cleanupProcesses(): void {
-  for (const handle of spawnedProcesses) {
-    try {
-      handle.kill();
-    } catch {
-      // Process may already be dead
+  const handles = [...spawnedProcesses];
+  let firstError: unknown = null;
+
+  try {
+    for (const handle of handles) {
+      const pid = handle.pid;
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch (err: unknown) {
+        if (
+          err instanceof Error &&
+          "code" in err &&
+          (err as NodeJS.ErrnoException).code === "ESRCH"
+        ) {
+          continue; // already dead
+        }
+        if (!firstError) firstError = err;
+      }
     }
+  } finally {
+    spawnedProcesses.clear();
+    usedPorts.clear();
+    internalProcessMap.clear();
   }
-  spawnedProcesses.clear();
-  usedPorts.clear();
+
+  if (firstError) throw firstError;
 }
