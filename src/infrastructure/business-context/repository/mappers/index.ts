@@ -6,3 +6,11 @@ export { mapProfileVersion } from './profile'
 export { mapContextJob, mapProcessingRun, mapStageEvent } from './job'
 export { mapQualityGateResult, mapCircuitBreaker } from './quality'
 export { mapAuditLog } from './audit'
+export {
+  mapUploadIntent,
+  mapIdempotencyRecord,
+  mapMetaConnection,
+  mapMetaConnectionStatus,
+  mapMetaOAuthState,
+  mapMetaProviderCodeHash,
+} from './remediation'

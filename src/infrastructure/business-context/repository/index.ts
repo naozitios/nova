@@ -10,3 +10,6 @@ export {
 } from './jobs'
 export { QualityRepository } from './quality.repository'
 export { AuditRepository } from './audit.repository'
+export { UploadRepository } from './upload.repository'
+export { IdempotencyRepository } from './idempotency.repository'
+export { MetaConnectionRepository } from './meta-connection.repository'

@@ -5,9 +5,8 @@ import type {
   MetaOAuthState,
   MetaProviderCodeHash,
 } from '@/core/business-context/types/remediation-entities'
-import { type Row } from './helpers'
-
-// ─── Upload Intent ───────────────────────────────────────────────────────────
+import type { MetaConnectionStatusResponse } from '@/core/business-context/repository/meta-connection.port'
+import { asJsonRecord, type Row } from './helpers'
 
 export function mapUploadIntent(r: Row): UploadIntent {
   return {
@@ -27,9 +26,7 @@ export function mapUploadIntent(r: Row): UploadIntent {
     status: r.status as UploadIntent['status'],
     malwareScanStatus: r.malware_scan_status as UploadIntent['malwareScanStatus'],
     malwareScanCode: r.malware_scan_code != null ? Number(r.malware_scan_code) : null,
-    malwareScannedAt: r.malware_scanned_at
-      ? new Date(r.malware_scanned_at as string)
-      : null,
+    malwareScannedAt: r.malware_scanned_at ? new Date(r.malware_scanned_at as string) : null,
     expiresAt: new Date(r.expires_at as string),
     completedAt: r.completed_at ? new Date(r.completed_at as string) : null,
     createdAt: new Date(r.created_at as string),
@@ -61,8 +58,6 @@ export function unmapUploadIntent(e: UploadIntent): Row {
   }
 }
 
-// ─── Idempotency Record ──────────────────────────────────────────────────────
-
 export function mapIdempotencyRecord(r: Row): IdempotencyRecord {
   return {
     id: r.id as string,
@@ -74,7 +69,7 @@ export function mapIdempotencyRecord(r: Row): IdempotencyRecord {
     resourceType: (r.resource_type as string) ?? null,
     resourceId: (r.resource_id as string) ?? null,
     responseStatus: r.response_status != null ? Number(r.response_status) : null,
-    responseBody: (r.response_body as Record<string, unknown>) ?? null,
+    responseBody: r.response_body != null ? asJsonRecord(r.response_body) as IdempotencyRecord['responseBody'] : null,
     expiresAt: new Date(r.expires_at as string),
     createdAt: new Date(r.created_at as string),
     completedAt: r.completed_at ? new Date(r.completed_at as string) : null,
@@ -99,8 +94,6 @@ export function unmapIdempotencyRecord(e: IdempotencyRecord): Row {
   }
 }
 
-// ─── Meta Connection ─────────────────────────────────────────────────────────
-
 export function mapMetaConnection(r: Row): MetaConnection {
   return {
     id: r.id as string,
@@ -108,11 +101,9 @@ export function mapMetaConnection(r: Row): MetaConnection {
     connectedBy: r.connected_by as string,
     metaUserId: r.meta_user_id as string,
     encryptedAccessToken: r.encrypted_access_token as string,
-    tokenExpiresAt: r.token_expires_at
-      ? new Date(r.token_expires_at as string)
-      : null,
+    tokenExpiresAt: r.token_expires_at ? new Date(r.token_expires_at as string) : null,
     selectedAdAccountId: (r.selected_ad_account_id as string) ?? null,
-    accountMetadata: (r.account_metadata as Record<string, unknown>) ?? {},
+    accountMetadata: asJsonRecord(r.account_metadata),
     status: r.status as MetaConnection['status'],
     createdAt: new Date(r.created_at as string),
     updatedAt: new Date(r.updated_at as string),
@@ -135,7 +126,20 @@ export function unmapMetaConnection(e: MetaConnection): Row {
   }
 }
 
-// ─── Meta OAuth State ────────────────────────────────────────────────────────
+export function mapMetaConnectionStatus(r: Row): MetaConnectionStatusResponse {
+  return {
+    id: r.id as string,
+    workspaceId: r.workspace_id as string,
+    connectedBy: r.connected_by as string,
+    metaUserId: r.meta_user_id as string,
+    tokenExpiresAt: r.token_expires_at ? new Date(r.token_expires_at as string) : null,
+    selectedAdAccountId: (r.selected_ad_account_id as string) ?? null,
+    accountMetadata: asJsonRecord(r.account_metadata),
+    status: r.status as MetaConnection['status'],
+    createdAt: new Date(r.created_at as string),
+    updatedAt: new Date(r.updated_at as string),
+  }
+}
 
 export function mapMetaOAuthState(r: Row): MetaOAuthState {
   return {
@@ -164,8 +168,6 @@ export function unmapMetaOAuthState(e: MetaOAuthState): Row {
     created_at: e.createdAt.toISOString(),
   }
 }
-
-// ─── Meta Provider Code Hash ─────────────────────────────────────────────────
 
 export function mapMetaProviderCodeHash(r: Row): MetaProviderCodeHash {
   return {

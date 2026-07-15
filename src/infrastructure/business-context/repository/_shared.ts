@@ -18,4 +18,10 @@ export {
   mapQualityGateResult,
   mapCircuitBreaker,
   mapAuditLog,
+  mapUploadIntent,
+  mapIdempotencyRecord,
+  mapMetaConnection,
+  mapMetaConnectionStatus,
+  mapMetaOAuthState,
+  mapMetaProviderCodeHash,
 } from './mappers'

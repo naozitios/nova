@@ -339,6 +339,26 @@ create index if not exists idx_circuit_breakers_state_half_open on context_provi
 create index if not exists idx_audit_log_workspace_business_created on context_audit_log(workspace_id, business_id, created_at desc);
 create index if not exists idx_audit_log_entity on context_audit_log(entity_type, entity_id);
 
+-- context_upload_intents
+create index if not exists idx_upload_intents_workspace_business on context_upload_intents(workspace_id, business_id);
+create index if not exists idx_upload_intents_status on context_upload_intents(status);
+create unique index if not exists idx_upload_intents_storage_path on context_upload_intents(storage_path);
+
+-- context_idempotency_records
+create index if not exists idx_idempotency_workspace_operation_key on context_idempotency_records(workspace_id, operation, idempotency_key);
+create index if not exists idx_idempotency_expires on context_idempotency_records(expires_at);
+
+-- business_context_meta_connections
+create index if not exists idx_meta_connections_workspace on business_context_meta_connections(workspace_id);
+create unique index if not exists idx_meta_connections_active_per_workspace on business_context_meta_connections(workspace_id) where status = 'active';
+
+-- meta_oauth_states
+create index if not exists idx_meta_oauth_states_workspace on meta_oauth_states(workspace_id);
+create index if not exists idx_meta_oauth_states_expires on meta_oauth_states(expires_at);
+
+-- meta_provider_code_hashes
+create index if not exists idx_meta_code_hashes_oauth_state on meta_provider_code_hashes(oauth_state_id);
+
 -- ============================================================================
 -- ROW LEVEL SECURITY
 -- ============================================================================
@@ -357,6 +377,11 @@ alter table context_processing_stage_events enable row level security;
 alter table context_quality_gate_results enable row level security;
 alter table context_provider_circuit_breakers enable row level security;
 alter table context_audit_log enable row level security;
+alter table context_upload_intents enable row level security;
+alter table context_idempotency_records enable row level security;
+alter table business_context_meta_connections enable row level security;
+alter table meta_oauth_states enable row level security;
+alter table meta_provider_code_hashes enable row level security;
 
 -- Helper: check workspace membership
 create or replace function is_workspace_member(ws_id uuid)
@@ -586,6 +611,91 @@ create policy "audit_log_update" on context_audit_log
 
 create policy "audit_log_delete" on context_audit_log
   for delete using (has_workspace_role(workspace_id, 'owner'));
+
+-- ---- context_upload_intents ----
+
+create policy "upload_intents_select" on context_upload_intents
+  for select using (is_workspace_member(workspace_id));
+
+create policy "upload_intents_insert" on context_upload_intents
+  for insert with check (has_workspace_role(workspace_id, 'editor'));
+
+create policy "upload_intents_update" on context_upload_intents
+  for update using (has_workspace_role(workspace_id, 'editor'));
+
+create policy "upload_intents_delete" on context_upload_intents
+  for delete using (has_workspace_role(workspace_id, 'admin'));
+
+-- ---- context_idempotency_records ----
+
+create policy "idempotency_records_select" on context_idempotency_records
+  for select using (is_workspace_member(workspace_id));
+
+create policy "idempotency_records_insert" on context_idempotency_records
+  for insert with check (has_workspace_role(workspace_id, 'editor'));
+
+create policy "idempotency_records_update" on context_idempotency_records
+  for update using (has_workspace_role(workspace_id, 'editor'));
+
+create policy "idempotency_records_delete" on context_idempotency_records
+  for delete using (has_workspace_role(workspace_id, 'admin'));
+
+-- ---- business_context_meta_connections ----
+
+create policy "meta_connections_select" on business_context_meta_connections
+  for select using (is_workspace_member(workspace_id));
+
+create policy "meta_connections_insert" on business_context_meta_connections
+  for insert with check (has_workspace_role(workspace_id, 'editor'));
+
+create policy "meta_connections_update" on business_context_meta_connections
+  for update using (has_workspace_role(workspace_id, 'editor'));
+
+create policy "meta_connections_delete" on business_context_meta_connections
+  for delete using (has_workspace_role(workspace_id, 'admin'));
+
+-- ---- meta_oauth_states ----
+
+create policy "meta_oauth_states_select" on meta_oauth_states
+  for select using (is_workspace_member(workspace_id));
+
+create policy "meta_oauth_states_insert" on meta_oauth_states
+  for insert with check (has_workspace_role(workspace_id, 'editor'));
+
+create policy "meta_oauth_states_update" on meta_oauth_states
+  for update using (has_workspace_role(workspace_id, 'editor'));
+
+create policy "meta_oauth_states_delete" on meta_oauth_states
+  for delete using (has_workspace_role(workspace_id, 'admin'));
+
+-- ---- meta_provider_code_hashes ----
+
+create policy "meta_code_hashes_select" on meta_provider_code_hashes
+  for select using (
+    exists (
+      select 1 from meta_oauth_states mos
+      where mos.id = meta_provider_code_hashes.oauth_state_id
+        and is_workspace_member(mos.workspace_id)
+    )
+  );
+
+create policy "meta_code_hashes_insert" on meta_provider_code_hashes
+  for insert with check (
+    exists (
+      select 1 from meta_oauth_states mos
+      where mos.id = meta_provider_code_hashes.oauth_state_id
+        and has_workspace_role(mos.workspace_id, 'editor')
+    )
+  );
+
+create policy "meta_code_hashes_delete" on meta_provider_code_hashes
+  for delete using (
+    exists (
+      select 1 from meta_oauth_states mos
+      where mos.id = meta_provider_code_hashes.oauth_state_id
+        and has_workspace_role(mos.workspace_id, 'admin')
+    )
+  );
 
 -- ============================================================================
 -- STORAGE BUCKETS AND POLICIES
@@ -818,3 +928,85 @@ begin
   );
 end;
 $$;
+
+-- ============================================================================
+-- REMEDIATION TABLES (T006)
+-- ============================================================================
+
+-- Upload intents: track file upload lifecycle before source creation
+create table if not exists context_upload_intents (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  business_id uuid not null references businesses(id) on delete cascade,
+  source_id uuid references context_sources(id),
+  source_type text not null default 'upload',
+  source_name text not null,
+  document_class text not null,
+  classification_source text not null default 'user_declared',
+  file_name text not null,
+  declared_mime_type text not null,
+  expected_size_bytes bigint not null,
+  storage_path text not null,
+  created_by uuid not null,
+  status text not null default 'pending',
+  malware_scan_status text not null default 'pending',
+  malware_scan_code integer,
+  malware_scanned_at timestamptz,
+  expires_at timestamptz not null,
+  completed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Idempotency records: prevent duplicate operations
+create table if not exists context_idempotency_records (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  operation text not null,
+  idempotency_key text not null,
+  request_fingerprint text not null,
+  state text not null default 'pending',
+  resource_type text,
+  resource_id uuid,
+  response_status integer,
+  response_body jsonb,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  completed_at timestamptz,
+  unique (workspace_id, operation, idempotency_key)
+);
+
+-- Meta connections: one active connection per workspace
+create table if not exists business_context_meta_connections (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  connected_by uuid not null,
+  meta_user_id text not null,
+  encrypted_access_token text not null,
+  token_expires_at timestamptz,
+  selected_ad_account_id text,
+  account_metadata jsonb not null default '{}',
+  status text not null default 'active',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Meta OAuth states: temporary OAuth flow state
+create table if not exists meta_oauth_states (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  created_by uuid not null,
+  state_nonce_hash text not null,
+  return_path text not null,
+  expires_at timestamptz not null,
+  consumed_at timestamptz,
+  provider_code_hash text,
+  created_at timestamptz not null default now()
+);
+
+-- Meta provider code hashes: hashed OAuth codes for verification
+create table if not exists meta_provider_code_hashes (
+  id uuid primary key default gen_random_uuid(),
+  oauth_state_id uuid not null references meta_oauth_states(id) on delete cascade,
+  provider_code_hash text not null,
+  created_at timestamptz not null default now()
+);
