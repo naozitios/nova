@@ -1,0 +1,52 @@
+{
+  "contentText": "CloudBase might be a Series B company. They possibly have around 200 employees. Revenue could be in the $10-20M range. They might be based in San Francisco.",
+  "expectedOutput": {
+    "facts": [
+      {
+        "factKey": "business.name",
+        "value": "CloudBase",
+        "confidence": 0.4,
+        "sourceExcerpt": "CloudBase might be",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.funding_stage",
+        "value": "Series B",
+        "confidence": 0.3,
+        "sourceExcerpt": "might be a Series B company",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "company.size.employees",
+        "value": "200",
+        "confidence": 0.25,
+        "sourceExcerpt": "possibly have around 200 employees",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.revenue",
+        "value": "$10-20M",
+        "confidence": 0.2,
+        "sourceExcerpt": "Revenue could be in the $10-20M range",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "business.location",
+        "value": "San Francisco",
+        "confidence": 0.35,
+        "sourceExcerpt": "might be based in San Francisco",
+        "evidenceLocator": null
+      }
+    ],
+    "conflicts": [],
+    "warnings": ["All facts have low confidence due to speculative language"]
+  },
+  "assertions": {
+    "mustContainKeys": [],
+    "forbiddenValues": {},
+    "minConfidence": 0.5,
+    "maxFacts": 5,
+    "minFacts": 0,
+    "expectAllBelowThreshold": true
+  }
+}

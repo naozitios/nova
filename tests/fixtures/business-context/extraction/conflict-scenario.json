@@ -1,0 +1,38 @@
+{
+  "contentText": "According to our pitch deck, WidgetCo was founded in 2020. However, the Crunchbase profile says 2019. The company website lists 50 employees but LinkedIn shows 75. Revenue was $3M last year per the annual report, but the board deck says $3.5M.",
+  "expectedOutput": {
+    "facts": [
+      {
+        "factKey": "business.name",
+        "value": "WidgetCo",
+        "confidence": 0.9,
+        "sourceExcerpt": "WidgetCo was founded",
+        "evidenceLocator": null
+      }
+    ],
+    "conflicts": [
+      {
+        "factKey": "business.founded_year",
+        "values": ["2020", "2019"]
+      },
+      {
+        "factKey": "company.size.employees",
+        "values": ["50", "75"]
+      },
+      {
+        "factKey": "economics.revenue",
+        "values": ["$3M", "$3.5M"]
+      }
+    ],
+    "warnings": ["Multiple conflicting sources detected for founding year, employee count, and revenue"]
+  },
+  "assertions": {
+    "mustContainKeys": ["business.name"],
+    "mustContainConflicts": ["business.founded_year", "company.size.employees", "economics.revenue"],
+    "forbiddenValues": {},
+    "minConfidence": 0.5,
+    "maxFacts": 5,
+    "minFacts": 1,
+    "minConflicts": 2
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "contentText": "NovaTech Solutions is a B2B SaaS company targeting enterprise CISOs with our compliance automation platform. We raised $12M Series A in 2025. Our ARR is $4.2M with 85% gross margins. We plan to expand to EMEA by Q3 2026. Competition includes Vanta ($150M raised) and Drata ($100M raised). Our moat is our proprietary AI risk engine.",
+  "expectedOutput": {
+    "facts": [
+      {
+        "factKey": "business.name",
+        "value": "NovaTech Solutions",
+        "confidence": 0.95,
+        "sourceExcerpt": "NovaTech Solutions is a B2B SaaS company",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "business.model",
+        "value": "B2B SaaS",
+        "confidence": 0.9,
+        "sourceExcerpt": "B2B SaaS company",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "customers.target_segment",
+        "value": "enterprise CISOs",
+        "confidence": 0.85,
+        "sourceExcerpt": "targeting enterprise CISOs",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.funding",
+        "value": "$12M Series A",
+        "confidence": 0.8,
+        "sourceExcerpt": "raised $12M Series A in 2025",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.arr",
+        "value": "$4.2M",
+        "confidence": 0.75,
+        "sourceExcerpt": "Our ARR is $4.2M",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.gross_margin",
+        "value": "85%",
+        "confidence": 0.7,
+        "sourceExcerpt": "85% gross margins",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "strategy.expansion",
+        "value": "EMEA by Q3 2026",
+        "confidence": 0.65,
+        "sourceExcerpt": "expand to EMEA by Q3 2026",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "competitive.positioning",
+        "value": "proprietary AI risk engine",
+        "confidence": 0.6,
+        "sourceExcerpt": "Our moat is our proprietary AI risk engine",
+        "evidenceLocator": null
+      }
+    ],
+    "conflicts": [],
+    "warnings": []
+  },
+  "assertions": {
+    "mustContainKeys": ["business.name", "business.model", "economics.arr"],
+    "forbiddenValues": {
+      "business.name": ["Nova", "novatech", "NovaTech"]
+    },
+    "minConfidence": 0.5,
+    "maxFacts": 12,
+    "minFacts": 5
+  }
+}

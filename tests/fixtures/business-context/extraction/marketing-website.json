@@ -1,0 +1,60 @@
+{
+  "contentText": "Acme Corp helps marketing directors boost campaign ROI by 40%. Our AI-powered platform, CampaignOS, starts at $299/mo. Trusted by 500+ brands including Nike and Starbucks. Book a demo at acme-corp.com/demo.",
+  "expectedOutput": {
+    "facts": [
+      {
+        "factKey": "business.name",
+        "value": "Acme Corp",
+        "confidence": 0.95,
+        "sourceExcerpt": "Acme Corp helps marketing directors",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "offers.primary",
+        "value": "CampaignOS",
+        "confidence": 0.9,
+        "sourceExcerpt": "Our AI-powered platform, CampaignOS",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "offers.pricing",
+        "value": "$299/mo",
+        "confidence": 0.85,
+        "sourceExcerpt": "starts at $299/mo",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "customers.target_segment",
+        "value": "marketing directors",
+        "confidence": 0.8,
+        "sourceExcerpt": "helps marketing directors",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "customers.social_proof",
+        "value": "500+ brands including Nike and Starbucks",
+        "confidence": 0.75,
+        "sourceExcerpt": "Trusted by 500+ brands including Nike and Starbucks",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "brand.value_proposition",
+        "value": "boost campaign ROI by 40%",
+        "confidence": 0.7,
+        "sourceExcerpt": "helps marketing directors boost campaign ROI by 40%",
+        "evidenceLocator": null
+      }
+    ],
+    "conflicts": [],
+    "warnings": []
+  },
+  "assertions": {
+    "mustContainKeys": ["business.name", "offers.primary", "customers.target_segment"],
+    "forbiddenValues": {
+      "business.name": ["Acme", "acme", "ACME"]
+    },
+    "minConfidence": 0.5,
+    "maxFacts": 10,
+    "minFacts": 3
+  }
+}

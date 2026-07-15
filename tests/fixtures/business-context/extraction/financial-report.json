@@ -1,0 +1,81 @@
+{
+  "contentText": "Q2 2026 Financial Summary: Revenue $2.8M (+15% QoQ). CAC $450, LTV $12,600 (28x ratio). Monthly burn rate $380K. Runway 18 months at current spend. Top expense categories: Engineering 45%, Sales 30%, Marketing 15%, G&A 10%. Net dollar retention 112%. Churn rate 2.1% monthly.",
+  "expectedOutput": {
+    "facts": [
+      {
+        "factKey": "economics.revenue",
+        "value": "$2.8M",
+        "confidence": 0.95,
+        "sourceExcerpt": "Revenue $2.8M",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.revenue_growth",
+        "value": "+15% QoQ",
+        "confidence": 0.9,
+        "sourceExcerpt": "+15% QoQ",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.cac",
+        "value": "$450",
+        "confidence": 0.85,
+        "sourceExcerpt": "CAC $450",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.ltv",
+        "value": "$12,600",
+        "confidence": 0.8,
+        "sourceExcerpt": "LTV $12,600",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.ltv_cac_ratio",
+        "value": "28x",
+        "confidence": 0.75,
+        "sourceExcerpt": "28x ratio",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.burn_rate",
+        "value": "$380K monthly",
+        "confidence": 0.7,
+        "sourceExcerpt": "Monthly burn rate $380K",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.runway_months",
+        "value": 18,
+        "confidence": 0.65,
+        "sourceExcerpt": "Runway 18 months",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.net_dollar_retention",
+        "value": "112%",
+        "confidence": 0.6,
+        "sourceExcerpt": "Net dollar retention 112%",
+        "evidenceLocator": null
+      },
+      {
+        "factKey": "economics.churn_rate",
+        "value": "2.1% monthly",
+        "confidence": 0.55,
+        "sourceExcerpt": "Churn rate 2.1% monthly",
+        "evidenceLocator": null
+      }
+    ],
+    "conflicts": [],
+    "warnings": []
+  },
+  "assertions": {
+    "mustContainKeys": ["economics.revenue", "economics.ltv", "economics.cac"],
+    "forbiddenValues": {
+      "economics.revenue": ["$2.8", "2.8M", "2800000"]
+    },
+    "minConfidence": 0.5,
+    "maxFacts": 15,
+    "minFacts": 6
+  }
+}

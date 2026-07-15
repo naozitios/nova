@@ -210,9 +210,19 @@ export class LlmExtractionAdapter implements ExtractionPort {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+const MIN_CONFIDENCE = 0.5
+
 function mapOutput(raw: LlmExtractionOutput): ExtractionResult {
+  const filteredFacts = raw.facts.filter((f) => f.confidence >= MIN_CONFIDENCE)
+  const warnings = [
+    ...raw.warnings,
+    ...raw.facts
+      .filter((f) => f.confidence < MIN_CONFIDENCE)
+      .map((f) => `Fact "${f.factKey}" dropped: confidence ${f.confidence} < ${MIN_CONFIDENCE}`),
+  ]
+
   return {
-    facts: raw.facts.map((f) => ({
+    facts: filteredFacts.map((f) => ({
       factKey: f.factKey,
       value: f.value,
       confidence: f.confidence,
@@ -223,6 +233,6 @@ function mapOutput(raw: LlmExtractionOutput): ExtractionResult {
       factKey: c.factKey,
       values: c.values,
     })),
-    warnings: raw.warnings,
+    warnings,
   }
 }
