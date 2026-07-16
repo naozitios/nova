@@ -67,10 +67,10 @@ Statuses describe current worktree state and must be refreshed after each gate.
   <!-- STATUS: VERIFIED — registration, JobRunner, and source handler tests passed in the focused 14-file gate -->
 - [x] T015 | B11 | Worker real-Supabase: claim race, lease, heartbeat, retry wait, shutdown, stale recovery, duplicate prevention.
   <!-- STATUS: VERIFIED — late claims after bounded shutdown are released to runnable state; focused JobRunner regression and 4-file real-Supabase worker gate passed (12 tests) -->
-- [ ] T016–T017 | B12 | Source processing service + adapter registry: orchestrate source/run/collection/parse/documents/extraction/reconciliation/quality/events/terminal state. Website, stored document, Meta, manual, inference adapters with hardening.
-  <!-- STATUS: IMPLEMENTED_UNVERIFIED — substantial implementation and tests exist; no fresh whole-block gate -->
-- [ ] T018–T019 | B13 | Job handler + worker: centralized register-handlers, entrypoint, signals, unique identity. Lease-loss, graceful stop, heartbeat, retry, dead-letter, stage visibility. Deterministic caller keys.
-  <!-- STATUS: IMPLEMENTED_UNVERIFIED — substantial implementation and tests exist; no fresh whole-block gate -->
+- [x] T016–T017 | B12 | Source processing service + adapter registry: orchestrate source/run/collection/parse/documents/extraction/reconciliation/quality/events/terminal state. Website, stored document, Meta, manual, inference adapters with hardening.
+  <!-- STATUS: VERIFIED — serialized 12-file B12 acceptance gate passed: real-Supabase source persistence plus adapter, parser, reconciliation, quality, event, and terminal-outcome coverage -->
+- [x] T018–T019 | B13 | Job handler + worker: centralized register-handlers, entrypoint, signals, unique identity. Lease-loss, graceful stop, heartbeat, retry, dead-letter, stage visibility. Deterministic caller keys.
+  <!-- STATUS: VERIFIED — serialized 13-file B13 acceptance gate passed: real worker lifecycle, signals, lease/retry/dead-letter, visibility, and deterministic caller-key coverage -->
 - [ ] T020 | B14 | E2E: queue <2s, claim <10s, ordered stages, 100 same-key → 1 execution, fingerprint 409, two-worker 100-race, retryable failure, kill/restart, OCR block, website budgets.
   <!-- STATUS: PARTIAL — E2E test file exists; current E2E remains RED/incomplete -->
 

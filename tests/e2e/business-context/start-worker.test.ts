@@ -649,3 +649,252 @@ describe("production WORKER_ID guard", () => {
     expect(output).toMatch(/WORKER_ID/i);
   }, 15_000);
 });
+
+// ---------------------------------------------------------------------------
+// Graceful shutdown — SIGTERM/SIGINT invoke runner.stop() before exit
+// ---------------------------------------------------------------------------
+
+describe("graceful shutdown", () => {
+  const WORKER_PATH = "src/workers/business-context.ts";
+
+  /**
+   * Kill a process group tolerating ESRCH (already dead).
+   * Falls back to killing the individual process on ESRCH.
+   */
+  function safeKillGroup(child: import("node:child_process").ChildProcess, signal: NodeJS.Signals = "SIGTERM") {
+    if (child.pid == null) return;
+    try {
+      process.kill(-child.pid, signal);
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        "code" in err &&
+        (err as NodeJS.ErrnoException).code === "ESRCH"
+      ) {
+        // Process group already gone — try individual kill as fallback
+        try { child.kill(signal); } catch { /* best effort */ }
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  /**
+   * Spawn the real worker via real spawn (bypasses mocked spawn + npx wrapper)
+   * and wait for the "[worker] polling for jobs" readiness signal.
+   * Worker ID uses Date.now() + random suffix for uniqueness under parallel runs.
+   */
+  async function spawnAndReady(): Promise<{
+    child: import("node:child_process").ChildProcess;
+    getOutput: () => string;
+  }> {
+    const { spawn: realSpawn } = await vi.importActual<
+      typeof import("node:child_process")
+    >("node:child_process");
+
+    const workerId = `shutdown-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    const child = realSpawn("npx", ["tsx", WORKER_PATH], {
+      env: { ...process.env, WORKER_ID: workerId },
+      cwd: process.cwd(),
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let output = "";
+    child.stdout?.on("data", (d: Buffer) => {
+      output += d.toString();
+    });
+    child.stderr?.on("data", (d: Buffer) => {
+      output += d.toString();
+    });
+
+    // Block until the worker confirms it is polling — or fail with diagnostics.
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () =>
+          reject(
+            new Error(`worker start timeout — output:\n${output}`),
+          ),
+        10_000,
+      );
+      const onExit = (code: number | null) => {
+        clearTimeout(timer);
+        reject(
+          new Error(
+            `worker exited ${code} before ready — output:\n${output}`,
+          ),
+        );
+      };
+      const check = () => {
+        if (/\[worker\] polling for jobs/.test(output)) {
+          clearTimeout(timer);
+          child.off("exit", onExit);
+          child.stdout?.off("data", check);
+          resolve();
+        }
+      };
+      child.stdout?.on("data", check);
+      child.on("exit", onExit);
+    });
+
+    return { child, getOutput: () => output };
+  }
+
+  /**
+   * Poll output buffer until a pattern matches or timeout.
+   * Replaces arbitrary sleep with condition-based waiting.
+   */
+  function waitForOutput(
+    getOutput: () => string,
+    pattern: RegExp,
+    timeoutMs = 10_000,
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const deadline = Date.now() + timeoutMs;
+      const poll = () => {
+        const out = getOutput();
+        if (pattern.test(out)) return resolve();
+        if (Date.now() > deadline) {
+          return reject(
+            new Error(
+              `timeout waiting for ${pattern} — output:\n${out}`,
+            ),
+          );
+        }
+        setTimeout(poll, 50);
+      };
+      poll();
+    });
+  }
+
+  /**
+   * Wait for a child process to exit. Resolves with the exit code.
+   * Resolves with -1 if the process is already gone (ESRCH).
+   */
+  function waitForExit(
+    child: import("node:child_process").ChildProcess,
+    timeoutMs = 10_000,
+  ): Promise<number> {
+    return new Promise<number>((resolve) => {
+      const timer = setTimeout(() => {
+        // Force-kill if still alive after timeout, then resolve
+        safeKillGroup(child, "SIGKILL");
+        resolve(-1);
+      }, timeoutMs);
+      child.on("exit", (code) => {
+        clearTimeout(timer);
+        resolve(code ?? -1);
+      });
+      // If already exited, the event may have already fired — but adding
+      // the listener is idempotent and the exit event is re-emitted for
+      // new listeners only if the process is still alive.
+    });
+  }
+
+  it("SIGTERM triggers runner.stop() then process.exit(0)", async () => {
+    const { child, getOutput } = await spawnAndReady();
+
+    try {
+      // Guard: child.pid must exist before killing process group.
+      if (child.pid == null) {
+        throw new Error("child.pid is null/undefined — cannot kill process group");
+      }
+
+      // Capture exit info from a listener registered BEFORE signal delivery.
+      const exitPromise = new Promise<{ code: number | null; signal: string | null }>((resolve) => {
+        child.on("exit", (code, signal) => resolve({ code, signal }));
+      });
+
+      // Deliver SIGTERM to the full process group (npx → tsx → worker).
+      // The worker has a SIGTERM handler; the npx wrapper does not.
+      safeKillGroup(child, "SIGTERM");
+
+      // Wait for the worker to confirm graceful shutdown completed.
+      await waitForOutput(
+        getOutput,
+        /\[worker\] stopped/,
+      );
+
+      // Wait for the process to actually exit after stop (with 20s grace).
+      const exitInfo = await Promise.race([
+        exitPromise,
+        new Promise<{ code: number | null; signal: string | null }>((resolve) => {
+          setTimeout(async () => {
+            safeKillGroup(child, "SIGKILL");
+            resolve({ code: -1, signal: null });
+          }, 20_000);
+        }),
+      ]);
+
+      const output = getOutput();
+
+      // Proof the signal handler ran and runner.stop() completed:
+      expect(output).toMatch(/\[worker\] received SIGTERM, shutting down/);
+      expect(output).toMatch(/\[worker\] stopped/);
+
+      // The worker calls process.exit(0) after "[worker] stopped".
+      // The npx wrapper may exit with signal termination (code=null, signal="SIGTERM")
+      // from the group kill — both are acceptable: code 0 proves clean exit,
+      // signal SIGTERM proves the group kill reached the process.
+      expect(
+        exitInfo.code === 0 || exitInfo.signal === "SIGTERM",
+      ).toBe(true);
+    } finally {
+      // Ensure the process group is cleaned up even on test failure.
+      safeKillGroup(child, "SIGKILL");
+      try { await waitForExit(child, 2_000); } catch { /* best effort */ }
+    }
+  }, 40_000);
+
+  it("SIGINT triggers runner.stop() then process.exit(0)", async () => {
+    const { child, getOutput } = await spawnAndReady();
+
+    try {
+      // Guard: child.pid must exist before killing process group.
+      if (child.pid == null) {
+        throw new Error("child.pid is null/undefined — cannot kill process group");
+      }
+
+      // Capture exit info from a listener registered BEFORE signal delivery.
+      const exitPromise = new Promise<{ code: number | null; signal: string | null }>((resolve) => {
+        child.on("exit", (code, signal) => resolve({ code, signal }));
+      });
+
+      // Deliver SIGINT to the full process group — same shutdown path as SIGTERM.
+      safeKillGroup(child, "SIGINT");
+
+      // Wait for the worker to confirm graceful shutdown completed.
+      await waitForOutput(
+        getOutput,
+        /\[worker\] stopped/,
+      );
+
+      // Wait for the process to actually exit after stop (with 20s grace).
+      const exitInfo = await Promise.race([
+        exitPromise,
+        new Promise<{ code: number | null; signal: string | null }>((resolve) => {
+          setTimeout(async () => {
+            safeKillGroup(child, "SIGKILL");
+            resolve({ code: -1, signal: null });
+          }, 20_000);
+        }),
+      ]);
+
+      const output = getOutput();
+
+      expect(output).toMatch(/\[worker\] received SIGINT, shutting down/);
+      expect(output).toMatch(/\[worker\] stopped/);
+
+      // Same as SIGTERM: worker calls process.exit(0), npx wrapper may
+      // report signal termination from the group kill.
+      expect(
+        exitInfo.code === 0 || exitInfo.signal === "SIGINT",
+      ).toBe(true);
+    } finally {
+      // Ensure the process group is cleaned up even on test failure.
+      safeKillGroup(child, "SIGKILL");
+      try { await waitForExit(child, 2_000); } catch { /* best effort */ }
+    }
+  }, 40_000);
+});
