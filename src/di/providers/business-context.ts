@@ -28,6 +28,7 @@ import { NativeDocumentParserAdapter } from '@/infrastructure/business-context/n
 import { PaddleOcrDocumentParserAdapter } from '@/infrastructure/business-context/paddleocr-document-parser.adapter';
 import { DocumentParserRouter } from '@/infrastructure/business-context/document-parser-router';
 import { LlmExtractionAdapter, type LlmClient } from '@/infrastructure/business-context/llm-extraction.adapter';
+import { OpenRouterExtractionClient } from '@/infrastructure/business-context/openrouter-extraction.client';
 import { SourceProcessingService } from '@/core/business-context/service/source-processing.service';
 import { JobRunner } from '@/infrastructure/business-context/job-runner';
 import { registerHandlers } from '@/infrastructure/business-context/job-runner/register-handlers';
@@ -167,15 +168,19 @@ export function getDocumentParser(): DocumentParserPort {
   return _documentParser;
 }
 
-/** Returns the extraction service. Requires LLM provider (GROQ_API_KEY or LLM_API_URL). */
+/** Returns the extraction service, preferring configured OpenRouter over Groq. */
 export function getExtractionService(): ExtractionPort {
   if (!_extractionService) {
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    const openRouterModel = process.env.OPENROUTER_MODEL ?? 'deepseek/deepseek-v4-flash';
     const apiKey = process.env.GROQ_API_KEY;
     const apiUrl = process.env.LLM_API_URL;
-    if (!apiKey && !apiUrl) {
-      throw new Error('ExtractionService requires an LLM provider: set GROQ_API_KEY or LLM_API_URL');
+    if (!openRouterKey && !apiKey && !apiUrl) {
+      throw new Error('ExtractionService requires OPENROUTER_API_KEY, GROQ_API_KEY, or LLM_API_URL');
     }
-    const client: LlmClient = {
+    const client: LlmClient = openRouterKey
+      ? new OpenRouterExtractionClient(openRouterKey, openRouterModel)
+      : {
       async complete(request) {
         const Groq = (await import('groq-sdk')).default;
         const groq = new Groq({ apiKey });

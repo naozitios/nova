@@ -1,19 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { LlmExtractionAdapter, type LlmClient } from "@/infrastructure/business-context/llm-extraction.adapter";
+import { LlmExtractionAdapter } from "@/infrastructure/business-context/llm-extraction.adapter";
+import { OpenRouterExtractionClient } from "@/infrastructure/business-context/openrouter-extraction.client";
 
 // ---------------------------------------------------------------------------
-// Integration test: LLM extraction against real Groq API
+// Integration test: LLM extraction against real OpenRouter API
 // Uses the real Firecrawl-scraped content from novi-health.com to extract
 // structured business facts. Validates the LLM produces schema-conformant
 // output that the adapter can parse.
-// Skipped if GROQ_API_KEY is not set.
+// Skipped if OPENROUTER_API_KEY is not set.
 // ---------------------------------------------------------------------------
 
-const GROQ_KEY = process.env.GROQ_API_KEY?.trim();
-const itIf = GROQ_KEY ? it : it.skip;
-
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY?.trim();
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v4-flash";
+const itIf = OPENROUTER_KEY ? it : it.skip;
 
 const EXTRACTION_SCHEMA = {
   type: "object" as const,
@@ -54,39 +53,6 @@ Return JSON matching this schema:
 Fact keys: business.name, offers.primary, customers.target_segment, brand.tone, economics.ltv, etc.
 Only extract facts with confidence >= 0.5.`;
 
-function groqClient(): LlmClient {
-  return {
-    async complete(request) {
-      const res = await fetch(GROQ_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${GROQ_KEY}`,
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [
-            { role: "system", content: request.systemPrompt },
-            { role: "user", content: request.content },
-          ],
-          temperature: request.temperature ?? 0.1,
-          max_tokens: request.maxTokens ?? 4096,
-          response_format: { type: "json_object" },
-        }),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Groq API ${res.status}: ${errText.slice(0, 200)}`);
-      }
-
-      const body: any = await res.json();
-      const raw = body.choices?.[0]?.message?.content ?? "";
-      return JSON.parse(raw);
-    },
-  };
-}
-
 const SAMPLE_CONTENT = `
 Novi Health is a wellness platform that helps employers offer holistic health benefits to their teams.
 We provide services like nutrition coaching, mental wellness sessions, and fitness programs.
@@ -103,11 +69,11 @@ practical guidance employees can use immediately.
 We are HIPAA compliant and work with licensed dietitians, therapists, and personal trainers.
 `;
 
-describe("LlmExtractionAdapter — real Groq extraction", () => {
+describe("LlmExtractionAdapter — real OpenRouter extraction", () => {
   itIf(
     "extracts business facts from sample content",
     async () => {
-      const adapter = new LlmExtractionAdapter(groqClient());
+      const adapter = new LlmExtractionAdapter(new OpenRouterExtractionClient(OPENROUTER_KEY!, OPENROUTER_MODEL));
       const result = await adapter.extractFacts({
         workspaceId: "ws-1",
         businessId: "biz-1",
@@ -135,13 +101,13 @@ describe("LlmExtractionAdapter — real Groq extraction", () => {
         expect(factKeys.length).toBeGreaterThan(0);
       }
     },
-    60_000,
+    120_000,
   );
 
   itIf(
     "extracted facts have valid confidence scores (0-1)",
     async () => {
-      const adapter = new LlmExtractionAdapter(groqClient());
+      const adapter = new LlmExtractionAdapter(new OpenRouterExtractionClient(OPENROUTER_KEY!, OPENROUTER_MODEL));
       const result = await adapter.extractFacts({
         workspaceId: "ws-1",
         businessId: "biz-1",
@@ -161,13 +127,13 @@ describe("LlmExtractionAdapter — real Groq extraction", () => {
         }
       }
     },
-    60_000,
+    120_000,
   );
 
   itIf(
     "handles empty content gracefully without crashing",
     async () => {
-      const adapter = new LlmExtractionAdapter(groqClient());
+      const adapter = new LlmExtractionAdapter(new OpenRouterExtractionClient(OPENROUTER_KEY!, OPENROUTER_MODEL));
       const result = await adapter.extractFacts({
         workspaceId: "ws-1",
         businessId: "biz-1",
@@ -183,37 +149,21 @@ describe("LlmExtractionAdapter — real Groq extraction", () => {
         expect(Array.isArray(result.data.facts)).toBe(true);
       }
     },
-    60_000,
+    120_000,
   );
 
   itIf(
-    "Groq API is reachable and returns valid JSON",
+    "OpenRouter API is reachable and returns valid JSON",
     async () => {
-      const res = await fetch(GROQ_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${GROQ_KEY}`,
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [
-            { role: "system", content: "Return JSON with a 'ok' field set to true." },
-            { role: "user", content: "ping" },
-          ],
-          max_tokens: 50,
-          response_format: { type: "json_object" },
+      const client = new OpenRouterExtractionClient(OPENROUTER_KEY!, OPENROUTER_MODEL);
+      await expect(
+        client.complete({
+          schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"] },
+          systemPrompt: "Return JSON with an ok field set to true.",
+          content: "ping",
+          maxTokens: 50,
         }),
-      });
-
-      expect(res.ok).toBe(true);
-      const body: any = await res.json();
-      expect(body.choices).toBeDefined();
-      expect(body.choices.length).toBeGreaterThan(0);
-      const content = body.choices[0].message.content;
-      console.log("Groq ping response:", content);
-      const parsed = JSON.parse(content);
-      expect(parsed.ok).toBe(true);
+      ).resolves.toEqual({ ok: true });
     },
     30_000,
   );

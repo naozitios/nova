@@ -408,15 +408,21 @@ describe('Container', () => {
     it('getExtractionService throws when LLM provider key is missing', () => {
       const originalKey = process.env.GROQ_API_KEY
       const originalUrl = process.env.LLM_API_URL
+      const originalOpenRouterKey = process.env.OPENROUTER_API_KEY
+      const originalOpenRouterModel = process.env.OPENROUTER_MODEL
       try {
         delete process.env.GROQ_API_KEY
         delete process.env.LLM_API_URL
+        delete process.env.OPENROUTER_API_KEY
+        delete process.env.OPENROUTER_MODEL
         expect(() => Container.getExtractionService()).toThrow(
           /LLM|GROQ|API_KEY|provider/i,
         )
       } finally {
         if (originalKey !== undefined) process.env.GROQ_API_KEY = originalKey
         if (originalUrl !== undefined) process.env.LLM_API_URL = originalUrl
+        if (originalOpenRouterKey !== undefined) process.env.OPENROUTER_API_KEY = originalOpenRouterKey
+        if (originalOpenRouterModel !== undefined) process.env.OPENROUTER_MODEL = originalOpenRouterModel
       }
     })
   })

@@ -3,22 +3,24 @@ import fs from "fs";
 import path from "path";
 import { createClient } from "@supabase/supabase-js";
 import { NativeDocumentParser } from "@/infrastructure/business-context/parsers";
-import { LlmExtractionAdapter, type LlmClient } from "@/infrastructure/business-context/llm-extraction.adapter";
+import { LlmExtractionAdapter } from "@/infrastructure/business-context/llm-extraction.adapter";
+import { OpenRouterExtractionClient } from "@/infrastructure/business-context/openrouter-extraction.client";
 import { FactRepository } from "@/infrastructure/business-context/repository/facts/fact.repository";
 
 // ---------------------------------------------------------------------------
 // Full pipeline integration test: parse → extract → save → verify
-// Uses real fixtures, real Groq API, real local Supabase.
+// Uses real fixtures, real OpenRouter API, real local Supabase.
 //
 // PDFs in fixtures/ are scanned/image-based → pdf-parse returns empty text.
 // PPTX has extractable text → used as primary test fixture.
 // ---------------------------------------------------------------------------
 
-const GROQ_KEY = process.env.GROQ_API_KEY?.trim();
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY?.trim();
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v4-flash";
 const SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-const itIf = GROQ_KEY && SUPABASE_KEY ? it : it.skip;
+const itIf = OPENROUTER_KEY && SUPABASE_KEY ? it : it.skip;
 
 // ─── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -32,59 +34,63 @@ const WORKSPACE_ID = "11111111-1111-1111-1111-111111111111";
 const BUSINESS_ID = "33333333-3333-3333-3333-333333333333";
 const SOURCE_ID = "77777777-7777-7777-7777-777777777777";
 
-// ─── Groq client ───────────────────────────────────────────────────────────
-
-function groqClient(): LlmClient {
-  const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-  const GROQ_MODEL = "llama-3.3-70b-versatile";
-
-  return {
-    async complete(request) {
-      const res = await fetch(GROQ_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${GROQ_KEY}`,
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [
-            { role: "system", content: request.systemPrompt },
-            { role: "user", content: request.content },
-          ],
-          temperature: request.temperature ?? 0.1,
-          max_tokens: request.maxTokens ?? 4096,
-          response_format: { type: "json_object" },
-        }),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Groq API ${res.status}: ${errText.slice(0, 200)}`);
-      }
-
-      const body: any = await res.json();
-      const raw = body.choices?.[0]?.message?.content ?? "";
-      return JSON.parse(raw);
-    },
-  };
-}
-
 // ─── Supabase client ───────────────────────────────────────────────────────
 
 let supabase: ReturnType<typeof createClient>;
 
-beforeAll(() => {
-  if (SUPABASE_KEY) {
-    supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-  }
+type UntypedSupabase = {
+  from(table: string): {
+    upsert(row: Record<string, unknown>): Promise<{ error: { message: string } | null }>;
+  };
+};
+
+async function upsertTestFixture(table: string, row: Record<string, unknown>) {
+  const { error } = await (supabase as unknown as UntypedSupabase).from(table).upsert(row);
+  if (error) throw new Error(`Failed to seed ${table}: ${error.message}`);
+}
+
+beforeAll(async () => {
+  if (!SUPABASE_KEY) return;
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  await upsertTestFixture("workspaces", { id: WORKSPACE_ID, name: "Pipeline test workspace" });
+  await upsertTestFixture("businesses", {
+    id: BUSINESS_ID,
+    workspace_id: WORKSPACE_ID,
+    name: "Pipeline test business",
+    website_url: "https://example.com",
+    status: "active",
+  });
+  await upsertTestFixture("context_sources", {
+    id: SOURCE_ID,
+    workspace_id: WORKSPACE_ID,
+    business_id: BUSINESS_ID,
+    source_type: "website",
+    source_name: "Pipeline test source",
+    external_reference: "https://example.com",
+    status: "processing",
+    current_stage: "extracting",
+    metadata: {},
+  });
+  await upsertTestFixture("source_documents", {
+    id: "aaaaaaaa-1111-1111-1111-111111111111",
+    workspace_id: WORKSPACE_ID,
+    business_id: BUSINESS_ID,
+    source_id: SOURCE_ID,
+    url: "https://example.com/document",
+    title: "Pipeline test document",
+    document_type: "webpage",
+    mime_type: "text/html",
+    content_hash: "pipeline-test-document",
+    content_text: "Pipeline test source document",
+    retrieved_at: new Date().toISOString(),
+  });
 });
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
-describe("Full pipeline: PPTX parse → Groq extract → Supabase save → verify", () => {
+describe("Full pipeline: PPTX parse → OpenRouter extract → Supabase save → verify", () => {
   itIf(
-    "parses PPTX, extracts business facts with Groq, saves to Supabase, queries back",
+    "parses PPTX, extracts business facts with OpenRouter, saves to Supabase, queries back",
     async () => {
       // Step 1: Parse PPTX
       console.log("\n=== STEP 1: Parse PPTX ===");
@@ -108,12 +114,12 @@ describe("Full pipeline: PPTX parse → Groq extract → Supabase save → verif
 
       // Step 2: Extract facts with Groq
       console.log("\n=== STEP 2: Extract facts with Groq ===");
-      const adapter = new LlmExtractionAdapter(groqClient());
+      const adapter = new LlmExtractionAdapter(new OpenRouterExtractionClient(OPENROUTER_KEY!, OPENROUTER_MODEL));
       const extractResult = await adapter.extractFacts({
         workspaceId: WORKSPACE_ID,
         businessId: BUSINESS_ID,
         sourceId: SOURCE_ID,
-        sourceDocumentId: "doc-1",
+         sourceDocumentId: "aaaaaaaa-1111-1111-1111-111111111111",
         contentText: contentText.slice(0, 8000),
         sourceType: "product_document",
         parserName: "native",
@@ -158,7 +164,7 @@ describe("Full pipeline: PPTX parse → Groq extract → Supabase save → verif
           factKey: fact.factKey,
           value: fact.value,
           sourceId: SOURCE_ID,
-          sourceDocumentId: "doc-1",
+          sourceDocumentId: "aaaaaaaa-1111-1111-1111-111111111111",
           sourceExcerpt: fact.sourceExcerpt || null,
           evidenceLocator: null,
           confidence: fact.confidence,
@@ -268,7 +274,7 @@ describe("Full pipeline: PPTX parse → Groq extract → Supabase save → verif
       expect(parseResult.ok).toBe(true);
       if (!parseResult.ok) return;
 
-      const adapter = new LlmExtractionAdapter(groqClient());
+       const adapter = new LlmExtractionAdapter(new OpenRouterExtractionClient(OPENROUTER_KEY!, OPENROUTER_MODEL));
       const extractResult = await adapter.extractFacts({
         workspaceId: WORKSPACE_ID,
         businessId: BUSINESS_ID,

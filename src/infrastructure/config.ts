@@ -14,6 +14,11 @@ export const config = {
     model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
     maxTokens: parseInt(process.env.GROQ_MAX_TOKENS || '4096'),
   },
+  /** OpenRouter extraction provider configuration. */
+  openRouter: {
+    apiKey: process.env.OPENROUTER_API_KEY || '',
+    model: process.env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash',
+  },
   /** Database connection configuration (SQLite URL for Drizzle ORM). */
   database: {
     url: process.env.DATABASE_URL || 'file:./local.db',

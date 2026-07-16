@@ -1,7 +1,13 @@
 import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
 import path from "path";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  process.env.OPENROUTER_API_KEY ??= env.OPENROUTER_API_KEY;
+  process.env.OPENROUTER_MODEL ??= env.OPENROUTER_MODEL;
+
+  return {
   resolve: {
     alias: [
       { find: /^@\/(.*)$/, replacement: path.resolve(__dirname, "src/$1") },
@@ -29,4 +35,5 @@ export default defineConfig({
       },
     ],
   },
+  };
 });
