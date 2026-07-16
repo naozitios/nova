@@ -61,10 +61,10 @@ Statuses describe current worktree state and must be refreshed after each gate.
 
 **Independent**: Authenticated source request claimed by separate worker reaches persisted terminal state without direct test updates.
 
-- [ ] T013 | B09 | Orchestration unit tests + website adapter security: adapter selection, ordered/skipped stages, idempotent persistence, pre/post-redirect private-network rejection, domain confinement, robots/budgets, dedupe, injection isolation.
-  <!-- STATUS: IMPLEMENTED_UNVERIFIED — substantial implementation and tests exist; no fresh whole-block gate -->
-- [ ] T014 | B10 | Handler registration: prove real `source_processing` registration with real JobRunner.
-  <!-- STATUS: IMPLEMENTED_UNVERIFIED — substantial implementation and tests exist; no fresh whole-block gate -->
+- [x] T013 | B09 | Orchestration unit tests + website adapter security: adapter selection, ordered/skipped stages, idempotent persistence, pre/post-redirect private-network rejection, domain confinement, robots/budgets, dedupe, injection isolation.
+  <!-- STATUS: VERIFIED — 11 focused orchestration and website-security test files passed -->
+- [x] T014 | B10 | Handler registration: prove real `source_processing` registration with real JobRunner.
+  <!-- STATUS: VERIFIED — registration, JobRunner, and source handler tests passed in the focused 14-file gate -->
 - [x] T015 | B11 | Worker real-Supabase: claim race, lease, heartbeat, retry wait, shutdown, stale recovery, duplicate prevention.
   <!-- STATUS: VERIFIED — late claims after bounded shutdown are released to runnable state; focused JobRunner regression and 4-file real-Supabase worker gate passed (12 tests) -->
 - [ ] T016–T017 | B12 | Source processing service + adapter registry: orchestrate source/run/collection/parse/documents/extraction/reconciliation/quality/events/terminal state. Website, stored document, Meta, manual, inference adapters with hardening.
@@ -210,6 +210,20 @@ Statuses describe current worktree state and must be refreshed after each gate.
 
 ---
 
+## Wave 11 — Deferred Wave 5 Resilience Completion
+
+**Purpose**: Complete B14 failure and concurrency coverage after the Wave 10 release gate. This wave does not replace release verification; it closes remaining source-worker resilience proof before final merge.
+
+- [ ] T080 | B14a | E2E two independently started workers racing 100 queued source-processing jobs. Prove each job executes once and no lease is held after completion.
+- [ ] T081 | B14b | E2E retryable provider failure. Prove persisted retry scheduling, retry wait, successful retry, and terminal retry visibility.
+- [ ] T082 | B14c | E2E worker termination and restart. Prove stale lease recovery makes interrupted work claimable by replacement worker.
+- [ ] T083 | B14d | E2E OCR-required source block. Prove unresolved OCR produces `blocked_needs_user_action`, skipped-stage events, and no extracted facts.
+- [ ] T084 | B14e | E2E website page/text budget exhaustion. Prove source processing stops at configured limits with persisted terminal outcome and visibility details.
+
+**Completion**: B14 covers happy path, idempotency, concurrency, retry/restart recovery, OCR blocking, and website budgets through real app, worker, Supabase, and persisted lifecycle state.
+
+---
+
 ## Dependency Waves
 
 | Wave | Slices | Parallel | Blocks |
@@ -225,6 +239,7 @@ Statuses describe current worktree state and must be refreshed after each gate.
 | 8 | B45–B51 | max 2 | 9 |
 | 9 | B52–B62 | max 2 (B52–B56 + B57–B62 interleaved) | 10 |
 | 10 | B63–B66 | max 2 | — |
+| 11 | B14a–B14e | serial E2E harness ownership | — |
 
 **66 slices · 11 waves · max intra-wave parallelism: 2 concurrent agents (disjoint files only)**
 

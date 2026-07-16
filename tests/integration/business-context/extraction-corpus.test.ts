@@ -6,6 +6,7 @@ import {
   type LlmClient,
 } from "@/infrastructure/business-context/llm-extraction.adapter";
 import type { ExtractionRequest } from "@/core/business-context/extraction.port";
+import type { JsonValue } from "@/core/business-context/types";
 
 // ---------------------------------------------------------------------------
 // T031/T033 — Extraction corpus integration tests
@@ -69,7 +70,7 @@ function makeRequest(contentText: string): ExtractionRequest {
 
 function mockClient(returnData: unknown): LlmClient {
   return {
-    complete: async () => returnData,
+    complete: async () => returnData as JsonValue,
   };
 }
 
@@ -114,19 +115,31 @@ describe("Extraction corpus — fixture-backed contract tests", () => {
     if (!result.ok) return;
 
     const { facts } = result.data;
-    expect(facts.length).toBeGreaterThanOrEqual(fixture.assertions.minFacts);
-    expect(facts.length).toBeLessThanOrEqual(fixture.assertions.maxFacts);
-
     const extractedKeys = facts.map((f) => f.factKey);
+
+    // B25 recall: every expected key must survive the MIN_CONFIDENCE=0.5 filter
     for (const key of fixture.assertions.mustContainKeys) {
       expect(extractedKeys).toContain(key);
     }
+    // B25 recall: fact count within bounds declared by fixture
+    expect(facts.length).toBeGreaterThanOrEqual(fixture.assertions.minFacts);
+    expect(facts.length).toBeLessThanOrEqual(fixture.assertions.maxFacts);
 
-    for (const fact of facts) {
-      expect(typeof fact.factKey).toBe("string");
-      expect(typeof fact.confidence).toBe("number");
-      expect(fact.confidence).toBeGreaterThanOrEqual(0);
-      expect(fact.confidence).toBeLessThanOrEqual(1);
+    // B25 evidence: non-null evidenceLocator conforms to EvidenceLocator shape
+    const factsWithLocator = facts.filter((f) => f.evidenceLocator !== null);
+    for (const fact of factsWithLocator) {
+      const loc = fact.evidenceLocator as Record<string, unknown>;
+      if (loc.url !== undefined) expect(typeof loc.url).toBe("string");
+      if (loc.page !== undefined) expect(typeof loc.page).toBe("number");
+      if (loc.slide !== undefined) expect(typeof loc.slide).toBe("number");
+      if (loc.element !== undefined) expect(typeof loc.element).toBe("string");
+      if (loc.boundingBox !== undefined) {
+        const bb = loc.boundingBox as Record<string, unknown>;
+        expect(typeof bb.x).toBe("number");
+        expect(typeof bb.y).toBe("number");
+        expect(typeof bb.width).toBe("number");
+        expect(typeof bb.height).toBe("number");
+      }
     }
   });
 
@@ -145,9 +158,38 @@ describe("Extraction corpus — fixture-backed contract tests", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    // System prompt mandates confidence >= 0.5; adapter must enforce
+    // B25 filter: system prompt mandates confidence >= 0.5; adapter must enforce
     for (const fact of result.data.facts) {
       expect(fact.confidence).toBeGreaterThanOrEqual(0.5);
+    }
+
+    // B25 boundary: facts at exactly MIN_CONFIDENCE=0.5 must NOT be dropped
+    const boundaryFacts = fixture.expectedOutput.facts.filter(
+      (f) => f.confidence === 0.5,
+    );
+    const resultKeys = result.data.facts.map((f) => f.factKey);
+    for (const bf of boundaryFacts) {
+      expect(resultKeys).toContain(bf.factKey);
+    }
+
+    // B25 filter: when all fixture facts are below threshold, result has 0 facts
+    const inputBelowThreshold = fixture.expectedOutput.facts.filter(
+      (f) => f.confidence < 0.5,
+    );
+    if (
+      fixture.assertions.expectAllBelowThreshold &&
+      inputBelowThreshold.length === fixture.expectedOutput.facts.length
+    ) {
+      expect(result.data.facts.length).toBe(0);
+    }
+
+    // B25 filter: drop warnings emitted for each fact below MIN_CONFIDENCE=0.5
+    const dropWarnings = result.data.warnings.filter((w) =>
+      w.includes("dropped: confidence"),
+    );
+    expect(dropWarnings.length).toBe(inputBelowThreshold.length);
+    for (const w of dropWarnings) {
+      expect(w).toMatch(/dropped: confidence [\d.]+ < 0\.5/);
     }
   });
 
@@ -175,6 +217,13 @@ describe("Extraction corpus — fixture-backed contract tests", () => {
       expect(Array.isArray(conflict.values)).toBe(true);
       expect(conflict.values.length).toBeGreaterThanOrEqual(2);
     }
+
+    // B25 conflict: min conflicts from fixture assertions
+    if (fixture.assertions.minConflicts !== undefined) {
+      expect(result.data.conflicts.length).toBeGreaterThanOrEqual(
+        fixture.assertions.minConflicts,
+      );
+    }
   });
 
   it("contains no forbidden values across all fixtures", async () => {
@@ -196,6 +245,11 @@ describe("Extraction corpus — fixture-backed contract tests", () => {
             expect(fact.value).not.toBe(bad);
           }
         }
+      }
+
+      // B25 filter: all returned facts meet MIN_CONFIDENCE=0.5
+      for (const fact of result.data.facts) {
+        expect(fact.confidence).toBeGreaterThanOrEqual(0.5);
       }
     }
   });

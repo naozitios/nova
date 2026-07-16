@@ -248,5 +248,285 @@ describe.skipIf(!hasDeps)(
         expect(foundOrder).toEqual(EXPECTED_STAGES);
       }
     });
+
+    // -----------------------------------------------------------------------
+    // Boundary: queue response latency < 2s
+    // -----------------------------------------------------------------------
+
+    it("queue response returns 202 within 2 seconds", { timeout: 15_000 }, async () => {
+      const baseUrl = `http://localhost:${appPort}`;
+
+      // Register a fresh source for this test
+      const registerRes = await authenticatedFetch(
+        `${baseUrl}/api/businesses/${bizId}/context/sources`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": `reg-latency-${Date.now()}`,
+          },
+          body: JSON.stringify({
+            source_type: "user_answer",
+            source_name: "Latency Test Source",
+          }),
+          authToken: sessionCookie,
+        },
+      );
+      expect(registerRes.status).toBe(201);
+      const { id: latencySourceId } = await registerRes.json();
+
+      const idempotencyKey = `process-latency-${Date.now()}`;
+      const start = Date.now();
+      const processRes = await authenticatedFetch(
+        `${baseUrl}/api/businesses/${bizId}/context/sources/${latencySourceId}/process`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotencyKey,
+          },
+          body: JSON.stringify({}),
+          authToken: sessionCookie,
+        },
+      );
+      const elapsed = Date.now() - start;
+
+      expect(processRes.status).toBe(202);
+      expect(elapsed).toBeLessThan(2000);
+    });
+
+    // -----------------------------------------------------------------------
+    // Boundary: worker claim latency < 10s
+    // -----------------------------------------------------------------------
+
+    it("worker claims job within 10 seconds of queue", { timeout: 30_000 }, async () => {
+      const baseUrl = `http://localhost:${appPort}`;
+
+      // Register a fresh source
+      const registerRes = await authenticatedFetch(
+        `${baseUrl}/api/businesses/${bizId}/context/sources`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": `reg-claim-${Date.now()}`,
+          },
+          body: JSON.stringify({
+            source_type: "user_answer",
+            source_name: "Claim Latency Source",
+          }),
+          authToken: sessionCookie,
+        },
+      );
+      expect(registerRes.status).toBe(201);
+      const { id: claimSourceId } = await registerRes.json();
+
+      // Queue the process job
+      const idempotencyKey = `process-claim-${Date.now()}`;
+      const queueStart = Date.now();
+      const processRes = await authenticatedFetch(
+        `${baseUrl}/api/businesses/${bizId}/context/sources/${claimSourceId}/process`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotencyKey,
+          },
+          body: JSON.stringify({}),
+          authToken: sessionCookie,
+        },
+      );
+      expect(processRes.status).toBe(202);
+      const { id: jobId } = await processRes.json();
+
+      // Poll job status: worker should transition it from "queued" to
+      // "running" or "succeeded" within 10s of queue.
+      const client = svcClient();
+      const claimDeadline = queueStart + 10_000;
+      let claimed = false;
+
+      while (Date.now() < claimDeadline) {
+        const { data: job } = await client
+          .from("context_jobs")
+          .select("status")
+          .eq("id", jobId)
+          .single();
+        if (job && job.status !== "queued") {
+          claimed = true;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+
+      expect(claimed).toBe(true);
+    });
+
+    // -----------------------------------------------------------------------
+    // Boundary: same idempotency key replay executes once (cached response)
+    // -----------------------------------------------------------------------
+
+    it("replaying same idempotency key returns cached response, no duplicate job", { timeout: 30_000 }, async () => {
+      const baseUrl = `http://localhost:${appPort}`;
+
+      // Register a fresh source
+      const registerRes = await authenticatedFetch(
+        `${baseUrl}/api/businesses/${bizId}/context/sources`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": `reg-idem-${Date.now()}`,
+          },
+          body: JSON.stringify({
+            source_type: "user_answer",
+            source_name: "Idempotency Replay Source",
+          }),
+          authToken: sessionCookie,
+        },
+      );
+      expect(registerRes.status).toBe(201);
+      const { id: idemSourceId } = await registerRes.json();
+
+      const idempotencyKey = `process-idem-replay-${Date.now()}`;
+      const body = JSON.stringify({});
+
+      // Timestamp before first request — used to scope job-count assertion
+      const requestTimestamp = new Date();
+
+      // First call — should create job and return 202
+      const res1 = await authenticatedFetch(
+        `${baseUrl}/api/businesses/${bizId}/context/sources/${idemSourceId}/process`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotencyKey,
+          },
+          body,
+          authToken: sessionCookie,
+        },
+      );
+      expect(res1.status).toBe(202);
+      const body1 = await res1.json();
+      const firstJobId = body1.id;
+
+      // Wait for idempotency record to be marked completed
+      await pollForCondition(async () => {
+        const client = svcClient();
+        const { data } = await client
+          .from("context_idempotency_records")
+          .select("state")
+          .eq("idempotency_key", idempotencyKey)
+          .single();
+        return data?.state === "completed" ? data : null;
+      }, 15_000, 500);
+
+      // Second call — same key + same payload → should return cached 202
+      const res2 = await authenticatedFetch(
+        `${baseUrl}/api/businesses/${bizId}/context/sources/${idemSourceId}/process`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotencyKey,
+          },
+          body,
+          authToken: sessionCookie,
+        },
+      );
+      expect(res2.status).toBe(202);
+      const body2 = await res2.json();
+
+      // Cached response should reference the same job
+      expect(body2.id).toBe(firstJobId);
+
+      // Verify only one context_jobs row was created for this source via process.
+      // Scope: same workspace, source_processing job type, this source ID,
+      // AND created on or after requestTimestamp to exclude stale rows.
+      const client = svcClient();
+      const { data: jobRows } = await client
+        .from("context_jobs")
+        .select("id, input")
+        .eq("job_type", "source_processing")
+        .eq("workspace_id", wsId)
+        .gte("created_at", requestTimestamp.toISOString());
+      const matchingJobs = (jobRows ?? []).filter(
+        (j: { input: Record<string, unknown> }) => j.input?.sourceId === idemSourceId,
+      );
+      expect(matchingJobs.length).toBe(1);
+    });
+
+    // -----------------------------------------------------------------------
+    // Boundary: changed payload with same idempotency key → canonical 409
+    // -----------------------------------------------------------------------
+
+    it("same idempotency key with different payload returns 409", { timeout: 15_000 }, async () => {
+      const baseUrl = `http://localhost:${appPort}`;
+
+      // Register a fresh source
+      const registerRes = await authenticatedFetch(
+        `${baseUrl}/api/businesses/${bizId}/context/sources`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": `reg-409-${Date.now()}`,
+          },
+          body: JSON.stringify({
+            source_type: "user_answer",
+            source_name: "409 Conflict Source",
+          }),
+          authToken: sessionCookie,
+        },
+      );
+      expect(registerRes.status).toBe(201);
+      const { id: conflictSourceId } = await registerRes.json();
+
+      const idempotencyKey = `process-409-${Date.now()}`;
+
+      // First call with empty body
+      const res1 = await authenticatedFetch(
+        `${baseUrl}/api/businesses/${bizId}/context/sources/${conflictSourceId}/process`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotencyKey,
+          },
+          body: JSON.stringify({}),
+          authToken: sessionCookie,
+        },
+      );
+      expect(res1.status).toBe(202);
+
+      // Wait for idempotency record to be completed so fingerprint is stored
+      await pollForCondition(async () => {
+        const client = svcClient();
+        const { data } = await client
+          .from("context_idempotency_records")
+          .select("state")
+          .eq("idempotency_key", idempotencyKey)
+          .single();
+        return data?.state === "completed" ? data : null;
+      }, 15_000, 500);
+
+      // Second call with DIFFERENT payload, same key → must return 409
+      const res2 = await authenticatedFetch(
+        `${baseUrl}/api/businesses/${bizId}/context/sources/${conflictSourceId}/process`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotencyKey,
+          },
+          body: JSON.stringify({ extra_field: "changed" }),
+          authToken: sessionCookie,
+        },
+      );
+      expect(res2.status).toBe(409);
+      const errBody = await res2.json();
+      expect(errBody.error?.code).toBe("IDEMPOTENCY_KEY_REUSED");
+      expect(errBody.error?.message).toBe("Idempotency-Key reused with different payload");
+    });
   },
 );

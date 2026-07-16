@@ -24,6 +24,14 @@ const MIME_CATEGORY_MAP: Record<string, MimeCategory> = {
   'image/bmp': 'image',
 }
 
+// ─── Legacy MIME types (pre-OOXML, not supported) ───────────────────────────
+
+const LEGACY_FORMAT_MIME_TYPES = new Set([
+  'application/msword', // .doc (legacy Word 97-2004)
+  'application/vnd.ms-powerpoint', // .ppt (legacy PowerPoint 97-2004)
+  'application/vnd.ms-excel', // .xls (legacy Excel 97-2004)
+])
+
 function classifyMime(mimeType: string): MimeCategory {
   return MIME_CATEGORY_MAP[mimeType] ?? 'unknown'
 }
@@ -58,6 +66,7 @@ export class DocumentParserRouter {
 
   /** Returns true if at least one sub-parser can handle this MIME type. */
   supports(mimeType: string): boolean {
+    if (LEGACY_FORMAT_MIME_TYPES.has(mimeType)) return false
     return this.nativeParser.supports(mimeType) || this.ocrParser.supports(mimeType)
   }
 
@@ -71,6 +80,17 @@ export class DocumentParserRouter {
     fileName?: string
   }): Promise<ServiceResult<ParsedDocument>> {
     const { storagePath, mimeType, fileName } = params
+
+    // Reject legacy pre-OOXML formats immediately
+    if (LEGACY_FORMAT_MIME_TYPES.has(mimeType)) {
+      return {
+        ok: false,
+        error: {
+          code: 'LEGACY_FORMAT_UNSUPPORTED',
+          message: `Legacy format not supported: ${mimeType}. Convert to OOXML (docx/pptx/xlsx) first.`,
+        },
+      }
+    }
 
     // Check if native parser supports this MIME type
     const nativeSupported = this.nativeParser.supports(mimeType)

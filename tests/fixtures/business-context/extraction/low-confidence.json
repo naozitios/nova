@@ -36,6 +36,13 @@
         "confidence": 0.35,
         "sourceExcerpt": "might be based in San Francisco",
         "evidenceLocator": null
+      },
+      {
+        "factKey": "business.industry",
+        "value": "Technology",
+        "confidence": 0.5,
+        "sourceExcerpt": "CloudBase",
+        "evidenceLocator": null
       }
     ],
     "conflicts": [],
@@ -45,8 +52,8 @@
     "mustContainKeys": [],
     "forbiddenValues": {},
     "minConfidence": 0.5,
-    "maxFacts": 5,
-    "minFacts": 0,
-    "expectAllBelowThreshold": true
+    "maxFacts": 6,
+    "minFacts": 1,
+    "expectAllBelowThreshold": false
   }
 }

@@ -201,7 +201,10 @@ export function getExtractionService(): ExtractionPort {
 /** Returns the source processing service. Lazy-initializes with repository and registers adapters from the registry. */
 export function getSourceProcessingService(): SourceProcessingService {
   if (!_sourceProcessingService) {
-    _sourceProcessingService = new SourceProcessingService(getBusinessContextRepository());
+    _sourceProcessingService = new SourceProcessingService(
+      getBusinessContextRepository(),
+      getExtractionService(),
+    );
     const registry = getSourceAdapterRegistry();
     const seen = new Set<object>();
     for (const sourceType of registry.listSupportedTypes()) {

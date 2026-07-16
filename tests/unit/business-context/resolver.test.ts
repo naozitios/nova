@@ -35,10 +35,10 @@ function existing(overrides: Partial<ContextFact>): ContextFact {
     confidence: 0.9,
     verificationStatus: "extracted",
     supersedesFactId: null,
-    validFrom: new Date().toISOString(),
+    validFrom: new Date(),
     validTo: null,
     createdBy: "system",
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(),
     ...overrides,
   };
 }
@@ -118,6 +118,38 @@ describe("resolveFacts", () => {
 });
 
 describe("detectConflicts", () => {
+  it("normalized duplicate contradictions yield exactly one open conflict", () => {
+    const c = detectConflicts([
+      existing({ id: "f-1", factKey: "Business_Name", value: "Acme" }),
+      existing({ id: "f-2", factKey: "business.name", value: "Globex" }),
+    ]);
+    expect(c).toHaveLength(1);
+    expect(c[0].factIds).toContain("f-1");
+    expect(c[0].factIds).toContain("f-2");
+    expect(c[0].values).toHaveLength(2);
+  });
+
+  it("resolveFacts deduplicates conflicts by normalized key", () => {
+    const r = resolveFacts(
+      [
+        existing({
+          id: "f-1",
+          factKey: "Business_Name",
+          value: "Acme",
+          verificationStatus: "user_verified",
+        }),
+      ],
+      [
+        incoming({ factKey: "business.name", value: "Globex" }),
+        incoming({ factKey: "Business_Name", value: "Globex" }),
+      ],
+    );
+    // B29: exactly one open conflict for normalized duplicate contradictions
+    expect(r.conflicts).toHaveLength(1);
+    expect(r.conflicts[0].factIds).toContain("f-1");
+    expect(r.conflicts[0].values).toHaveLength(2);
+  });
+
   it("returns no conflicts when values are aligned", () => {
     const c = detectConflicts([
       existing({ id: "f-1", factKey: "x", value: 1 }),

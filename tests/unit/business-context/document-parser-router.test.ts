@@ -108,4 +108,71 @@ describe("DocumentParserRouter", () => {
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.error.code).toBe("UNSUPPORTED_MIME");
   });
+
+  it("returns LEGACY_FORMAT_UNSUPPORTED for legacy Word MIME type", async () => {
+    const native = new FakeNative([], ok(""));
+    const ocr = new FakeOcr([], ok(""));
+    const r = new DocumentParserRouter(native, ocr);
+    const out = await r.parse({
+      storagePath: "private/doc-1",
+      mimeType: "application/msword",
+      fileName: "old.doc",
+    });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error.code).toBe("LEGACY_FORMAT_UNSUPPORTED");
+  });
+
+  it("returns LEGACY_FORMAT_UNSUPPORTED for legacy PowerPoint MIME type", async () => {
+    const native = new FakeNative([], ok(""));
+    const ocr = new FakeOcr([], ok(""));
+    const r = new DocumentParserRouter(native, ocr);
+    const out = await r.parse({
+      storagePath: "private/doc-1",
+      mimeType: "application/vnd.ms-powerpoint",
+      fileName: "old.ppt",
+    });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error.code).toBe("LEGACY_FORMAT_UNSUPPORTED");
+  });
+
+  it("returns LEGACY_FORMAT_UNSUPPORTED for legacy Excel MIME type", async () => {
+    const native = new FakeNative([], ok(""));
+    const ocr = new FakeOcr([], ok(""));
+    const r = new DocumentParserRouter(native, ocr);
+    const out = await r.parse({
+      storagePath: "private/doc-1",
+      mimeType: "application/vnd.ms-excel",
+      fileName: "old.xls",
+    });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error.code).toBe("LEGACY_FORMAT_UNSUPPORTED");
+  });
+
+  it("supports() returns false for legacy MIME types", () => {
+    const native = new FakeNative(["application/msword"], ok(""));
+    const ocr = new FakeOcr([], ok(""));
+    const r = new DocumentParserRouter(native, ocr);
+    expect(r.supports("application/msword")).toBe(false);
+    expect(r.supports("application/vnd.ms-powerpoint")).toBe(false);
+    expect(r.supports("application/vnd.ms-excel")).toBe(false);
+  });
+
+  it("preserves native-first behavior for OOXML docx", async () => {
+    const native = new FakeNative(
+      ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+      ok("Hello from docx")
+    );
+    const ocr = new FakeOcr(
+      ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+      ok("OCR fallback")
+    );
+    const r = new DocumentParserRouter(native, ocr);
+    const out = await r.parse({
+      storagePath: "private/doc-1",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      fileName: "new.docx",
+    });
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.data.contentText).toBe("Hello from docx");
+  });
 });

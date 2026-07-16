@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   validateOutput,
   repairOutput,
-  type OutputValidatorConfig,
-  type OutputValidationResult,
   type LlmRawOutput,
 } from './output-validator'
+import type { ExtractedFact } from '../../../core/business-context/extraction.port'
+import type { EvidenceLocator, JsonValue } from '../../../core/business-context/types/entities'
 
 // ─── Fake LLM response ──────────────────────────────────────────────────────
 
@@ -90,6 +90,25 @@ describe('validateOutput — strict keys', () => {
 // ─── Tests: strict type validation ───────────────────────────────────────────
 
 describe('validateOutput — strict types', () => {
+  it('rejects fact with empty factKey', () => {
+    const raw = makeLlmOutput({
+      facts: [
+        {
+          factKey: '',
+          value: 'Acme',
+          confidence: 0.9,
+          sourceExcerpt: null,
+          evidenceLocator: null,
+        },
+      ],
+    })
+    const result = validateOutput(raw)
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({ code: 'INVALID_TYPE', field: 'facts[0].factKey' }),
+    )
+  })
+
   it('rejects fact with non-string factKey', () => {
     const raw = makeLlmOutput({
       facts: [
@@ -154,7 +173,7 @@ describe('validateOutput — strict types', () => {
 
   it('rejects conflict with non-array values', () => {
     const raw = makeLlmOutput({
-      conflicts: [{ factKey: 'business.name', values: 'not-an-array' as unknown as unknown[] }],
+      conflicts: [{ factKey: 'business.name', values: 'not-an-array' as unknown as JsonValue[] }],
     })
     const result = validateOutput(raw)
     expect(result.valid).toBe(false)
@@ -257,25 +276,89 @@ describe('repairOutput — single repair attempt', () => {
     const broken = { facts: makeBrokenOutput().facts, conflicts: [] } as unknown as LlmRawOutput
     const repaired = repairOutput(broken)
     expect(repaired).toHaveProperty('warnings')
-    expect(Array.isArray(repaired.warnings)).toBe(true)
+    expect(Array.isArray(repaired!.warnings)).toBe(true)
   })
 
   it('repairs fact with confidence out of range', () => {
     const broken = makeBrokenOutput()
     broken.facts[0].confidence = 2.5
     const repaired = repairOutput(broken)
-    expect(repaired.facts[0].confidence).toBeLessThanOrEqual(1)
+    expect(repaired!.facts[0].confidence).toBeLessThanOrEqual(1)
   })
 
   it('repairs output by coercing non-array conflicts to array', () => {
     const broken = { ...makeBrokenOutput(), conflicts: 'not-an-array' } as unknown as LlmRawOutput
     const repaired = repairOutput(broken)
-    expect(Array.isArray(repaired.conflicts)).toBe(true)
+    expect(Array.isArray(repaired!.conflicts)).toBe(true)
   })
 
   it('returns null when repair is impossible', () => {
     const impossible = null as unknown as LlmRawOutput
     const repaired = repairOutput(impossible)
     expect(repaired).toBeNull()
+  })
+})
+
+// ─── Tests: regression — nested unknown key path + numeric OUT_OF_RANGE ────
+
+describe('validateOutput — regression: nested unknown key path', () => {
+  it('returns full dotted path for unknown key inside fact object', () => {
+    const raw = makeLlmOutput({
+      facts: [
+        {
+          factKey: 'business.name',
+          value: 'X',
+          confidence: 0.9,
+          sourceExcerpt: null,
+          evidenceLocator: null,
+          typo_field: 'oops',
+        } as unknown as ExtractedFact,
+      ],
+    }) as unknown as LlmRawOutput
+    const result = validateOutput(raw)
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({ code: 'UNKNOWN_KEY', field: 'facts[0].typo_field' }),
+    )
+  })
+
+  it('returns full dotted path for unknown key inside evidenceLocator', () => {
+    const raw = makeLlmOutput({
+      facts: [
+        {
+          factKey: 'business.name',
+          value: 'X',
+          confidence: 0.9,
+          sourceExcerpt: null,
+          evidenceLocator: { url: 'https://example.com', bogus: 123 } as unknown as EvidenceLocator,
+        },
+      ],
+    }) as unknown as LlmRawOutput
+    const result = validateOutput(raw)
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({ code: 'UNKNOWN_KEY', field: 'facts[0].evidenceLocator.bogus' }),
+    )
+  })
+})
+
+describe('validateOutput — regression: numeric OUT_OF_RANGE for non-confidence fields', () => {
+  it('returns OUT_OF_RANGE for evidenceLocator.page below 0', () => {
+    const raw = makeLlmOutput({
+      facts: [
+        {
+          factKey: 'business.name',
+          value: 'X',
+          confidence: 0.9,
+          sourceExcerpt: null,
+          evidenceLocator: { url: 'https://example.com', page: -1 },
+        },
+      ],
+    }) as unknown as LlmRawOutput
+    const result = validateOutput(raw)
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({ code: 'OUT_OF_RANGE', field: 'facts[0].evidenceLocator.page' }),
+    )
   })
 })

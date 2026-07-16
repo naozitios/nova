@@ -18,7 +18,8 @@
     "worker:business-context": "tsx src/workers/business-context.ts",
     "malware-scanner:start": "docker compose up -d clamav",
     "test:business-context:e2e": "vitest run tests/e2e/business-context/",
-    "test:business-context:providers": "vitest run tests/integration/business-context/extraction-provider.integration.test.ts"
+    "test:business-context:providers": "vitest run tests/integration/business-context/extraction-provider.integration.test.ts",
+    "benchmark:groq": "npx tsx scripts/benchmark-groq.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

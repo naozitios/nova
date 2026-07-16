@@ -62,5 +62,28 @@ export function resolveFacts(
         break
     }
   }
+  // Deduplicate conflicts by normalized fact key (B29: exactly one per key)
+  const seen = new Map<string, number>()
+  const deduped: typeof result.conflicts = []
+  for (const c of result.conflicts) {
+    const norm = normalizeFactKey(c.factKey)
+    const idx = seen.get(norm)
+    if (idx !== undefined) {
+      const existing = deduped[idx]
+      for (const id of c.factIds) {
+        if (!existing.factIds.includes(id)) existing.factIds.push(id)
+      }
+      for (const v of c.values) {
+        if (!existing.values.some((ev) => JSON.stringify(ev) === JSON.stringify(v))) {
+          existing.values.push(v)
+        }
+      }
+    } else {
+      seen.set(norm, deduped.length)
+      deduped.push({ ...c, factIds: [...c.factIds], values: [...c.values] })
+    }
+  }
+  result.conflicts = deduped
+
   return result
 }

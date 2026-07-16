@@ -106,6 +106,7 @@ Pure unit tests are co-located beside modules under `src/core/business-context/`
 5. Wave 8 — US5 repeat setup: update sessions, corrections, attributed diff, stale-version protection, restore, and repeat-setup E2E.
 6. Wave 9 — US6 security and operations: role/RLS matrix, Meta OAuth, retry/circuit/recovery, redaction, visibility DTOs, and security/operations E2E.
 7. Wave 10 — release gate: contract completeness, all subsystem suites, all six E2E suites, credentialed provider benchmark, lint, build, quickstart validation, and PRD 007 compatibility audit. All required gates must pass before merge.
+8. Wave 11 — deferred Wave 5 resilience completion: extend B14 worker E2E coverage for concurrent workers, retry/restart recovery, OCR blocking, and website budget enforcement. This runs only after Wave 10 identifies no release-blocking regression.
 
 ## Verification Strategy
 
