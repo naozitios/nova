@@ -45,9 +45,9 @@ function collectTsFiles(dirs: string[]): string[] {
 }
 
 function walk(absDir: string, root: string, acc: string[]): void {
-  let entries: ReturnType<typeof readdirSync>;
+  let entries: string[];
   try {
-    entries = readdirSync(absDir);
+    entries = readdirSync(absDir) as string[];
   } catch {
     return; // directory may not exist
   }

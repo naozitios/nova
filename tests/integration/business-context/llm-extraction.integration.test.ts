@@ -112,8 +112,10 @@ describe("LlmExtractionAdapter — real Groq extraction", () => {
         workspaceId: "ws-1",
         businessId: "biz-1",
         sourceId: "src-1",
+        sourceDocumentId: "doc-1",
         contentText: SAMPLE_CONTENT,
-        schema: EXTRACTION_SCHEMA,
+        sourceType: "website",
+        parserName: "llm",
       });
 
       console.log("Extract result.ok =", result.ok);
@@ -144,8 +146,10 @@ describe("LlmExtractionAdapter — real Groq extraction", () => {
         workspaceId: "ws-1",
         businessId: "biz-1",
         sourceId: "src-1",
+        sourceDocumentId: "doc-1",
         contentText: SAMPLE_CONTENT,
-        schema: EXTRACTION_SCHEMA,
+        sourceType: "website",
+        parserName: "llm",
       });
 
       expect(result.ok).toBe(true);
@@ -168,8 +172,10 @@ describe("LlmExtractionAdapter — real Groq extraction", () => {
         workspaceId: "ws-1",
         businessId: "biz-1",
         sourceId: "src-1",
+        sourceDocumentId: "doc-1",
         contentText: "",
-        schema: EXTRACTION_SCHEMA,
+        sourceType: "website",
+        parserName: "llm",
       });
 
       expect(result.ok).toBe(true);

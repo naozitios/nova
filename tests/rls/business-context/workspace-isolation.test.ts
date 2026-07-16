@@ -15,6 +15,11 @@ const serviceClient = supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
   : null;
 
+function requireClient() {
+  if (!serviceClient) throw new Error("serviceClient not initialised (missing SUPABASE_SERVICE_ROLE_KEY)");
+  return serviceClient;
+}
+
 // Helper: create an authenticated client using a JWT
 function authedClient(accessToken: string) {
   return createClient(supabaseUrl, supabaseServiceKey!, {
@@ -32,14 +37,15 @@ const USER_VIEWER = "00000000-0000-0000-0000-000000000011";
 const USER_OTHER_WS = "00000000-0000-0000-0000-000000000020";
 
 async function seedTestMemberships() {
+  const client = requireClient();
   // Ensure workspaces exist
-  await serviceClient.from("workspaces").upsert([
+  await client.from("workspaces").upsert([
     { id: WORKSPACE_A, name: "Workspace A" },
     { id: WORKSPACE_B, name: "Workspace B" },
   ]);
 
   // Ensure members exist
-  await serviceClient.from("workspace_members").upsert([
+  await client.from("workspace_members").upsert([
     { workspace_id: WORKSPACE_A, user_id: USER_EDITOR, role: "editor" },
     { workspace_id: WORKSPACE_A, user_id: USER_VIEWER, role: "viewer" },
     { workspace_id: WORKSPACE_B, user_id: USER_OTHER_WS, role: "editor" },
@@ -54,7 +60,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — same-workspace read", () => {
 
     // Insert a business via service role
     const businessId = crypto.randomUUID();
-    await serviceClient.from("businesses").insert({
+    await requireClient().from("businesses").insert({
       id: businessId,
       workspace_id: WORKSPACE_A,
       name: "Test Business",
@@ -64,14 +70,14 @@ describe.skipIf(!supabaseServiceKey)("RLS — same-workspace read", () => {
     // Read via editor's JWT (simulated)
     // NOTE: In real tests, use Supabase Auth sign-up or JWT minting.
     // Here we test the RLS query structure.
-    const client = serviceClient; // service role bypasses RLS
+    const client = requireClient(); // service role bypasses RLS
     const { data, error } = await client
       .from("businesses")
       .select("*")
       .eq("workspace_id", WORKSPACE_A);
 
     // Cleanup
-    await serviceClient.from("businesses").delete().eq("id", businessId);
+    await requireClient().from("businesses").delete().eq("id", businessId);
 
     expect(error).toBeNull();
     expect(data).toBeDefined();
@@ -84,7 +90,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — cross-workspace read denied", () =
     await seedTestMemberships();
 
     const businessId = crypto.randomUUID();
-    await serviceClient.from("businesses").insert({
+    await requireClient().from("businesses").insert({
       id: businessId,
       workspace_id: WORKSPACE_A,
       name: "Secret Business",
@@ -93,13 +99,13 @@ describe.skipIf(!supabaseServiceKey)("RLS — cross-workspace read denied", () =
 
     // Query for workspace A data from workspace B context
     // When RLS is properly configured, this should return empty or error
-    const { data, error } = await serviceClient
+    const { data, error } = await requireClient()
       .from("businesses")
       .select("*")
       .eq("workspace_id", WORKSPACE_A);
 
     // Cleanup
-    await serviceClient.from("businesses").delete().eq("id", businessId);
+    await requireClient().from("businesses").delete().eq("id", businessId);
 
     // Service role bypasses RLS, so this returns data.
     // Real RLS test requires authenticated user context.
@@ -115,7 +121,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — viewer mutation denied", () => {
 
     // Attempt insert as viewer — should be denied by RLS
     // Without real auth JWT, we verify the policy exists via SQL
-    const { data, error } = await serviceClient.rpc("exec_sql", {
+    const { data, error } = await requireClient().rpc("exec_sql", {
       query: `
         SELECT
           pol.polname AS policy_name,
@@ -138,7 +144,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — viewer mutation denied", () => {
 
 describe.skipIf(!supabaseServiceKey)("RLS — policy existence checks", () => {
   it("has SELECT policy on context_sources for workspace members", async () => {
-    const { data, error } = await serviceClient.rpc("exec_sql", {
+    const { data, error } = await requireClient().rpc("exec_sql", {
       query: `
         SELECT polname
         FROM pg_policy pol
@@ -155,7 +161,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — policy existence checks", () => {
   });
 
   it("has INSERT policy on context_sources for editors/admins", async () => {
-    const { data, error } = await serviceClient.rpc("exec_sql", {
+    const { data, error } = await requireClient().rpc("exec_sql", {
       query: `
         SELECT polname
         FROM pg_policy pol
@@ -172,7 +178,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — policy existence checks", () => {
   });
 
   it("has UPDATE policy on business_profile_versions for admins/owners only", async () => {
-    const { data, error } = await serviceClient.rpc("exec_sql", {
+    const { data, error } = await requireClient().rpc("exec_sql", {
       query: `
         SELECT polname
         FROM pg_policy pol
@@ -189,7 +195,7 @@ describe.skipIf(!supabaseServiceKey)("RLS — policy existence checks", () => {
   });
 
   it("has SELECT policy on context_facts for workspace members", async () => {
-    const { data, error } = await serviceClient.rpc("exec_sql", {
+    const { data, error } = await requireClient().rpc("exec_sql", {
       query: `
         SELECT polname
         FROM pg_policy pol

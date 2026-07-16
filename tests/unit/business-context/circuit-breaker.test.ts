@@ -113,10 +113,10 @@ function snapshot(provider: string, overrides: Partial<BreakerSnapshot> = {}): B
     timeoutCount: 0,
     quotaExhausted: false,
     failureWindowStartedAt: new Date().toISOString(),
-    openedAt: null,
-    halfOpenAfter: null,
-    lastFailureAt: null,
-    lastSuccessAt: null,
+    openedAt: null as Date | null,
+    halfOpenAfter: null as Date | null,
+    lastFailureAt: null as Date | null,
+    lastSuccessAt: null as Date | null,
     ...overrides,
   };
 }
@@ -151,7 +151,7 @@ describe("CircuitBreakerAdapter", () => {
   });
 
   it("moves to half_open when half_open_after has passed", async () => {
-    const past = new Date(Date.now() - DEFAULT_BREAKER_CONFIG.halfOpenAfterMs - 1000).toISOString();
+    const past = new Date(Date.now() - DEFAULT_BREAKER_CONFIG.halfOpenAfterMs - 1000);
     const db = new FakeDb();
     db.rows.set(
       "context_provider_circuit_breakers:firecrawl",

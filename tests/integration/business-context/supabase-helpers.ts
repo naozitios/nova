@@ -14,11 +14,23 @@ export const canRun = Boolean(supabaseServiceKey);
 let client: SupabaseClient | null = null;
 const createdIds: { table: string; id: string }[] = [];
 
-beforeAll(() => {
+beforeAll(async () => {
   if (supabaseServiceKey) {
     client = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false },
     });
+
+    await client.from("workspaces").upsert(
+      { id: TEST_WORKSPACE, name: "Test Workspace" },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+    track("workspaces", TEST_WORKSPACE);
+
+    await client.from("businesses").upsert(
+      { id: TEST_BUSINESS, workspace_id: TEST_WORKSPACE, name: "Test Business" },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+    track("businesses", TEST_BUSINESS);
   }
 });
 

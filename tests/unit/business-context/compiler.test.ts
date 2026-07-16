@@ -22,10 +22,10 @@ function fact(overrides: Partial<ContextFact>): ContextFact {
     confidence: 0.9,
     verificationStatus: "extracted",
     supersedesFactId: null,
-    validFrom: new Date().toISOString(),
+    validFrom: new Date(),
     validTo: null,
     createdBy: "system",
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(),
     ...overrides,
   };
 }

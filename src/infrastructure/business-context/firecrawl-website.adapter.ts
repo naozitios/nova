@@ -1,6 +1,5 @@
 export {
   FirecrawlWebsiteAdapter,
-  CrawlBudget,
   DEFAULT_CRAWL_BUDGET,
-  FirecrawlCrawlMetadata,
 } from './firecrawl'
+export type { CrawlBudget, FirecrawlCrawlMetadata } from './firecrawl'

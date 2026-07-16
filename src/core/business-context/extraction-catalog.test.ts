@@ -65,7 +65,9 @@ describe('ExtractionCatalog — fact key validation', () => {
   it('rejects empty fact key', () => {
     const result = validateFactKey('')
     expect(result.valid).toBe(false)
-    expect(result.reason).toBeDefined()
+    if (!result.valid) {
+      expect(result.reason).toBeDefined()
+    }
   })
 
   it('rejects fact key with leading/trailing dot', () => {

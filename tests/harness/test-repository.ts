@@ -1,7 +1,5 @@
-import type {
-  RepositoryPort,
-  ServiceResult,
-} from "@/core/business-context/types";
+import type { RepositoryPort } from "@/core/business-context/repository.port";
+import type { ServiceResult } from "@/core/business-context/types";
 
 export type RepoOverrides = Partial<{
   [K in keyof RepositoryPort]: RepositoryPort[K];

@@ -52,7 +52,11 @@ export async function POST(req: NextRequest) {
       primaryAdvertisingObjective: data.primary_advertising_objective,
       primaryBusinessOutcome: data.primary_business_outcome,
       approximateMonthlyMetaBudget: data.approximate_monthly_meta_budget,
-      initialSources: data.initial_sources,
+      initialSources: data.initial_sources.map((s) => ({
+        sourceType: s.source_type,
+        sourceName: s.source_name,
+        externalReference: s.external_reference,
+      })),
     })
 
     if (!result.ok) {

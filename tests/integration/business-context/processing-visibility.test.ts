@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------
@@ -12,9 +12,38 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:54
 const supabaseServiceKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_KEY;
 
-const supabase = supabaseServiceKey
+let supabase = supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
   : null;
+
+const createdIds: { table: string; id: string }[] = [];
+
+function track(table: string, id: string) {
+  createdIds.push({ table, id });
+}
+
+beforeAll(async () => {
+  if (!supabase) return;
+
+  await supabase.from("workspaces").upsert(
+    { id: TEST_WORKSPACE, name: "Test Workspace" },
+    { onConflict: "id", ignoreDuplicates: true },
+  );
+  track("workspaces", TEST_WORKSPACE);
+
+  await supabase.from("businesses").upsert(
+    { id: TEST_BUSINESS, workspace_id: TEST_WORKSPACE, name: "Test Business" },
+    { onConflict: "id", ignoreDuplicates: true },
+  );
+  track("businesses", TEST_BUSINESS);
+});
+
+afterAll(async () => {
+  if (!supabase) return;
+  for (const { table, id } of [...createdIds].reverse()) {
+    await supabase.from(table).delete().eq("id", id);
+  }
+});
 
 const TEST_WORKSPACE = "20000000-0000-0000-0000-000000000001";
 const TEST_BUSINESS = "20000000-0000-0000-0000-000000000002";
@@ -26,7 +55,7 @@ describe.skipIf(!supabaseServiceKey)(
   () => {
     it("persists all required stage event fields", async () => {
       const sourceId = crypto.randomUUID();
-      await supabase.from("context_sources").insert({
+      await supabase!.from("context_sources").insert({
         id: sourceId,
         workspace_id: TEST_WORKSPACE,
         business_id: TEST_BUSINESS,
@@ -41,7 +70,7 @@ describe.skipIf(!supabaseServiceKey)(
       const eventId = crypto.randomUUID();
 
       // Create prerequisite run
-      await supabase.from("context_processing_runs").insert({
+      await supabase!.from("context_processing_runs").insert({
         id: runId,
         workspace_id: TEST_WORKSPACE,
         business_id: TEST_BUSINESS,
@@ -57,7 +86,7 @@ describe.skipIf(!supabaseServiceKey)(
       const completedAt = new Date("2026-01-15T10:00:30Z");
       const durationMs = completedAt.getTime() - startedAt.getTime();
 
-      const { error: insertError } = await supabase
+      const { error: insertError } = await supabase!
         .from("context_processing_stage_events")
         .insert({
           id: eventId,
@@ -89,7 +118,7 @@ describe.skipIf(!supabaseServiceKey)(
       expect(insertError).toBeNull();
 
       // Read back and verify all fields
-      const { data, error: readError } = await supabase
+      const { data, error: readError } = await supabase!
         .from("context_processing_stage_events")
         .select("*")
         .eq("id", eventId)
@@ -112,14 +141,14 @@ describe.skipIf(!supabaseServiceKey)(
       expect(Number(data!.credits_consumed)).toBeCloseTo(0.5);
 
       // Cleanup
-      await supabase.from("context_processing_stage_events").delete().eq("id", eventId);
-      await supabase.from("context_processing_runs").delete().eq("id", runId);
-      await supabase.from("context_sources").delete().eq("id", sourceId);
+      await supabase!.from("context_processing_stage_events").delete().eq("id", eventId);
+      await supabase!.from("context_processing_runs").delete().eq("id", runId);
+      await supabase!.from("context_sources").delete().eq("id", sourceId);
     });
 
     it("persists sanitized error in stage event", async () => {
       const sourceId = crypto.randomUUID();
-      await supabase.from("context_sources").insert({
+      await supabase!.from("context_sources").insert({
         id: sourceId,
         workspace_id: TEST_WORKSPACE,
         business_id: TEST_BUSINESS,
@@ -133,7 +162,7 @@ describe.skipIf(!supabaseServiceKey)(
       const runId = crypto.randomUUID();
       const eventId = crypto.randomUUID();
 
-      await supabase.from("context_processing_runs").insert({
+      await supabase!.from("context_processing_runs").insert({
         id: runId,
         workspace_id: TEST_WORKSPACE,
         business_id: TEST_BUSINESS,
@@ -151,7 +180,7 @@ describe.skipIf(!supabaseServiceKey)(
         // Should NOT contain secrets or PII
       };
 
-      const { error: insertError } = await supabase
+      const { error: insertError } = await supabase!
         .from("context_processing_stage_events")
         .insert({
           id: eventId,
@@ -170,7 +199,7 @@ describe.skipIf(!supabaseServiceKey)(
 
       expect(insertError).toBeNull();
 
-      const { data } = await supabase
+      const { data } = await supabase!
         .from("context_processing_stage_events")
         .select("error, error_class")
         .eq("id", eventId)
@@ -181,9 +210,9 @@ describe.skipIf(!supabaseServiceKey)(
       expect(JSON.stringify(data!.error).toLowerCase()).not.toMatch(/secret|password|token/i);
 
       // Cleanup
-      await supabase.from("context_processing_stage_events").delete().eq("id", eventId);
-      await supabase.from("context_processing_runs").delete().eq("id", runId);
-      await supabase.from("context_sources").delete().eq("id", sourceId);
+      await supabase!.from("context_processing_stage_events").delete().eq("id", eventId);
+      await supabase!.from("context_processing_runs").delete().eq("id", runId);
+      await supabase!.from("context_sources").delete().eq("id", sourceId);
     });
   },
 );
@@ -193,7 +222,7 @@ describe.skipIf(!supabaseServiceKey)(
   () => {
     it("persists all aggregate counters on processing run", async () => {
       const sourceId = crypto.randomUUID();
-      await supabase.from("context_sources").insert({
+      await supabase!.from("context_sources").insert({
         id: sourceId,
         workspace_id: TEST_WORKSPACE,
         business_id: TEST_BUSINESS,
@@ -206,7 +235,7 @@ describe.skipIf(!supabaseServiceKey)(
 
       const runId = crypto.randomUUID();
 
-      const { error: insertError } = await supabase
+      const { error: insertError } = await supabase!
         .from("context_processing_runs")
         .insert({
           id: runId,
@@ -234,7 +263,7 @@ describe.skipIf(!supabaseServiceKey)(
 
       expect(insertError).toBeNull();
 
-      const { data, error: readError } = await supabase
+      const { data, error: readError } = await supabase!
         .from("context_processing_runs")
         .select("*")
         .eq("id", runId)
@@ -254,8 +283,8 @@ describe.skipIf(!supabaseServiceKey)(
       expect(data!.quality_summary.document_gates.passed).toBe(4);
 
       // Cleanup
-      await supabase.from("context_processing_runs").delete().eq("id", runId);
-      await supabase.from("context_sources").delete().eq("id", sourceId);
+      await supabase!.from("context_processing_runs").delete().eq("id", runId);
+      await supabase!.from("context_sources").delete().eq("id", sourceId);
     });
   },
 );
@@ -265,7 +294,7 @@ describe.skipIf(!supabaseServiceKey)(
   () => {
     it("returns stage events ordered by started_at for a run", async () => {
       const sourceId = crypto.randomUUID();
-      await supabase.from("context_sources").insert({
+      await supabase!.from("context_sources").insert({
         id: sourceId,
         workspace_id: TEST_WORKSPACE,
         business_id: TEST_BUSINESS,
@@ -278,7 +307,7 @@ describe.skipIf(!supabaseServiceKey)(
 
       const runId = crypto.randomUUID();
 
-      await supabase.from("context_processing_runs").insert({
+      await supabase!.from("context_processing_runs").insert({
         id: runId,
         workspace_id: TEST_WORKSPACE,
         business_id: TEST_BUSINESS,
@@ -295,7 +324,7 @@ describe.skipIf(!supabaseServiceKey)(
       for (let i = 0; i < stages.length; i++) {
         const eventId = crypto.randomUUID();
         eventIds.push(eventId);
-        await supabase.from("context_processing_stage_events").insert({
+        await supabase!.from("context_processing_stage_events").insert({
           id: eventId,
           workspace_id: TEST_WORKSPACE,
           business_id: TEST_BUSINESS,
@@ -308,7 +337,7 @@ describe.skipIf(!supabaseServiceKey)(
         });
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await supabase!
         .from("context_processing_stage_events")
         .select("stage, started_at")
         .eq("run_id", runId)
@@ -322,10 +351,10 @@ describe.skipIf(!supabaseServiceKey)(
 
       // Cleanup
       for (const id of eventIds) {
-        await supabase.from("context_processing_stage_events").delete().eq("id", id);
+        await supabase!.from("context_processing_stage_events").delete().eq("id", id);
       }
-      await supabase.from("context_processing_runs").delete().eq("id", runId);
-      await supabase.from("context_sources").delete().eq("id", sourceId);
+      await supabase!.from("context_processing_runs").delete().eq("id", runId);
+      await supabase!.from("context_sources").delete().eq("id", sourceId);
     });
   },
 );

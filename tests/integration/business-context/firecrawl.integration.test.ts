@@ -40,7 +40,6 @@ function websiteSource(url: string): ContextSource {
     terminalOutcome: null,
     metadata: { maxPages: 5 },
     collectedAt: new Date(),
-    createdAt: new Date(),
   };
 }
 

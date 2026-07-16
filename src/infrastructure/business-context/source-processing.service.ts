@@ -3,7 +3,7 @@ import type { ContextSource, ContextJob } from '@/core/business-context/types'
 import { registerSource, listSources, getSource, processSource, archiveSource, queueScan } from '@/core/business-context/service/source.service'
 import type { RegisterSourceInput } from '@/core/business-context/service/source.service'
 import type { SourceAdapterPort } from '@/core/business-context/source-adapter.port'
-import type { SourceType } from '@/core/business-context/types'
+import { SourceType } from '@/core/business-context/types'
 import type { ServiceResult } from '@/core/business-context/types'
 
 export class SourceProcessingService {
@@ -12,8 +12,7 @@ export class SourceProcessingService {
   constructor(private readonly repo: RepositoryPort) {}
 
   registerAdapter(adapter: SourceAdapterPort): void {
-    const types: SourceType[] = ['website', 'document', 'meta_ads', 'manual']
-    for (const t of types) {
+    for (const t of Object.values(SourceType)) {
       if (adapter.supports(t)) {
         this.adapters.set(t, adapter)
       }

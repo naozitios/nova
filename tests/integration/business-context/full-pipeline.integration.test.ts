@@ -4,6 +4,7 @@ import path from "path";
 import { createClient } from "@supabase/supabase-js";
 import { NativeDocumentParser } from "@/infrastructure/business-context/parsers";
 import { LlmExtractionAdapter, type LlmClient } from "@/infrastructure/business-context/llm-extraction.adapter";
+import { FactRepository } from "@/infrastructure/business-context/repository/facts/fact.repository";
 
 // ---------------------------------------------------------------------------
 // Full pipeline integration test: parse → extract → save → verify
@@ -112,8 +113,9 @@ describe("Full pipeline: PPTX parse → Groq extract → Supabase save → verif
         workspaceId: WORKSPACE_ID,
         businessId: BUSINESS_ID,
         sourceId: SOURCE_ID,
+        sourceDocumentId: "doc-1",
         contentText: contentText.slice(0, 8000),
-        sourceType: "document",
+        sourceType: "product_document",
         parserName: "native",
       });
 
@@ -147,22 +149,30 @@ describe("Full pipeline: PPTX parse → Groq extract → Supabase save → verif
         .eq("created_by", "pipeline-test");
 
       let savedCount = 0;
+      const factRepository = new FactRepository(supabase);
+      const savedFactIds: string[] = [];
       for (const fact of facts) {
-        const { error } = await supabase.from("context_facts").insert({
-          workspace_id: WORKSPACE_ID,
-          business_id: BUSINESS_ID,
-          fact_key: fact.factKey,
-          value: JSON.stringify(fact.value),
-          source_id: SOURCE_ID,
-          source_excerpt: fact.sourceExcerpt || null,
+        const result = await factRepository.createContextFact({
+          workspaceId: WORKSPACE_ID,
+          businessId: BUSINESS_ID,
+          factKey: fact.factKey,
+          value: fact.value,
+          sourceId: SOURCE_ID,
+          sourceDocumentId: "doc-1",
+          sourceExcerpt: fact.sourceExcerpt || null,
+          evidenceLocator: null,
           confidence: fact.confidence,
-          verification_status: "extracted",
-          created_by: "pipeline-test",
+          verificationStatus: "extracted",
+          supersedesFactId: null,
+          validFrom: new Date(),
+          validTo: null,
+          createdBy: "pipeline-test",
         });
-        if (error) {
-          console.log("  Save error:", fact.factKey, error.message);
+        if (!result.ok) {
+          console.log("  Save error:", fact.factKey, result.error.message);
         } else {
           savedCount++;
+          savedFactIds.push(result.data.id);
         }
       }
 
@@ -171,22 +181,18 @@ describe("Full pipeline: PPTX parse → Groq extract → Supabase save → verif
 
       // Step 4: Verify from DB
       console.log("\n=== STEP 4: Verify from DB ===");
-      const { data: dbFacts, error: queryError } = await supabase
-        .from("context_facts")
-        .select("fact_key, value, confidence, source_excerpt")
-        .eq("workspace_id", WORKSPACE_ID)
-        .eq("business_id", BUSINESS_ID)
-        .eq("created_by", "pipeline-test")
-        .order("created_at", { ascending: true });
+      const dbFacts = await Promise.all(
+        savedFactIds.map((factId) => factRepository.getContextFact(WORKSPACE_ID, factId)),
+      );
+      expect(dbFacts).toHaveLength(savedCount);
+      expect(dbFacts.every((result) => result.ok && result.data !== null)).toBe(true);
 
-      expect(queryError).toBeNull();
-      expect(dbFacts).not.toBeNull();
-      expect(dbFacts!.length).toBe(savedCount);
-
-      console.log("Facts in DB:", dbFacts!.length);
-      dbFacts!.forEach((f) => {
-        console.log(`  ${f.fact_key} = ${f.value} (${f.confidence})`);
-      });
+      console.log("Facts in DB:", dbFacts.length);
+      for (const result of dbFacts) {
+        if (result.ok && result.data) {
+          console.log(`  ${result.data.factKey} = ${JSON.stringify(result.data.value)} (${result.data.confidence})`);
+        }
+      }
 
       console.log("\n=== PIPELINE COMPLETE ===");
     },
@@ -267,8 +273,9 @@ describe("Full pipeline: PPTX parse → Groq extract → Supabase save → verif
         workspaceId: WORKSPACE_ID,
         businessId: BUSINESS_ID,
         sourceId: SOURCE_ID,
+        sourceDocumentId: "doc-1",
         contentText: parseResult.data.contentText.slice(0, 8000),
-        sourceType: "document",
+        sourceType: "website",
         parserName: "native",
       });
 

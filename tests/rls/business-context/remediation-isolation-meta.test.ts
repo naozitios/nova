@@ -47,7 +47,7 @@ describe.skipIf(!run)("RLS — Meta Connections & OAuth (server-owned)", () => {
         createAuthUser(`meta-sel-v-${Date.now()}@test.example`),
       ]);
       await svc.from("workspace_members").upsert(
-        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: ["owner", "editor", "viewer"][i] as const })),
+        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: (["owner", "editor", "viewer"] as const)[i] })),
       );
       for (const u of users) {
         const { data, error } = await authedClient(u.jwt).from("business_context_meta_connections").select("*");
@@ -64,7 +64,7 @@ describe.skipIf(!run)("RLS — Meta Connections & OAuth (server-owned)", () => {
         createAuthUser(`meta-ins-v-${Date.now()}@test.example`),
       ]);
       await svc.from("workspace_members").upsert(
-        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: ["owner", "editor", "viewer"][i] as const })),
+        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: (["owner", "editor", "viewer"] as const)[i] })),
       );
       for (const u of users) {
         const { error } = await authedClient(u.jwt).from("business_context_meta_connections").insert(seedRow());
@@ -84,7 +84,7 @@ describe.skipIf(!run)("RLS — Meta Connections & OAuth (server-owned)", () => {
         createAuthUser(`meta-upd-v-${Date.now()}@test.example`),
       ]);
       await svc.from("workspace_members").upsert(
-        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: ["owner", "editor", "viewer"][i] as const })),
+        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: (["owner", "editor", "viewer"] as const)[i] })),
       );
       for (const u of users) {
         const { error } = await authedClient(u.jwt).from("business_context_meta_connections").update({ status: "revoked" }).eq("id", row.id);
@@ -104,7 +104,7 @@ describe.skipIf(!run)("RLS — Meta Connections & OAuth (server-owned)", () => {
         createAuthUser(`meta-del-v-${Date.now()}@test.example`),
       ]);
       await svc.from("workspace_members").upsert(
-        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: ["owner", "editor", "viewer"][i] as const })),
+        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: (["owner", "editor", "viewer"] as const)[i] })),
       );
       for (const u of users) {
         const { error } = await authedClient(u.jwt).from("business_context_meta_connections").delete().eq("id", row.id);
@@ -138,7 +138,7 @@ describe.skipIf(!run)("RLS — Meta Connections & OAuth (server-owned)", () => {
         createAuthUser(`oauth-sel-v-${Date.now()}@test.example`),
       ]);
       await svc.from("workspace_members").upsert(
-        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: ["owner", "editor", "viewer"][i] as const })),
+        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: (["owner", "editor", "viewer"] as const)[i] })),
       );
       for (const u of users) {
         const { data, error } = await authedClient(u.jwt).from("business_context_meta_oauth_states").select("*");
@@ -155,7 +155,7 @@ describe.skipIf(!run)("RLS — Meta Connections & OAuth (server-owned)", () => {
         createAuthUser(`oauth-ins-v-${Date.now()}@test.example`),
       ]);
       await svc.from("workspace_members").upsert(
-        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: ["owner", "editor", "viewer"][i] as const })),
+        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: (["owner", "editor", "viewer"] as const)[i] })),
       );
       for (const u of users) {
         const { error } = await authedClient(u.jwt).from("business_context_meta_oauth_states").insert(seedRow());
@@ -175,7 +175,7 @@ describe.skipIf(!run)("RLS — Meta Connections & OAuth (server-owned)", () => {
         createAuthUser(`oauth-upd-v-${Date.now()}@test.example`),
       ]);
       await svc.from("workspace_members").upsert(
-        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: ["owner", "editor", "viewer"][i] as const })),
+        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: (["owner", "editor", "viewer"] as const)[i] })),
       );
       for (const u of users) {
         const { error } = await authedClient(u.jwt).from("business_context_meta_oauth_states").update({ return_path: "/hacked" }).eq("id", row.id);
@@ -195,7 +195,7 @@ describe.skipIf(!run)("RLS — Meta Connections & OAuth (server-owned)", () => {
         createAuthUser(`oauth-del-v-${Date.now()}@test.example`),
       ]);
       await svc.from("workspace_members").upsert(
-        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: ["owner", "editor", "viewer"][i] as const })),
+        users.map((u, i) => ({ workspace_id: WORKSPACE_A, user_id: u.id, role: (["owner", "editor", "viewer"] as const)[i] })),
       );
       for (const u of users) {
         const { error } = await authedClient(u.jwt).from("business_context_meta_oauth_states").delete().eq("id", row.id);

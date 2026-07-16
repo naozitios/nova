@@ -49,7 +49,7 @@ describe("SourceAdapterRegistry", () => {
   it("resolve returns error for unsupported type", () => {
     const registry = new SourceAdapterRegistry();
 
-    const result = registry.resolve("unknown_type");
+    const result = registry.resolve("unknown_type" as SourceType);
     expect("error" in result).toBe(true);
     if ("error" in result) {
       expect(result.error.code).toBe(RegistryErrors.UNSUPPORTED_SOURCE_TYPE);

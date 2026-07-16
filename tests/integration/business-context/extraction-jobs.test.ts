@@ -23,11 +23,54 @@ const TEST_BUSINESS = "30000000-0000-0000-0000-000000000002";
 const TEST_SOURCE = "30000000-0000-0000-0000-000000000003";
 const TEST_SOURCE_DOC = "30000000-0000-0000-0000-000000000004";
 
-beforeAll(() => {
+beforeAll(async () => {
   if (supabaseServiceKey) {
     client = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false },
     });
+
+    await client.from("workspaces").upsert(
+      { id: TEST_WORKSPACE, name: "Test Workspace" },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+    track("workspaces", TEST_WORKSPACE);
+
+    await client.from("businesses").upsert(
+      { id: TEST_BUSINESS, workspace_id: TEST_WORKSPACE, name: "Test Business" },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+    track("businesses", TEST_BUSINESS);
+
+    await client.from("context_sources").upsert(
+      {
+        id: TEST_SOURCE,
+        workspace_id: TEST_WORKSPACE,
+        business_id: TEST_BUSINESS,
+        source_type: "website",
+        source_name: "Test Source",
+        status: "registered",
+        metadata: {},
+        collected_at: new Date().toISOString(),
+      },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+    track("context_sources", TEST_SOURCE);
+
+    await client.from("source_documents").upsert(
+      {
+        id: TEST_SOURCE_DOC,
+        workspace_id: TEST_WORKSPACE,
+        business_id: TEST_BUSINESS,
+        source_id: TEST_SOURCE,
+        url: "https://example.com",
+        title: "Test Document",
+        content_text: "Test content",
+        content_hash: "sha256:test",
+        retrieved_at: new Date().toISOString(),
+      },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+    track("source_documents", TEST_SOURCE_DOC);
   }
 });
 
@@ -36,7 +79,7 @@ const createdIds: { table: string; id: string }[] = [];
 afterAll(async () => {
   if (!client) return;
   for (const { table, id } of [...createdIds].reverse()) {
-    await client.from(table).delete().eq("id", id);
+    await client!.from(table).delete().eq("id", id);
   }
 });
 
@@ -47,7 +90,7 @@ function track(table: string, id: string) {
 async function insertJob(overrides: Record<string, unknown> = {}) {
   const id = crypto.randomUUID();
   track("context_jobs", id);
-  const { error } = await client.from("context_jobs").insert({
+  const { error } = await client!!.from("context_jobs").insert({
     id,
     workspace_id: TEST_WORKSPACE,
     business_id: TEST_BUSINESS,
@@ -72,7 +115,7 @@ async function insertJob(overrides: Record<string, unknown> = {}) {
 }
 
 async function readJob(id: string) {
-  const { data, error } = await client
+  const { data, error } = await client!
     .from("context_jobs")
     .select("*")
     .eq("id", id)
@@ -84,7 +127,7 @@ async function readJob(id: string) {
 async function insertFact(overrides: Record<string, unknown> = {}) {
   const id = crypto.randomUUID();
   track("context_facts", id);
-  const { error } = await client.from("context_facts").insert({
+  const { error } = await client!.from("context_facts").insert({
     id,
     workspace_id: TEST_WORKSPACE,
     business_id: TEST_BUSINESS,
@@ -106,7 +149,7 @@ async function insertFact(overrides: Record<string, unknown> = {}) {
 async function insertProcessingRun(overrides: Record<string, unknown> = {}) {
   const id = crypto.randomUUID();
   track("context_processing_runs", id);
-  const { error } = await client.from("context_processing_runs").insert({
+  const { error } = await client!.from("context_processing_runs").insert({
     id,
     workspace_id: TEST_WORKSPACE,
     business_id: TEST_BUSINESS,
@@ -132,7 +175,7 @@ async function insertProcessingRun(overrides: Record<string, unknown> = {}) {
 async function insertStageEvent(overrides: Record<string, unknown> = {}) {
   const id = crypto.randomUUID();
   track("context_processing_stage_events", id);
-  const { error } = await client.from("context_processing_stage_events").insert({
+  const { error } = await client!.from("context_processing_stage_events").insert({
     id,
     workspace_id: TEST_WORKSPACE,
     business_id: TEST_BUSINESS,
@@ -159,7 +202,7 @@ async function insertStageEvent(overrides: Record<string, unknown> = {}) {
 async function insertQualityGate(overrides: Record<string, unknown> = {}) {
   const id = crypto.randomUUID();
   track("context_quality_gate_results", id);
-  const { error } = await client.from("context_quality_gate_results").insert({
+  const { error } = await client!.from("context_quality_gate_results").insert({
     id,
     workspace_id: TEST_WORKSPACE,
     business_id: TEST_BUSINESS,
@@ -227,7 +270,7 @@ describe.skipIf(!supabaseServiceKey)(
         verification_status: "extracted",
       });
 
-      const { data } = await client
+      const { data } = await client!
         .from("context_facts")
         .select("*")
         .eq("id", factId)
@@ -252,11 +295,11 @@ describe.skipIf(!supabaseServiceKey)(
         source_document_id: TEST_SOURCE_DOC,
       });
 
-      const { data } = await client
+      const { data } = (await client!
         .from("context_facts")
         .select("source_id, source_document_id")
         .eq("id", factId)
-        .single();
+        .single()) as { data: Record<string, unknown> };
 
       expect(data.source_id).toBe(TEST_SOURCE);
       expect(data.source_document_id).toBe(TEST_SOURCE_DOC);
@@ -271,11 +314,11 @@ describe.skipIf(!supabaseServiceKey)(
         valid_to: validTo,
       });
 
-      const { data } = await client
+      const { data } = (await client!
         .from("context_facts")
         .select("valid_from, valid_to")
         .eq("id", factId)
-        .single();
+        .single()) as { data: Record<string, unknown> };
 
       expect(data.valid_from).toBeTruthy();
       expect(data.valid_to).toBeTruthy();
@@ -300,7 +343,7 @@ describe.skipIf(!supabaseServiceKey)(
         reason: null,
       });
 
-      const { data } = await client
+      const { data } = await client!
         .from("context_quality_gate_results")
         .select("*")
         .eq("id", gateId)
@@ -322,7 +365,7 @@ describe.skipIf(!supabaseServiceKey)(
         reason: "Confidence below recommended threshold",
       });
 
-      const { data } = await client
+      const { data } = await client!
         .from("context_quality_gate_results")
         .select("*")
         .eq("id", gateId)
@@ -342,7 +385,7 @@ describe.skipIf(!supabaseServiceKey)(
         reason: "Fact value does not conform to Zod schema",
       });
 
-      const { data } = await client
+      const { data } = await client!
         .from("context_quality_gate_results")
         .select("*")
         .eq("id", gateId)
@@ -366,7 +409,7 @@ describe.skipIf(!supabaseServiceKey)(
         reason: null,
       });
 
-      const { data } = await client
+      const { data } = await client!
         .from("context_quality_gate_results")
         .select("*")
         .eq("id", gateId)
@@ -392,16 +435,16 @@ describe.skipIf(!supabaseServiceKey)(
       });
 
       // Simulate extraction completing
-      await client
+      await client!
         .from("context_processing_runs")
         .update({ facts_extracted: 12 })
         .eq("id", runId);
 
-      const { data } = await client
+      const { data } = (await client!
         .from("context_processing_runs")
         .select("facts_extracted")
         .eq("id", runId)
-        .single();
+        .single()) as { data: Record<string, unknown> };
 
       expect(data.facts_extracted).toBe(12);
     });
@@ -411,16 +454,16 @@ describe.skipIf(!supabaseServiceKey)(
         warnings_count: 0,
       });
 
-      await client
+      await client!
         .from("context_processing_runs")
         .update({ warnings_count: 3 })
         .eq("id", runId);
 
-      const { data } = await client
+      const { data } = (await client!
         .from("context_processing_runs")
         .select("warnings_count")
         .eq("id", runId)
-        .single();
+        .single()) as { data: Record<string, unknown> };
 
       expect(data.warnings_count).toBe(3);
     });
@@ -435,11 +478,11 @@ describe.skipIf(!supabaseServiceKey)(
         warnings_count: 1,
       });
 
-      const { data } = await client
+      const { data } = (await client!
         .from("context_processing_stage_events")
         .select("facts_extracted, warnings_count")
         .eq("id", eventId)
-        .single();
+        .single()) as { data: Record<string, unknown> };
 
       expect(data.facts_extracted).toBe(8);
       expect(data.warnings_count).toBe(1);
@@ -450,16 +493,16 @@ describe.skipIf(!supabaseServiceKey)(
         documents_created: 0,
       });
 
-      await client
+      await client!
         .from("context_processing_runs")
         .update({ documents_created: 3 })
         .eq("id", runId);
 
-      const { data } = await client
+      const { data } = (await client!
         .from("context_processing_runs")
         .select("documents_created")
         .eq("id", runId)
-        .single();
+        .single()) as { data: Record<string, unknown> };
 
       expect(data.documents_created).toBe(3);
     });
@@ -475,7 +518,7 @@ describe.skipIf(!supabaseServiceKey)(
   () => {
     it("job records error_class for schema contract failure", async () => {
       const jobId = await insertJob();
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "failed_permanent",
@@ -495,7 +538,7 @@ describe.skipIf(!supabaseServiceKey)(
 
     it("job records error_class for provider timeout", async () => {
       const jobId = await insertJob();
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "failed_retryable",
@@ -525,14 +568,14 @@ describe.skipIf(!supabaseServiceKey)(
         },
       });
 
-      const { data } = await client
+      const { data } = (await client!
         .from("context_processing_stage_events")
         .select("error_class, error")
         .eq("id", eventId)
-        .single();
+        .single()) as { data: Record<string, unknown> };
 
       expect(data.error_class).toBe("schema_contract");
-      expect(data.error.code).toBe("SCHEMA_CONTRACT");
+      expect((data.error as Record<string, unknown>).code).toBe("SCHEMA_CONTRACT");
     });
   },
 );

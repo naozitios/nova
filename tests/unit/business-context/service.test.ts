@@ -8,7 +8,8 @@ import {
   approveV1,
   type CreateBusinessInput,
 } from "@/core/business-context/service";
-import type { RepositoryPort, Business, OnboardingSession, ContextSource } from "@/core/business-context/types";
+import type { RepositoryPort } from "@/core/business-context/repository.port";
+import type { Business, OnboardingSession, ContextSource } from "@/core/business-context/types";
 import { OnboardingStatus } from "@/core/business-context/types";
 import { createFakeRepository } from "../../harness/test-repository";
 

@@ -20,14 +20,23 @@ const supabaseServiceKey =
 
 let client: SupabaseClient | null = null;
 
-const TEST_WORKSPACE = "30000000-0000-0000-0000-000000000001";
-const TEST_BUSINESS = "30000000-0000-0000-0000-000000000002";
+const TEST_WORKSPACE = crypto.randomUUID();
+const TEST_BUSINESS = crypto.randomUUID();
 
-beforeAll(() => {
+beforeAll(async () => {
   if (supabaseServiceKey) {
     client = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false },
     });
+    const { error: workspaceError } = await client
+      .from("workspaces")
+      .upsert({ id: TEST_WORKSPACE, name: "Context jobs test workspace" });
+    if (workspaceError) throw workspaceError;
+
+    const { error: businessError } = await client
+      .from("businesses")
+      .upsert({ id: TEST_BUSINESS, workspace_id: TEST_WORKSPACE, name: "Context jobs test business" });
+    if (businessError) throw businessError;
   }
 });
 
@@ -37,8 +46,9 @@ const createdJobs: string[] = [];
 afterAll(async () => {
   if (!client) return;
   for (const id of [...createdJobs].reverse()) {
-    await client.from("context_jobs").delete().eq("id", id);
+    await client!.from("context_jobs").delete().eq("id", id);
   }
+  await client.from("workspaces").delete().eq("id", TEST_WORKSPACE);
 });
 
 function track(id: string) {
@@ -48,7 +58,7 @@ function track(id: string) {
 async function insertJob(overrides: Record<string, unknown> = {}) {
   const id = crypto.randomUUID();
   track(id);
-  const { error } = await client.from("context_jobs").insert({
+  const { error } = await client!.from("context_jobs").insert({
     id,
     workspace_id: TEST_WORKSPACE,
     business_id: TEST_BUSINESS,
@@ -66,7 +76,7 @@ async function insertJob(overrides: Record<string, unknown> = {}) {
 }
 
 async function readJob(id: string) {
-  const { data, error } = await client
+  const { data, error } = await client!
     .from("context_jobs")
     .select("*")
     .eq("id", id)
@@ -91,7 +101,7 @@ describe.skipIf(!supabaseServiceKey)(
       expect(q.attempt_count).toBe(0);
 
       // Transition to scheduled
-      await client
+      await client!
         .from("context_jobs")
         .update({ status: "scheduled", next_run_at: new Date().toISOString() })
         .eq("id", id);
@@ -100,7 +110,7 @@ describe.skipIf(!supabaseServiceKey)(
 
       // Transition to running
       const now = new Date().toISOString();
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "running",
@@ -119,7 +129,7 @@ describe.skipIf(!supabaseServiceKey)(
       expect(r.locked_by).toBe("worker-1");
 
       // Transition to succeeded
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "succeeded",
@@ -145,7 +155,7 @@ describe.skipIf(!supabaseServiceKey)(
     it("transitions running → failed_retryable with structured error", async () => {
       const id = await insertJob({ status: "running", attempt_count: 1 });
 
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "failed_retryable",
@@ -176,7 +186,7 @@ describe.skipIf(!supabaseServiceKey)(
       const delayMs = 30_000;
       const nextRunAt = new Date(Date.now() + delayMs).toISOString();
 
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "retry_waiting",
@@ -201,7 +211,7 @@ describe.skipIf(!supabaseServiceKey)(
       });
 
       // Attempt count equals max → job should be dead_lettered, not retried
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "dead_lettered",
@@ -245,7 +255,7 @@ describe.skipIf(!supabaseServiceKey)(
       for (const errorClass of nonRetryableClasses) {
         const jobId = await insertJob({ status: "running", attempt_count: 1 });
 
-        await client
+        await client!
           .from("context_jobs")
           .update({
             status: "failed_permanent",
@@ -268,7 +278,7 @@ describe.skipIf(!supabaseServiceKey)(
     it("failed_permanent job has no next_run_at", async () => {
       const id = await insertJob({ status: "running", attempt_count: 1 });
 
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "failed_permanent",
@@ -306,13 +316,13 @@ describe.skipIf(!supabaseServiceKey)(
       const staleHeartbeat = new Date(
         Date.now() - stageTimeoutSeconds * 2 * 1000 - 1000,
       ).toISOString();
-      await client
+      await client!
         .from("context_jobs")
         .update({ heartbeat_at: staleHeartbeat })
         .eq("id", id);
 
       // Simulate recovery sweep: mark as stalled
-      await client
+      await client!
         .from("context_jobs")
         .update({ status: "stalled" })
         .eq("id", id)
@@ -336,7 +346,7 @@ describe.skipIf(!supabaseServiceKey)(
 
       // FR-041: Retryable stalled → retry_waiting with next backoff delay
       const nextRunAt = new Date(Date.now() + 120_000).toISOString();
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "retry_waiting",
@@ -360,7 +370,7 @@ describe.skipIf(!supabaseServiceKey)(
       });
 
       // FR-041: Exhausted stalled → dead_lettered
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "dead_lettered",
@@ -390,7 +400,7 @@ describe.skipIf(!supabaseServiceKey)(
       const id = await insertJob({ status: "running", attempt_count: 1 });
 
       const t1 = new Date().toISOString();
-      await client
+      await client!
         .from("context_jobs")
         .update({ heartbeat_at: t1 })
         .eq("id", id);
@@ -398,7 +408,7 @@ describe.skipIf(!supabaseServiceKey)(
       // Small delay, then refresh
       await new Promise((r) => setTimeout(r, 50));
       const t2 = new Date().toISOString();
-      await client
+      await client!
         .from("context_jobs")
         .update({ heartbeat_at: t2 })
         .eq("id", id);
@@ -422,13 +432,13 @@ describe.skipIf(!supabaseServiceKey)(
       const staleHeartbeat = new Date(
         Date.now() - stageTimeoutSeconds * 2 * 1000 - 5000,
       ).toISOString();
-      await client
+      await client!
         .from("context_jobs")
         .update({ heartbeat_at: staleHeartbeat })
         .eq("id", id);
 
       // FR-041: Recovery sweep selects stalled candidates
-      const { data: candidates, error } = await client
+      const { data: candidates, error } = await client!
         .from("context_jobs")
         .select("id, status, heartbeat_at, stage_timeout_seconds")
         .eq("status", "running")
@@ -466,7 +476,7 @@ describe.skipIf(!supabaseServiceKey)(
         // These should never appear in persisted errors
       };
 
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "failed_retryable",
@@ -502,7 +512,7 @@ describe.skipIf(!supabaseServiceKey)(
 
       for (const cls of retryableClasses) {
         const id = await insertJob({ status: "running", attempt_count: 1 });
-        await client
+        await client!
           .from("context_jobs")
           .update({
             status: "failed_retryable",
@@ -518,7 +528,7 @@ describe.skipIf(!supabaseServiceKey)(
 
       for (const cls of nonRetryableClasses) {
         const id = await insertJob({ status: "running", attempt_count: 1 });
-        await client
+        await client!
           .from("context_jobs")
           .update({
             status: "failed_permanent",
@@ -554,7 +564,7 @@ describe.skipIf(!supabaseServiceKey)(
         });
 
         const nextRunAt = new Date(Date.now() + delays[i]).toISOString();
-        await client
+        await client!
           .from("context_jobs")
           .update({ status: "retry_waiting", next_run_at: nextRunAt })
           .eq("id", id);
@@ -586,7 +596,7 @@ describe.skipIf(!supabaseServiceKey)(
     it("cancelled job remains in terminal state", async () => {
       const id = await insertJob({ status: "running", attempt_count: 1 });
 
-      await client
+      await client!
         .from("context_jobs")
         .update({
           status: "cancelled",
@@ -613,7 +623,7 @@ describe.skipIf(!supabaseServiceKey)(
       const id1 = crypto.randomUUID();
       track(id1);
 
-      const { error: err1 } = await client.from("context_jobs").insert({
+      const { error: err1 } = await client!.from("context_jobs").insert({
         id: id1,
         workspace_id: TEST_WORKSPACE,
         business_id: TEST_BUSINESS,
@@ -630,7 +640,7 @@ describe.skipIf(!supabaseServiceKey)(
       // Duplicate insert should fail
       const id2 = crypto.randomUUID();
       track(id2);
-      const { error: err2 } = await client.from("context_jobs").insert({
+      const { error: err2 } = await client!.from("context_jobs").insert({
         id: id2,
         workspace_id: TEST_WORKSPACE,
         business_id: TEST_BUSINESS,
