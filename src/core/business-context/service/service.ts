@@ -14,6 +14,7 @@ import type {
   OnboardingSession,
   JsonValue,
 } from '../types'
+import type { OnboardingReadinessResult } from '../onboarding-readiness'
 import type { CompiledContext } from '../context-purpose-compiler'
 
 import {
@@ -23,6 +24,7 @@ import {
   submitAnswers,
   compileOnboardingDraft,
   approveV1,
+  getReadiness,
   type CreateBusinessInput,
   type SubmitAnswersInput,
 } from './onboarding.service'
@@ -97,6 +99,12 @@ export class BusinessContextService {
     approverId: string,
   ): Promise<ServiceResult<BusinessProfileVersion>> {
     return approveV1(this.repo, businessId, workspaceId, approverId)
+  }
+  getReadiness(
+    businessId: string,
+    workspaceId: string,
+  ): Promise<ServiceResult<OnboardingReadinessResult | null>> {
+    return getReadiness(this.repo, businessId, workspaceId)
   }
 
   // US2 — Source management

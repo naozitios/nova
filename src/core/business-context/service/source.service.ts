@@ -4,6 +4,9 @@ import type { RepositoryPort } from '../repository.port'
 import type { ContextSource, ContextJob } from '../types'
 import { SourceProcessingStage, JobStatus } from '../types'
 
+/** Shared timeout for source-processing stages (30s heartbeat, 2× stale threshold). */
+const STAGE_TIMEOUT_SECONDS = 30
+
 export interface RegisterSourceInput {
   sourceType: string
   sourceName: string
@@ -31,7 +34,9 @@ export async function registerSource(
     status: 'registered',
     currentStage: null,
     terminalOutcome: null,
-    metadata: {},
+    metadata: input.sourceType === 'website' && input.externalReference
+      ? { approvedDomains: [new URL(input.externalReference).hostname] }
+      : {},
     collectedAt: new Date(),
   })
 }
@@ -89,7 +94,7 @@ export async function processSource(
     lockedBy: null,
     lockedAt: null,
     heartbeatAt: null,
-    stageTimeoutSeconds: null,
+    stageTimeoutSeconds: STAGE_TIMEOUT_SECONDS,
     startedAt: null,
     completedAt: null,
   })
@@ -169,9 +174,9 @@ export async function queueScan(
       lockedBy: null,
       lockedAt: null,
       heartbeatAt: null,
-      stageTimeoutSeconds: null,
-      startedAt: null,
-      completedAt: null,
+    stageTimeoutSeconds: STAGE_TIMEOUT_SECONDS,
+    startedAt: null,
+    completedAt: null,
     })
 
     if (jobResult.ok) {

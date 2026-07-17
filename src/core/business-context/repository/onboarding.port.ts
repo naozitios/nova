@@ -1,4 +1,5 @@
 import type {
+  BusinessProfileVersion,
   OnboardingQuestion,
   OnboardingSession,
   ServiceResult,
@@ -63,4 +64,19 @@ export interface OnboardingRepositoryPort {
     answer: unknown,
     answeredBy: string,
   ): Promise<ServiceResult<OnboardingQuestion>>
+
+  dismissOnboardingQuestion(
+    workspaceId: string,
+    questionId: string,
+  ): Promise<ServiceResult<OnboardingQuestion>>
+
+  /**
+   * Atomic onboarding approval: compile draft, validate, supersede, create version, audit.
+   * Delegates to SQL RPC `approve_onboarding_v1` for transactional consistency.
+   */
+  approveOnboardingV1(
+    workspaceId: string,
+    businessId: string,
+    approverId: string,
+  ): Promise<ServiceResult<BusinessProfileVersion>>
 }

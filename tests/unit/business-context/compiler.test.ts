@@ -1,12 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   selectActiveFacts,
   groupFactsBySection,
+  compileDraftFromFacts,
   projectToMarkdown,
   CONFIDENCE_THRESHOLDS,
   type CompiledDraft,
 } from "@/core/business-context/compiler";
 import type { ContextFact, JsonValue } from "@/core/business-context/types";
+import type { RepositoryPort } from "@/core/business-context/repository.port";
 
 function fact(overrides: Partial<ContextFact>): ContextFact {
   return {
@@ -99,5 +101,155 @@ describe("projectToMarkdown", () => {
   it("emits placeholders for empty profile", () => {
     const md = projectToMarkdown({});
     expect(typeof md).toBe("string");
+  });
+});
+
+// ─── compileDraftFromFacts — nested compilation ──────────────────────────────
+
+function makeRepo(facts: ContextFact[]): RepositoryPort {
+  return {
+    listContextFacts: vi.fn().mockResolvedValue({
+      ok: true,
+      data: { items: facts, total: facts.length },
+    }),
+    listContextConflicts: vi.fn().mockResolvedValue({
+      ok: true,
+      data: { items: [], total: 0 },
+    }),
+  } as unknown as RepositoryPort;
+}
+
+describe("compileDraftFromFacts", () => {
+  it("nests dotted keys within section objects", async () => {
+    const repo = makeRepo([
+      fact({ factKey: "offers.pricing.tier_count", value: 3 }),
+      fact({ factKey: "offers.pricing.tier_name", value: "Pro" }),
+    ]);
+    const result = await compileDraftFromFacts(repo, "biz-1", "ws-1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.profile.offers).toEqual({
+      pricing: { tier_count: 3, tier_name: "Pro" },
+    });
+  });
+
+  it("nests deeply dotted keys three levels deep", async () => {
+    const repo = makeRepo([
+      fact({
+        factKey: "offers.pricing.enterprise.monthly",
+        value: 999,
+      }),
+    ]);
+    const result = await compileDraftFromFacts(repo, "biz-1", "ws-1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.profile.offers).toEqual({
+      pricing: { enterprise: { monthly: 999 } },
+    });
+  });
+
+  it("keeps top-level section keys as direct values", async () => {
+    const repo = makeRepo([
+      fact({ factKey: "business.name", value: "Acme" }),
+      fact({ factKey: "business.industry", value: "SaaS" }),
+    ]);
+    const result = await compileDraftFromFacts(repo, "biz-1", "ws-1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.profile.business).toEqual({
+      name: "Acme",
+      industry: "SaaS",
+    });
+  });
+
+  it("uses shared precedence (groupFactsBySection) — highest confidence wins per key", async () => {
+    const repo = makeRepo([
+      fact({
+        factKey: "business.name",
+        value: "Old Name",
+        confidence: 0.6,
+        id: "f-low",
+      }),
+      fact({
+        factKey: "business.name",
+        value: "New Name",
+        confidence: 0.9,
+        id: "f-high",
+      }),
+    ]);
+    const result = await compileDraftFromFacts(repo, "biz-1", "ws-1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.profile.business).toEqual({ name: "New Name" });
+  });
+
+  it("mixes nested and flat keys within one section", async () => {
+    const repo = makeRepo([
+      fact({ factKey: "offers.product_names", value: "Widget" }),
+      fact({ factKey: "offers.pricing.tier_count", value: 3 }),
+      fact({ factKey: "offers.pricing.tier_name", value: "Pro" }),
+    ]);
+    const result = await compileDraftFromFacts(repo, "biz-1", "ws-1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.profile.offers).toEqual({
+      product_names: "Widget",
+      pricing: { tier_count: 3, tier_name: "Pro" },
+    });
+  });
+
+  it("marks section unresolved when all facts below MIN_COMPILE", async () => {
+    const repo = makeRepo([
+      fact({
+        factKey: "offers.product_names",
+        value: "Maybe",
+        confidence: 0.3,
+      }),
+    ]);
+    const result = await compileDraftFromFacts(repo, "biz-1", "ws-1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.profile.offers).toBeUndefined();
+    expect(result.data.unresolvedFields).toContain("offers");
+  });
+
+  it("includes user_verified facts even below MIN_COMPILE", async () => {
+    const repo = makeRepo([
+      fact({
+        factKey: "offers.pricing.tier_count",
+        value: 2,
+        confidence: 0.3,
+        verificationStatus: "user_verified",
+      }),
+    ]);
+    const result = await compileDraftFromFacts(repo, "biz-1", "ws-1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.profile.offers).toEqual({
+      pricing: { tier_count: 2 },
+    });
+    expect(result.data.unresolvedFields).not.toContain("offers");
+  });
+
+  it("nests across multiple sections simultaneously", async () => {
+    const repo = makeRepo([
+      fact({ factKey: "business.name", value: "Acme" }),
+      fact({ factKey: "business.location.city", value: "SF" }),
+      fact({ factKey: "offers.pricing.tier_count", value: 3 }),
+      fact({ factKey: "customers.primary_persona", value: "CTO" }),
+    ]);
+    const result = await compileDraftFromFacts(repo, "biz-1", "ws-1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.profile.business).toEqual({
+      name: "Acme",
+      location: { city: "SF" },
+    });
+    expect(result.data.profile.offers).toEqual({
+      pricing: { tier_count: 3 },
+    });
+    expect(result.data.profile.customers).toEqual({
+      primary_persona: "CTO",
+    });
   });
 });

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   Business,
+  BusinessProfileVersion,
   OnboardingSession,
   ServiceResult,
 } from '@/core/business-context/types'
@@ -197,5 +198,50 @@ export class BusinessRepository {
 
     if (error) return err('UPDATE_FAILED', error.message)
     return { ok: true, data: mapOnboardingSession(row) }
+  }
+
+  // ── Atomic onboarding approval (RPC) ────────────────────────────────────────
+
+  async approveOnboardingV1(
+    workspaceId: string,
+    businessId: string,
+    approverId: string,
+  ): Promise<ServiceResult<BusinessProfileVersion>> {
+    const { data, error } = await this.db.rpc('approve_onboarding_v1', {
+      p_workspace_id: workspaceId,
+      p_business_id: businessId,
+      p_approver_id: approverId,
+    })
+
+    if (error) return err('RPC_FAILED', error.message)
+    if (!data?.ok) {
+      return {
+        ok: false,
+        error: {
+          code: data?.error?.code ?? 'APPROVAL_FAILED',
+          message: data?.error?.message ?? 'Onboarding approval failed',
+          details: data?.error?.details,
+        },
+      }
+    }
+
+    const row = data.data
+    return {
+      ok: true,
+      data: {
+        id: row.id,
+        workspaceId: row.workspaceId,
+        businessId: row.businessId,
+        version: row.version,
+        profile: row.profile,
+        profileMarkdown: row.profileMarkdown ?? null,
+        status: row.status,
+        changeSummary: row.changeSummary ?? null,
+        createdBy: row.createdBy,
+        createdAt: new Date(row.createdAt),
+        approvedBy: row.approvedBy ?? null,
+        approvedAt: row.approvedAt ? new Date(row.approvedAt) : null,
+      },
+    }
   }
 }

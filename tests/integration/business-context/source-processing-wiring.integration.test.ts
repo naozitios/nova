@@ -68,9 +68,10 @@ afterAll(async () => {
     await supabase.from("context_jobs").delete().eq("id", c.jobId);
     await supabase.from("context_sources").delete().eq("id", c.sourceId);
   }
-  // Clean facts + quality gates seeded by tests
+  // Clean facts + quality gates + conflicts seeded by tests
   await supabase.from("context_facts").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("context_quality_gate_results").delete().eq("workspace_id", WS).eq("business_id", BIZ);
+  await supabase.from("context_conflicts").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("onboarding_questions").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("onboarding_sessions").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("businesses").delete().eq("id", BIZ);
@@ -82,6 +83,7 @@ beforeEach(async () => {
   if (supabase) {
     await supabase.from("context_facts").delete().eq("workspace_id", WS).eq("business_id", BIZ);
     await supabase.from("context_quality_gate_results").delete().eq("workspace_id", WS).eq("business_id", BIZ);
+    await supabase.from("context_conflicts").delete().eq("workspace_id", WS).eq("business_id", BIZ);
     await supabase.from("onboarding_questions").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   }
 });
@@ -221,12 +223,23 @@ async function readRun(runId: string) {
 }
 
 async function listStageEvents(runId: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("context_processing_stage_events")
     .select("*")
     .eq("run_id", runId)
     .order("started_at", { ascending: true });
-  return data ?? [];
+  if (error) throw new Error(`listStageEvents failed: ${error.message}`);
+  if (!data || data.length === 0) {
+    const { data: allForBiz } = await supabase
+      .from("context_processing_stage_events")
+      .select("run_id, source_id")
+      .eq("workspace_id", WS)
+      .eq("business_id", BIZ);
+    throw new Error(
+      `listStageEvents: no rows for run_id=${runId}. All stage events for WS/BIZ: ${JSON.stringify(allForBiz ?? [])}`,
+    );
+  }
+  return data;
 }
 
 async function readSource(sourceId: string) {
@@ -888,6 +901,121 @@ describe.skipIf(!SUPABASE_KEY)(
       });
     });
 
+    it("processSource dismisses open question when high-confidence extraction resolves its key", async () => {
+      const sourceId = await seedSource("product_document");
+      const sessionId = await seedSession();
+      const adapter = createFakeAdapter(makeCollected());
+
+      // Seed an open onboarding question for company_name
+      const { data: seededQ } = await supabase
+        .from("onboarding_questions")
+        .insert({
+          workspace_id: WS,
+          business_id: BIZ,
+          session_id: sessionId,
+          fact_key: "company_name",
+          question_type: "confirmation",
+          question: "Is the company name Acme Corp?",
+          options: null,
+          reason: "Low-confidence extraction",
+          priority: 1,
+          status: "open",
+          answer: null,
+          answered_by: null,
+          answered_at: null,
+        })
+        .select("id")
+        .single();
+      expect(seededQ).not.toBeNull();
+
+      // High-confidence extraction — company_name resolved, not a gap
+      const highConfidenceFacts: ExtractedFact[] = [
+        {
+          factKey: "company_name",
+          value: "Acme Corp",
+          confidence: 0.95,
+          sourceExcerpt: "Acme Corp sells widgets",
+          evidenceLocator: null,
+        },
+      ];
+      const extraction = createFakeExtractionProvider(highConfidenceFacts);
+
+      const svc = new SourceProcessingService(
+        await import("@/infrastructure/business-context/supabase.repository").then(
+          (m) => new m.SupabaseRepository(supabase),
+        ),
+        extraction,
+      );
+      svc.registerAdapter(adapter);
+
+      const result = await svc.processSource(BIZ, WS, sourceId, { sessionId });
+      expect(result.ok).toBe(true);
+
+      // Question should be dismissed — key resolved by high-confidence fact
+      const { data: q } = await supabase
+        .from("onboarding_questions")
+        .select("status")
+        .eq("id", seededQ!.id)
+        .single();
+      expect(q).not.toBeNull();
+      expect(q!.status).toBe("dismissed");
+
+      // No answered questions should have been modified
+      const { data: answeredQs } = await supabase
+        .from("onboarding_questions")
+        .select("*")
+        .eq("workspace_id", WS)
+        .eq("business_id", BIZ)
+        .eq("status", "answered");
+      expect(answeredQs).not.toBeNull();
+      expect(answeredQs!.length).toBe(0);
+
+      cleanupIds.push({
+        sourceId,
+        jobId: (await findRunForSource(sourceId))?.job_id ?? "",
+        runId: (await findRunForSource(sourceId))?.id ?? "",
+      });
+    });
+
+    it("processSource with warnings: persisted warnings_count matches returned warnings length", async () => {
+      const sourceId = await seedSource("product_document");
+      const collected = makeCollectedWithWarnings();
+      const adapter = createFakeAdapter(collected);
+      const extraction = createFakeExtractionProvider([]);
+
+      const svc = new SourceProcessingService(
+        await import("@/infrastructure/business-context/supabase.repository").then(
+          (m) => new m.SupabaseRepository(supabase),
+        ),
+        extraction,
+      );
+      svc.registerAdapter(adapter);
+
+      const result = await svc.processSource(BIZ, WS, sourceId);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      // Returned warnings count
+      const returnedWarningCount = result.data.warnings.length;
+      expect(returnedWarningCount).toBeGreaterThan(0);
+
+      // Persisted run warnings_count must match returned warnings count
+      const run = await findRunForSource(sourceId);
+      expect(run).not.toBeNull();
+      const runData = await readRun(run!.id);
+      expect(runData.warnings_count).toBe(returnedWarningCount);
+
+      // Source terminal status must be processed_with_warnings
+      const src = await readSource(sourceId);
+      expect(src.terminal_outcome).toBe("processed_with_warnings");
+
+      cleanupIds.push({
+        sourceId,
+        jobId: run!.job_id,
+        runId: run!.id,
+      });
+    });
+
     it("processSource skips lifecycle questions when no sessionId provided", async () => {
       const sourceId = await seedSource("product_document");
       const adapter = createFakeAdapter(makeCollected());
@@ -929,6 +1057,272 @@ describe.skipIf(!SUPABASE_KEY)(
         jobId: (await findRunForSource(sourceId))?.job_id ?? "",
         runId: (await findRunForSource(sourceId))?.id ?? "",
       });
+    });
+
+    // ─── B29 conflict persistence ──────────────────────────────────────────
+
+    it("B29 conflict persistence: conflicting extracted value produces open context_conflicts row", async () => {
+      const sourceId = await seedSource("product_document");
+      const otherSourceId = await seedSource("product_document");
+
+      // Seed an active fact with one value
+      const { data: seededFact } = await supabase
+        .from("context_facts")
+        .insert({
+          workspace_id: WS,
+          business_id: BIZ,
+          fact_key: "company_name",
+          value: "Old Corp",
+          source_id: otherSourceId,
+          source_document_id: null,
+          source_excerpt: "Old Corp was a company",
+          evidence_locator: null,
+          confidence: 0.95,
+          verification_status: "extracted",
+          supersedes_fact_id: null,
+          valid_from: new Date().toISOString(),
+          valid_to: null,
+          created_by: "system",
+        })
+        .select("id")
+        .single();
+      expect(seededFact).not.toBeNull();
+
+      // Extraction returns a CONFLICTING value for the same fact key
+      const conflictingFacts: ExtractedFact[] = [
+        {
+          factKey: "company_name",
+          value: "New Corp",
+          confidence: 0.9,
+          sourceExcerpt: "New Corp sells widgets",
+          evidenceLocator: null,
+        },
+      ];
+      const extraction = createFakeExtractionProvider(conflictingFacts);
+
+      const svc = new SourceProcessingService(
+        await import("@/infrastructure/business-context/supabase.repository").then(
+          (m) => new m.SupabaseRepository(supabase),
+        ),
+        extraction,
+      );
+      svc.registerAdapter(createFakeAdapter(makeCollected()));
+
+      const result = await svc.processSource(BIZ, WS, sourceId);
+      expect(result.ok).toBe(true);
+
+      // Exactly one open context_conflicts row for the normalized fact key
+      const { data: conflicts } = await supabase
+        .from("context_conflicts")
+        .select("*")
+        .eq("workspace_id", WS)
+        .eq("business_id", BIZ)
+        .eq("fact_key", "company_name")
+        .eq("status", "open");
+
+      expect(conflicts).not.toBeNull();
+      expect(conflicts!.length).toBe(1);
+
+      // The conflict should reference both competing fact IDs
+      const conflict = conflicts![0];
+      expect(conflict.fact_ids).toContain(seededFact!.id);
+
+      cleanupIds.push({
+        sourceId,
+        jobId: (await findRunForSource(sourceId))?.job_id ?? "",
+        runId: (await findRunForSource(sourceId))?.id ?? "",
+      });
+      // Clean up other source
+      await supabase.from("context_facts").delete().eq("source_id", otherSourceId);
+      await supabase.from("context_sources").delete().eq("id", otherSourceId);
+    });
+
+    // ─── B29 supersession propagation ─────────────────────────────────────
+
+    it("B29 supersession: higher-confidence extraction supersedes old fact with valid_to and supersedes_fact_id", async () => {
+      const sourceId = await seedSource("product_document");
+      const otherSourceId = await seedSource("product_document");
+
+      // Seed an active extracted fact with lower confidence
+      const { data: oldFact } = await supabase
+        .from("context_facts")
+        .insert({
+          workspace_id: WS,
+          business_id: BIZ,
+          fact_key: "company_name",
+          value: "Old Corp",
+          source_id: otherSourceId,
+          source_document_id: null,
+          source_excerpt: "Old Corp was a company",
+          evidence_locator: null,
+          confidence: 0.6,
+          verification_status: "extracted",
+          supersedes_fact_id: null,
+          valid_from: new Date().toISOString(),
+          valid_to: null,
+          created_by: "system",
+        })
+        .select("id")
+        .single();
+      expect(oldFact).not.toBeNull();
+
+      // Process same fact key with higher-confidence different value
+      const higherConfidenceFacts: ExtractedFact[] = [
+        {
+          factKey: "company_name",
+          value: "New Corp",
+          confidence: 0.9,
+          sourceExcerpt: "New Corp sells widgets",
+          evidenceLocator: null,
+        },
+      ];
+      const extraction = createFakeExtractionProvider(higherConfidenceFacts);
+
+      const svc = new SourceProcessingService(
+        await import("@/infrastructure/business-context/supabase.repository").then(
+          (m) => new m.SupabaseRepository(supabase),
+        ),
+        extraction,
+      );
+      svc.registerAdapter(createFakeAdapter(makeCollected()));
+
+      const result = await svc.processSource(BIZ, WS, sourceId);
+      expect(result.ok).toBe(true);
+
+      // Old fact must be superseded with valid_to set
+      const { data: oldFactAfter } = await supabase
+        .from("context_facts")
+        .select("verification_status, valid_to")
+        .eq("id", oldFact!.id)
+        .single();
+
+      expect(oldFactAfter).not.toBeNull();
+      expect(oldFactAfter!.verification_status).toBe("superseded");
+      expect(oldFactAfter!.valid_to).not.toBeNull();
+
+      // New active fact must exist with supersedes_fact_id pointing to old
+      const { data: newFacts } = await supabase
+        .from("context_facts")
+        .select("id, value, verification_status, supersedes_fact_id, valid_to")
+        .eq("workspace_id", WS)
+        .eq("business_id", BIZ)
+        .eq("fact_key", "company_name")
+        .eq("source_id", sourceId);
+
+      expect(newFacts).not.toBeNull();
+      expect(newFacts!.length).toBe(1);
+
+      const newFact = newFacts![0];
+      expect(newFact.value).toBe("New Corp");
+      expect(newFact.verification_status).toBe("extracted");
+      expect(newFact.valid_to).toBeNull();
+      expect(newFact.supersedes_fact_id).toBe(oldFact!.id);
+
+      cleanupIds.push({
+        sourceId,
+        jobId: (await findRunForSource(sourceId))?.job_id ?? "",
+        runId: (await findRunForSource(sourceId))?.id ?? "",
+      });
+      // Clean up other source
+      await supabase.from("context_facts").delete().eq("source_id", otherSourceId);
+      await supabase.from("context_sources").delete().eq("id", otherSourceId);
+    });
+
+    // ─── B29 atomic regression ────────────────────────────────────────────
+
+    it("B29 atomic regression: DB-rejected fact must not leak previously-persisted fact", async () => {
+      const sourceId = await seedSource("product_document");
+      const adapter = createFakeAdapter(makeCollected());
+
+      // Seed a pre-existing fact that must survive processing untouched
+      const preExistingSourceId = await seedSource("product_document");
+      await supabase.from("context_facts").insert({
+        workspace_id: WS,
+        business_id: BIZ,
+        fact_key: "existing_key",
+        value: "pre-existing value",
+        source_id: preExistingSourceId,
+        source_document_id: null,
+        source_excerpt: "existing excerpt",
+        evidence_locator: null,
+        confidence: 0.8,
+        verification_status: "extracted",
+        supersedes_fact_id: null,
+        valid_from: new Date().toISOString(),
+        valid_to: null,
+        created_by: "system",
+      });
+
+      // Extraction returns one valid fact + one with confidence > 1
+      // The invalid fact violates: check (confidence >= 0 and confidence <= 1)
+      const mixedFacts: ExtractedFact[] = [
+        {
+          factKey: "company_name",
+          value: "Acme Corp",
+          confidence: 0.9,
+          sourceExcerpt: "Acme Corp sells widgets",
+          evidenceLocator: null,
+        },
+        {
+          factKey: "industry",
+          value: "Manufacturing",
+          confidence: 1.5, // DB constraint violation
+          sourceExcerpt: "manufacturing sector",
+          evidenceLocator: null,
+        },
+      ];
+      const extraction = createFakeExtractionProvider(mixedFacts);
+
+      const svc = new SourceProcessingService(
+        await import("@/infrastructure/business-context/supabase.repository").then(
+          (m) => new m.SupabaseRepository(supabase),
+        ),
+        extraction,
+      );
+      svc.registerAdapter(adapter);
+
+      const result = await svc.processSource(BIZ, WS, sourceId);
+
+      // ── ServiceResult assertion ───────────────────────────────────────
+      // When a fact violates the DB confidence constraint (check constraint
+      // confidence >= 0 AND confidence <= 1), the service must surface the
+      // failure as ok:false — not swallow it.
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeDefined();
+        expect(result.error.code).toBeDefined();
+      }
+
+      // ── Atomic assertion ──────────────────────────────────────────────
+      // If ANY fact in the batch fails DB persistence, NO new facts from
+      // this processing run should be committed. The pre-existing fact
+      // must remain active.
+      const { data: facts } = await supabase
+        .from("context_facts")
+        .select("*")
+        .eq("workspace_id", WS)
+        .eq("business_id", BIZ);
+
+      const preExisting = facts!.filter((f: any) => f.fact_key === "existing_key");
+      const newCompany = facts!.filter((f: any) => f.fact_key === "company_name");
+      const newIndustry = facts!.filter((f: any) => f.fact_key === "industry");
+
+      // Pre-existing fact must survive
+      expect(preExisting.length).toBe(1);
+      expect(preExisting[0].verification_status).toBe("extracted");
+
+      // No new facts from this run should persist — atomic rollback required
+      expect(newCompany.length).toBe(0); // FAILS: sequential writes persist this
+      expect(newIndustry.length).toBe(0);
+
+      cleanupIds.push({
+        sourceId,
+        jobId: (await findRunForSource(sourceId))?.job_id ?? "",
+        runId: (await findRunForSource(sourceId))?.id ?? "",
+      });
+      // Clean up pre-existing source + facts
+      await supabase.from("context_facts").delete().eq("source_id", preExistingSourceId);
+      await supabase.from("context_sources").delete().eq("id", preExistingSourceId);
     });
   },
 );

@@ -2,8 +2,9 @@
 
 **Feature Directory**: `006.2-business-context-remediation`
 **Created**: 2026-07-15
-**Status**: Ready for Implementation
+**Status**: In Progress — backend API/worker/Supabase/RLS real-boundary E2E
 **Input**: Complete PRD 006 backend behavior required before `PRD/007_business_context_frontend_prd.md` can operate against real ingestion and onboarding.
+**Approved Boundary**: 006.2 owns backend API, worker, Supabase, and RLS real-boundary E2E. Browser-driven onboarding/editor UI E2E is deferred to PRD 007 frontend.
 
 ## User Scenarios & Testing
 
@@ -215,6 +216,27 @@ Sections are projected as `ready | incomplete | blocked`. Missing required keys 
 - No frontend code; DTOs support later typed PRD 007 client.
 - Hybrid staged verification: implementation may precede or accompany focused tests within bounded dependency waves. Focused unit/typecheck and required subsystem gates must pass before completion. Regression coverage required for bug fixes. Real database/Storage/Auth/RLS/HTTP/worker/transaction boundaries.
 - Existing stack only; no new queue, ORM, auth, UI, or LLM provider.
+
+## Current Honest Blockers
+
+| ID | Blocker | Status |
+|----|---------|--------|
+| B44 | User-flow approval/profile assembly — draft compilation, approval atomics, version publishing, and readiness DTO return must reconcile with current session/source/question state | Pending final reconciliation |
+| B43 | Stale integration fixtures — existing test fixtures reference pre-remediation shapes; all contract/integration fixtures must be updated to match current schema and handler signatures | Pending final reconciliation |
+| B-E2E | Next E2E process lifecycle — harness start/stop of app and worker must stabilize before E2E gate can run reliably in CI | Pending stabilization |
+| B-FULL | Full parallel tests and lint — running the complete test suite and lint in parallel hits known resource/timeout limitations; release gate requires these to pass reliably | Known release blocker |
+
+Existing requirements in User Stories 1-6, Functional Requirements FR-001 through FR-056, Deterministic Readiness Matrix, Success Criteria SC-001 through SC-015, and Constitution Compliance sections above are preserved and not claimed complete.
+
+## PRD 007 Frontend Handoff
+
+After 006.2 backend E2E passes at real boundaries (Supabase, Auth, RLS, worker, Storage):
+
+1. **APIs available**: authenticated business creation, onboarding session lifecycle, source registration, upload intents/finalization, context jobs/runs/events, fact extraction, conflicts, questions/answers, draft compilation/diff, approval/versioning, and Meta connection status.
+2. **Auth model**: NextAuth server session for HTTP routes; separate Supabase user JWTs for RLS checks. No `X-User-Id` in production or E2E.
+3. **Frontend scope**: consume existing APIs; build browser onboarding flow, editor evidence UI, profile review/diff, and version history views.
+4. **Testing scope**: test browser user flows after UI exists; backend E2E does not cover browser-driven interactions.
+5. **Route stages**: backend returns deterministic PRD 007 route stage in readiness DTOs; frontend renders based on stage, never recomputes business rules.
 
 ## Assumptions and Scope
 

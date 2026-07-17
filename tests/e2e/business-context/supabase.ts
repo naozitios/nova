@@ -86,11 +86,19 @@ function getSupabaseUrl(): string {
 export async function resetDatabase(): Promise<void> {
   const client = getServiceClient();
 
+  const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
+
   for (const table of ALL_TABLES) {
-    const { error } = await client
-      .from(table)
-      .delete()
-      .neq("id", "00000000-0000-0000-0000-000000000000");
+    const { error } =
+      table === "workspace_members"
+        ? await client
+            .from(table)
+            .delete()
+            .neq("workspace_id", ZERO_UUID)
+        : await client
+            .from(table)
+            .delete()
+            .neq("id", ZERO_UUID);
     if (error) {
       // Table may not exist or may be empty — log but don't fail
       console.warn(`resetDatabase: delete from ${table}: ${error.message}`);

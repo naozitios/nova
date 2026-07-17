@@ -72,6 +72,12 @@ export class SupabaseRepository implements RepositoryPort {
     data: Parameters<BusinessRepository['updateOnboardingSession']>[2],
   ) => this.business.updateOnboardingSession(workspaceId, sessionId, data)
 
+  approveOnboardingV1 = (
+    workspaceId: string,
+    businessId: string,
+    approverId: string,
+  ) => this.business.approveOnboardingV1(workspaceId, businessId, approverId)
+
   // ── Context sources ──────────────────────────────────────────────────────
   createContextSource = (
     data: Parameters<SourceRepository['createContextSource']>[0],
@@ -160,6 +166,19 @@ export class SupabaseRepository implements RepositoryPort {
     answer: unknown,
     answeredBy: string,
   ) => this.fact.answerOnboardingQuestion(workspaceId, questionId, answer, answeredBy)
+  dismissOnboardingQuestion = (
+    workspaceId: string,
+    questionId: string,
+  ) => this.fact.dismissOnboardingQuestion(workspaceId, questionId)
+
+  // ── Fact reconciliation ─────────────────────────────────────────────────
+  persistFactReconciliation = (
+    workspaceId: string,
+    businessId: string,
+    supersessionUpdates: Parameters<FactRepository['persistFactReconciliation']>[2],
+    factCreations: Parameters<FactRepository['persistFactReconciliation']>[3],
+    conflicts?: Parameters<FactRepository['persistFactReconciliation']>[4],
+  ) => this.fact.persistFactReconciliation(workspaceId, businessId, supersessionUpdates, factCreations, conflicts)
 
   // ── Business profile versions ────────────────────────────────────────────
   createProfileVersion = (

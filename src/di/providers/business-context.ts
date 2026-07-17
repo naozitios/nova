@@ -17,7 +17,6 @@ import { UploadRepository } from '@/infrastructure/business-context/repository/u
 import { IdempotencyRepository } from '@/infrastructure/business-context/repository/idempotency.repository';
 import { MetaConnectionRepository } from '@/infrastructure/business-context/repository/meta-connection.repository';
 import { SupabaseUploadStorage } from '@/infrastructure/business-context/supabase-upload.storage';
-import { ClamavMalwareScanner } from '@/infrastructure/business-context/clamav-malware.scanner';
 import { IdempotencyService } from '@/infrastructure/business-context/idempotency.service';
 import { MetaResolver } from '@/infrastructure/business-context/meta-resolver.service';
 import { SourceAdapterRegistry } from '@/infrastructure/business-context/source-adapter-registry';
@@ -32,6 +31,7 @@ import { OpenRouterExtractionClient } from '@/infrastructure/business-context/op
 import { SourceProcessingService } from '@/core/business-context/service/source-processing.service';
 import { JobRunner } from '@/infrastructure/business-context/job-runner';
 import { registerHandlers } from '@/infrastructure/business-context/job-runner/register-handlers';
+import { ClamavMalwareScanner } from '@/infrastructure/business-context/clamav-malware.scanner';
 
 let _bcRepo: RepositoryPort | null = null;
 let _bcVisibility: ProcessingVisibilityWriter | null = null;
@@ -109,7 +109,9 @@ export function getMalwareScanner(): MalwareScannerPort {
   if (!process.env.CLAMAV_HOST) {
     throw new Error('CLAMAV_HOST environment variable is required for MalwareScanner');
   }
-  if (!_malwareScanner) _malwareScanner = new ClamavMalwareScanner();
+  if (!_malwareScanner) {
+    _malwareScanner = new ClamavMalwareScanner();
+  }
   return _malwareScanner;
 }
 

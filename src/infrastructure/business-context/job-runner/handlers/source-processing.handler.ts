@@ -51,7 +51,7 @@ export function createSourceProcessingHandler(
     // In tests, pass serviceOverride; in production, dynamic import() breaks the cycle.
     const service = serviceOverride
       ?? (await import('@/di/container')).Container.getSourceProcessingService()
-    const result = await service.processSource(businessId, workspaceId, sourceId)
+    const result = await service.processSource(businessId, workspaceId, sourceId, { job })
 
     if (!result.ok) {
       const err = new Error(result.error.message) as Error & { code: string }
@@ -78,6 +78,10 @@ export function createSourceProcessingHandler(
       warnings: result.data.warnings,
       stagesCompleted: PIPELINE_STAGES,
       completedAt: new Date().toISOString(),
+    }
+
+    if (result.data.status === 'blocked_needs_user_action') {
+      return { output, stageEvents, terminalStatus: 'failed_permanent' }
     }
 
     return { output, stageEvents }

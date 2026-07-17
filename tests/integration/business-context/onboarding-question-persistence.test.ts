@@ -230,5 +230,122 @@ describe.skipIf(!SUPABASE_SERVICE_KEY)(
       if (!leaked.ok) throw leaked.error;
       expect(leaked.data).toBeNull();
     });
+
+    it("dismiss sets status dismissed without changing answered history", async () => {
+      // Create an open question (simulates a gap that extraction will resolve)
+      const openQ = await repo.createOnboardingQuestion({
+        workspaceId: TEST_WORKSPACE,
+        sessionId: TEST_SESSION,
+        businessId: TEST_BUSINESS,
+        factKey: "target_audience",
+        questionType: "text",
+        question: "Who is your target audience?",
+        options: null,
+        reason: "Required for profile",
+        priority: 10,
+        status: "open",
+        answer: null,
+        answeredBy: null,
+        answeredAt: null,
+      });
+      expect(openQ.ok).toBe(true);
+      if (!openQ.ok) throw openQ.error;
+
+      // Create an already-answered question (should remain untouched)
+      const answeredQ = await repo.createOnboardingQuestion({
+        workspaceId: TEST_WORKSPACE,
+        sessionId: TEST_SESSION,
+        businessId: TEST_BUSINESS,
+        factKey: "website_url",
+        questionType: "text",
+        question: "What is your website?",
+        options: null,
+        reason: "Required for profile",
+        priority: 8,
+        status: "open",
+        answer: null,
+        answeredBy: null,
+        answeredAt: null,
+      });
+      expect(answeredQ.ok).toBe(true);
+      if (!answeredQ.ok) throw answeredQ.error;
+
+      const answered = await repo.answerOnboardingQuestion(
+        TEST_WORKSPACE,
+        answeredQ.data.id,
+        "https://example.com",
+        TEST_USER,
+      );
+      expect(answered.ok).toBe(true);
+
+      // Dismiss the open question (extraction resolved the gap)
+      const dismissed = await repo.dismissOnboardingQuestion(
+        TEST_WORKSPACE,
+        openQ.data.id,
+      );
+      expect(dismissed.ok).toBe(true);
+      if (!dismissed.ok) throw dismissed.error;
+      expect(dismissed.data.status).toBe("dismissed");
+      expect(dismissed.data.factKey).toBe("target_audience");
+
+      // Verify the answered question was NOT changed
+      const stillAnswered = await repo.getOnboardingQuestion(
+        TEST_WORKSPACE,
+        answeredQ.data.id,
+      );
+      expect(stillAnswered.ok).toBe(true);
+      if (!stillAnswered.ok) throw stillAnswered.error;
+      expect(stillAnswered.data).not.toBeNull();
+      expect(stillAnswered.data!.status).toBe("answered");
+      expect(stillAnswered.data!.answer).toBe("https://example.com");
+    });
+
+    it("dismiss of answered question fails and does not mutate status", async () => {
+      // Create a question and answer it
+      const created = await repo.createOnboardingQuestion({
+        workspaceId: TEST_WORKSPACE,
+        sessionId: TEST_SESSION,
+        businessId: TEST_BUSINESS,
+        factKey: "phone_number",
+        questionType: "text",
+        question: "Phone number?",
+        options: null,
+        reason: "Contact info",
+        priority: 7,
+        status: "open",
+        answer: null,
+        answeredBy: null,
+        answeredAt: null,
+      });
+      expect(created.ok).toBe(true);
+      if (!created.ok) throw created.error;
+
+      const answered = await repo.answerOnboardingQuestion(
+        TEST_WORKSPACE,
+        created.data.id,
+        "+15551234567",
+        TEST_USER,
+      );
+      expect(answered.ok).toBe(true);
+
+      // Attempt to dismiss the already-answered question
+      const dismissResult = await repo.dismissOnboardingQuestion(
+        TEST_WORKSPACE,
+        created.data.id,
+      );
+      expect(dismissResult.ok).toBe(false);
+
+      // Verify the question is still answered — not mutated
+      const verify = await repo.getOnboardingQuestion(
+        TEST_WORKSPACE,
+        created.data.id,
+      );
+      expect(verify.ok).toBe(true);
+      if (!verify.ok) throw verify.error;
+      expect(verify.data).not.toBeNull();
+      expect(verify.data!.status).toBe("answered");
+      expect(verify.data!.answer).toBe("+15551234567");
+      expect(verify.data!.answeredBy).toBe(TEST_USER);
+    });
   },
 );

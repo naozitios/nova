@@ -102,4 +102,21 @@ export class QuestionRepository {
     if (error) return err('UPDATE_FAILED', error.message)
     return { ok: true, data: mapOnboardingQuestion(row) }
   }
+
+  async dismissOnboardingQuestion(
+    workspaceId: string,
+    questionId: string,
+  ): Promise<ServiceResult<OnboardingQuestion>> {
+    const { data: row, error } = await this.db
+      .from('onboarding_questions')
+      .update({ status: 'dismissed' })
+      .eq('workspace_id', workspaceId)
+      .eq('id', questionId)
+      .eq('status', 'open')
+      .select()
+      .single()
+
+    if (error) return err('UPDATE_FAILED', error.message)
+    return { ok: true, data: mapOnboardingQuestion(row) }
+  }
 }

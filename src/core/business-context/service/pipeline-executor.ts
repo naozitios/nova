@@ -1,6 +1,6 @@
 import type { RepositoryPort } from '../repository.port'
 import type { CollectedSource } from '../source-adapter.port'
-import type { StageEvent } from '../types'
+import type { ServiceResult, StageEvent } from '../types'
 import { SourceProcessingStage, StageEventStatus } from '../types'
 import type { JsonValue } from '../types'
 import type { PipelineStage } from './source-processing.types'
@@ -48,20 +48,24 @@ export async function createSkippedStageEvents(
   base: StageEventBase,
   stages: readonly PipelineStage[],
   reason: string,
-): Promise<void> {
+): Promise<ServiceResult<void>> {
   for (const stage of stages) {
-    await repo.createStageEvent(baseStageEvent(base, stage, StageEventStatus.SKIPPED, { reason }))
+    const result = await repo.createStageEvent(baseStageEvent(base, stage, StageEventStatus.SKIPPED, { reason }))
+    if (!result.ok) return result
   }
+  return { ok: true, data: undefined }
 }
 
 export async function createSucceededStageEvents(
   repo: RepositoryPort,
   base: StageEventBase,
   stages: readonly PipelineStage[],
-): Promise<void> {
+): Promise<ServiceResult<void>> {
   for (const stage of stages) {
-    await repo.createStageEvent(baseStageEvent(base, stage, StageEventStatus.SUCCEEDED, {}))
+    const result = await repo.createStageEvent(baseStageEvent(base, stage, StageEventStatus.SUCCEEDED, {}))
+    if (!result.ok) return result
   }
+  return { ok: true, data: undefined }
 }
 
 export async function createMixedStageEvents(
@@ -70,14 +74,17 @@ export async function createMixedStageEvents(
   stages: readonly PipelineStage[],
   skipStage: string | null,
   skipReason: string,
-): Promise<void> {
+): Promise<ServiceResult<void>> {
   for (const stage of stages) {
+    let result: ServiceResult<StageEvent>
     if (stage === skipStage) {
-      await repo.createStageEvent(baseStageEvent(base, stage, StageEventStatus.SKIPPED, { reason: skipReason }))
+      result = await repo.createStageEvent(baseStageEvent(base, stage, StageEventStatus.SKIPPED, { reason: skipReason }))
     } else {
-      await repo.createStageEvent(baseStageEvent(base, stage, StageEventStatus.SUCCEEDED, {}))
+      result = await repo.createStageEvent(baseStageEvent(base, stage, StageEventStatus.SUCCEEDED, {}))
     }
+    if (!result.ok) return result
   }
+  return { ok: true, data: undefined }
 }
 
 export function extractDocumentWarnings(collected: CollectedSource): string[] {

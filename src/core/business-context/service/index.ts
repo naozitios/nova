@@ -10,6 +10,7 @@ export {
   submitAnswers,
   compileOnboardingDraft,
   approveV1,
+  getReadiness,
   type CreateBusinessInput,
   type SubmitAnswersInput,
 } from './onboarding.service'

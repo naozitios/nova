@@ -57,10 +57,12 @@ export async function executeJob(ctx: ExecutionContext): Promise<void> {
     const completedAt = new Date()
     const durationMs = completedAt.getTime() - startedAt.getTime()
     heartbeatTimer.stop()
+    const terminalStatus = result.terminalStatus ?? 'succeeded'
 
     await repo.updateContextJob(job.workspaceId, job.id, {
-      status: 'succeeded',
+      status: terminalStatus,
       output: result.output ?? null,
+      errorClass: result.errorClass ?? null,
       completedAt,
       lockedBy: null,
       lockedAt: null,
@@ -75,12 +77,13 @@ export async function executeJob(ctx: ExecutionContext): Promise<void> {
       jobId: job.id,
       sourceId: (job.input.sourceId as string) ?? '',
       stage: sourceStage,
-      status: 'succeeded',
+      status: terminalStatus,
       attempt,
       workerId,
       startedAt,
       completedAt,
       durationMs,
+      errorClass: result.errorClass ?? undefined,
     })
 
     // FR-042: Record success on circuit breaker.

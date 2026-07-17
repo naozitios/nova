@@ -11,6 +11,12 @@ import type {
   PaginationParams,
   QuestionFilter,
 } from '@/core/business-context/repository.port'
+import type {
+  PersistFactReconciliationConflict,
+  PersistFactReconciliationCreate,
+  PersistFactReconciliationResult,
+  PersistFactReconciliationSupersede,
+} from '@/core/business-context/repository/fact.port'
 import { err, mapContextFact } from '../_shared'
 import { ConflictRepository } from './conflict.repository'
 import { QuestionRepository } from './question.repository'
@@ -188,4 +194,31 @@ export class FactRepository {
     answeredBy: string,
   ): ReturnType<QuestionRepository['answerOnboardingQuestion']> =>
     this.question.answerOnboardingQuestion(workspaceId, questionId, answer, answeredBy)
+
+  dismissOnboardingQuestion = (
+    workspaceId: string,
+    questionId: string,
+  ): ReturnType<QuestionRepository['dismissOnboardingQuestion']> =>
+    this.question.dismissOnboardingQuestion(workspaceId, questionId)
+
+  // ── Fact reconciliation RPC ──────────────────────────────────────────────
+
+  async persistFactReconciliation(
+    workspaceId: string,
+    businessId: string,
+    supersessionUpdates: PersistFactReconciliationSupersede[],
+    factCreations: PersistFactReconciliationCreate[],
+    conflicts?: PersistFactReconciliationConflict[],
+  ): Promise<ServiceResult<PersistFactReconciliationResult>> {
+    const { data, error } = await this.db.rpc('persist_fact_reconciliation', {
+      p_workspace_id: workspaceId,
+      p_business_id: businessId,
+      p_supersession_updates: supersessionUpdates,
+      p_fact_creations: factCreations,
+      ...(conflicts && conflicts.length > 0 ? { p_conflicts: conflicts } : {}),
+    })
+
+    if (error) return err('RPC_FAILED', error.message)
+    return { ok: true, data: data as PersistFactReconciliationResult }
+  }
 }

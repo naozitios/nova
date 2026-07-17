@@ -1,6 +1,7 @@
 import type {
   ContextConflict,
   ContextFact,
+  JsonValue,
   ServiceResult,
 } from '../types'
 import type { PaginationParams } from './repository.port'
@@ -18,6 +19,30 @@ export interface ConflictFilter {
   businessId: string
   status?: 'open' | 'resolved'
   factKey?: string
+}
+
+export interface PersistFactReconciliationCreate {
+  factKey: string
+  value: JsonValue
+  sourceId: string
+  sourceExcerpt: string | null
+  evidenceLocator: JsonValue | null
+  confidence: number
+  supersedesFactId?: string | null
+}
+
+export interface PersistFactReconciliationSupersede {
+  oldFactId: string
+}
+
+export interface PersistFactReconciliationConflict {
+  factKey: string
+  factIds: string[]
+}
+
+export interface PersistFactReconciliationResult {
+  created_fact_ids: string[]
+  conflict_ids: string[]
 }
 
 export interface FactRepositoryPort {
@@ -49,6 +74,14 @@ export interface FactRepositoryPort {
       >
     >,
   ): Promise<ServiceResult<ContextFact>>
+
+  persistFactReconciliation(
+    workspaceId: string,
+    businessId: string,
+    supersessionUpdates: PersistFactReconciliationSupersede[],
+    factCreations: PersistFactReconciliationCreate[],
+    conflicts?: PersistFactReconciliationConflict[],
+  ): Promise<ServiceResult<PersistFactReconciliationResult>>
 }
 
 export interface ConflictRepositoryPort {

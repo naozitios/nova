@@ -3,8 +3,14 @@ import type { RepositoryPort } from '../repository.port'
 import type { SourceAdapterPort } from '../source-adapter.port'
 import type { CollectedSource, CollectedDocument } from '../source-adapter.port'
 import type { ExtractionPort, ExtractedFact } from '../extraction.port'
+import type {
+  PersistFactReconciliationConflict,
+  PersistFactReconciliationCreate,
+  PersistFactReconciliationSupersede,
+} from '../repository/fact.port'
 import type { ContextSource, ContextJob, ServiceResult, JsonValue } from '../types'
 import { SourceProcessingStage, JobStatus } from '../types'
+import { computeQuestionLifecycle } from '../resolver/question-lifecycle'
 import { archiveSource } from './source.service'
 import {
   NO_PARSE_TYPES,
@@ -22,6 +28,9 @@ import {
 import { runDocumentGates, runFactGates, hasBlockingFailures } from '../quality-gates'
 import type { DocumentQualityInput } from '../quality-gates'
 import { resolveFacts } from '../resolver'
+
+/** Shared timeout for source-processing stages (30s heartbeat, 2× stale threshold). */
+const STAGE_TIMEOUT_SECONDS = 30
 
 export class SourceProcessingService {
   private readonly adapters: SourceAdapterPort[] = []
@@ -54,7 +63,7 @@ export class SourceProcessingService {
     businessId: string,
     workspaceId: string,
     sourceId: string,
-    options?: { sessionId?: string },
+    options?: { sessionId?: string; job?: ContextJob },
   ): Promise<ServiceResult<{ status: string; warnings: string[] }>> {
     const sourceResult = await this.repo.getContextSource(workspaceId, sourceId)
     if (!sourceResult.ok) return sourceResult
@@ -63,81 +72,140 @@ export class SourceProcessingService {
     }
 
     const source = sourceResult.data
-    const idempotencyKey = `process-${sourceId}-${Date.now()}`
-
     let job: ContextJob
-    const existingJobResult = await this.repo.getContextJobByIdempotencyKey(idempotencyKey)
-    if (existingJobResult.ok && existingJobResult.data) {
-      job = existingJobResult.data
-      await this.repo.updateContextSource(workspaceId, sourceId, {
-        status: 'processing',
-      })
-      return { ok: true, data: { status: 'processing', warnings: [] } }
-    }
 
-    const jobResult = await this.repo.createContextJob({
-      workspaceId,
-      businessId,
-      sessionId: null,
-      jobType: 'source_processing',
-      status: JobStatus.QUEUED,
-      attemptCount: 0,
-      maxAttempts: 3,
-      idempotencyKey,
-      stage: SourceProcessingStage.QUEUED,
-      input: buildJobInput(sourceId, source.sourceType),
-      output: null,
-      error: null,
-      errorClass: null,
-      retryPolicy: {},
-      nextRunAt: null,
-      lockedBy: null,
-      lockedAt: null,
-      heartbeatAt: null,
-      stageTimeoutSeconds: null,
+    if (options?.job) {
+      job = options.job
+    } else {
+      const idempotencyKey = `process-${sourceId}-${Date.now()}`
+
+      const existingJobResult = await this.repo.getContextJobByIdempotencyKey(idempotencyKey)
+      if (existingJobResult.ok && existingJobResult.data) {
+        job = existingJobResult.data
+        await this.repo.updateContextSource(workspaceId, sourceId, {
+          status: 'processing',
+        })
+        return { ok: true, data: { status: 'processing', warnings: [] } }
+      }
+
+      const jobResult = await this.repo.createContextJob({
+        workspaceId,
+        businessId,
+        sessionId: null,
+        jobType: 'source_processing',
+        status: JobStatus.QUEUED,
+        attemptCount: 0,
+        maxAttempts: 3,
+        idempotencyKey,
+        stage: SourceProcessingStage.QUEUED,
+        input: buildJobInput(sourceId, source.sourceType),
+        output: null,
+        error: null,
+        errorClass: null,
+        retryPolicy: {},
+        nextRunAt: null,
+        lockedBy: null,
+        lockedAt: null,
+        heartbeatAt: null,
+      stageTimeoutSeconds: STAGE_TIMEOUT_SECONDS,
       startedAt: null,
       completedAt: null,
     })
     if (!jobResult.ok) return jobResult
-    job = jobResult.data
+      job = jobResult.data
+    }
 
     await this.repo.updateContextSource(workspaceId, sourceId, {
       status: 'processing',
     })
 
-    const runResult = await this.repo.createProcessingRun({
-      workspaceId,
-      businessId,
-      sourceId,
-      jobId: job.id,
-      pipelineType: getPipelineType(source.sourceType),
-      status: 'running',
-      currentStage: SourceProcessingStage.QUEUED,
-      terminalOutcome: null,
-      attemptCount: 1,
-      pagesProcessed: 0,
-      slidesProcessed: 0,
-      documentsCreated: 0,
-      factsExtracted: 0,
-      warningsCount: 0,
-      creditsConsumed: 0,
-      qualitySummary: {},
-      startedAt: new Date(),
-      completedAt: null,
-    })
+    let runId: string
 
-    if (!runResult.ok) return runResult
-    const runId = runResult.data?.id ?? `run-${sourceId}-${Date.now()}`
+    if (options?.job) {
+      // Reuse existing processing run from the first attempt so stage events
+      // from failure and recovery land on the same run.
+      const existingRuns = await this.repo.listProcessingRuns(
+        { workspaceId, businessId, sourceId, jobId: job.id },
+        { limit: 1, offset: 0 },
+      )
+      if (existingRuns.ok && existingRuns.data.items.length > 0) {
+        runId = existingRuns.data.items[0].id
+        await this.repo.updateProcessingRun(workspaceId, runId, {
+          status: 'running',
+          currentStage: SourceProcessingStage.QUEUED,
+        })
+      } else {
+        const runResult = await this.repo.createProcessingRun({
+          workspaceId,
+          businessId,
+          sourceId,
+          jobId: job.id,
+          pipelineType: getPipelineType(source.sourceType),
+          status: 'running',
+          currentStage: SourceProcessingStage.QUEUED,
+          terminalOutcome: null,
+          attemptCount: 1,
+          pagesProcessed: 0,
+          slidesProcessed: 0,
+          documentsCreated: 0,
+          factsExtracted: 0,
+          warningsCount: 0,
+          creditsConsumed: 0,
+          qualitySummary: {},
+          startedAt: new Date(),
+          completedAt: null,
+        })
+        if (!runResult.ok) return runResult
+        if (!runResult.data?.id) {
+          return {
+            ok: false,
+            error: { code: 'INTERNAL_ERROR', message: 'createProcessingRun succeeded but returned no ID' },
+          }
+        }
+        runId = runResult.data.id
+      }
+    } else {
+      const runResult = await this.repo.createProcessingRun({
+        workspaceId,
+        businessId,
+        sourceId,
+        jobId: job.id,
+        pipelineType: getPipelineType(source.sourceType),
+        status: 'running',
+        currentStage: SourceProcessingStage.QUEUED,
+        terminalOutcome: null,
+        attemptCount: 1,
+        pagesProcessed: 0,
+        slidesProcessed: 0,
+        documentsCreated: 0,
+        factsExtracted: 0,
+        warningsCount: 0,
+        creditsConsumed: 0,
+        qualitySummary: {},
+        startedAt: new Date(),
+        completedAt: null,
+      })
+
+      if (!runResult.ok) return runResult
+      if (!runResult.data?.id) {
+        return {
+          ok: false,
+          error: { code: 'INTERNAL_ERROR', message: 'createProcessingRun succeeded but returned no ID' },
+        }
+      }
+      runId = runResult.data.id
+    }
 
     const needsOcrBlock = source.metadata?.ocrRequired === true && source.metadata?.ocrResolved === false
 
     if (needsOcrBlock) {
-      await createSkippedStageEvents(
+      const stageResult = await createSkippedStageEvents(
         this.repo,
         { workspaceId, businessId, runId, jobId: job.id, sourceId },
         PIPELINE_STAGES,
         'ocr_blocked',
       )
+      if (!stageResult.ok) return stageResult
 
       await this.repo.updateProcessingRun(workspaceId, runId, {
         status: 'blocked',
@@ -146,10 +214,12 @@ export class SourceProcessingService {
         completedAt: new Date(),
       })
 
-      await this.repo.updateContextJob(workspaceId, job.id, {
-        status: JobStatus.FAILED_PERMANENT,
-        completedAt: new Date(),
-      })
+      if (!options?.job) {
+        await this.repo.updateContextJob(workspaceId, job.id, {
+          status: JobStatus.FAILED_PERMANENT,
+          completedAt: new Date(),
+        })
+      }
 
       await this.repo.updateContextSource(workspaceId, sourceId, {
         status: 'blocked_needs_user_action',
@@ -161,10 +231,45 @@ export class SourceProcessingService {
 
     const collected = await this.collectWithAdapter(workspaceId, businessId, source)
     if (!collected.ok) {
-      await this.repo.updateContextJob(workspaceId, job.id, {
-        status: JobStatus.FAILED_PERMANENT,
-        error: serializeError(collected.error),
+      await this.repo.updateProcessingRun(workspaceId, runId, {
+        status: 'failed',
+        terminalOutcome: 'failed_permanent',
+        completedAt: new Date(),
       })
+
+      await this.repo.createStageEvent({
+        workspaceId,
+        businessId,
+        runId,
+        jobId: job.id,
+        sourceId,
+        stage: PIPELINE_STAGES[0] as SourceProcessingStage,
+        status: 'failed_permanent',
+        attempt: 0,
+        workerId: null,
+        provider: null,
+        providerRequestId: null,
+        startedAt: new Date(),
+        completedAt: new Date(),
+        durationMs: null,
+        pagesProcessed: 0,
+        slidesProcessed: 0,
+        bytesProcessed: 0,
+        documentsCreated: 0,
+        factsExtracted: 0,
+        warningsCount: 0,
+        creditsConsumed: 0,
+        errorClass: collected.error.code.toLowerCase(),
+        error: serializeError(collected.error),
+        metadata: {},
+      })
+
+      if (!options?.job) {
+        await this.repo.updateContextJob(workspaceId, job.id, {
+          status: JobStatus.FAILED_PERMANENT,
+          error: serializeError(collected.error),
+        })
+      }
       await this.repo.updateContextSource(workspaceId, sourceId, {
         status: 'failed_permanent',
         terminalOutcome: 'failed_permanent',
@@ -175,19 +280,21 @@ export class SourceProcessingService {
     const shouldSkipParse = NO_PARSE_TYPES.has(source.sourceType)
 
     if (shouldSkipParse) {
-      await createMixedStageEvents(
+      const stageResult = await createMixedStageEvents(
         this.repo,
         { workspaceId, businessId, runId, jobId: job.id, sourceId },
         PIPELINE_STAGES,
         'parse',
         'source_type_does_not_require_parsing',
       )
+      if (!stageResult.ok) return stageResult
     } else {
-      await createSucceededStageEvents(
+      const stageResult = await createSucceededStageEvents(
         this.repo,
         { workspaceId, businessId, runId, jobId: job.id, sourceId },
         PIPELINE_STAGES,
       )
+      if (!stageResult.ok) return stageResult
     }
 
     // ── B31 pipeline: extraction, persistence, quality gates ──────────────
@@ -236,10 +343,12 @@ export class SourceProcessingService {
         })
 
         if (!docResult.ok) {
-          await this.repo.updateContextJob(workspaceId, job.id, {
-            status: JobStatus.FAILED_PERMANENT,
-            error: serializeError(docResult.error),
-          })
+          if (!options?.job) {
+            await this.repo.updateContextJob(workspaceId, job.id, {
+              status: JobStatus.FAILED_PERMANENT,
+              error: serializeError(docResult.error),
+            })
+          }
           await this.repo.updateContextSource(workspaceId, sourceId, {
             status: 'failed_permanent',
             terminalOutcome: 'failed_permanent',
@@ -314,6 +423,13 @@ export class SourceProcessingService {
 
         const conflictFactKeys = new Set<string>()
 
+        const toCreate: PersistFactReconciliationCreate[] = []
+        const toSupersede: PersistFactReconciliationSupersede[] = []
+        const toConflicts: PersistFactReconciliationConflict[] = []
+
+        // Track which oldFactIds were superseded per key for provenance
+        const supersededIdsByFactKey = new Map<string, string[]>()
+
         for (const [factKey, newFacts] of byKey) {
           const matching = existingFacts.filter(
             (ef) => ef.factKey.toLowerCase().trim() === factKey,
@@ -321,41 +437,71 @@ export class SourceProcessingService {
 
           const resolution = resolveFacts(matching, newFacts)
 
-          // Persist new facts
+          // Collect supersession payloads and track oldFactIds per key FIRST
+          for (const s of resolution.superseded) {
+            toSupersede.push({
+              oldFactId: s.oldFactId,
+            })
+            const existing = supersededIdsByFactKey.get(factKey) ?? []
+            existing.push(s.oldFactId)
+            supersededIdsByFactKey.set(factKey, existing)
+          }
+
+          // Collect creation payloads with supersession provenance
           for (const f of resolution.toCreate) {
-            await this.repo.createContextFact({
-              workspaceId,
-              businessId,
+            const supersededIds = supersededIdsByFactKey.get(factKey)
+            toCreate.push({
               factKey: f.factKey,
               value: f.value,
               sourceId,
-              sourceDocumentId: null,
               sourceExcerpt: f.sourceExcerpt,
               evidenceLocator: f.evidenceLocator as JsonValue | null,
               confidence: f.confidence,
-              verificationStatus: 'extracted',
-              supersedesFactId: null,
-              validFrom: new Date(),
-              validTo: null,
-              createdBy: 'system',
+              supersedesFactId: supersededIds?.[0] ?? null,
             })
-            factsExtracted++
           }
 
           // Track conflicts
           if (resolution.conflicts.length > 0) {
             for (const c of resolution.conflicts) {
               conflictFactKeys.add(c.factKey)
+              toConflicts.push({ factKey: c.factKey, factIds: c.factIds })
             }
           }
+        }
 
-          // Update superseded facts
-          for (const s of resolution.superseded) {
-            await this.repo.updateContextFact(workspaceId, s.oldFactId, {
-              verificationStatus: 'superseded',
-              validTo: new Date(),
+        // Batch persist all reconciled facts
+        if (toCreate.length > 0 || toSupersede.length > 0 || toConflicts.length > 0) {
+          const reconcResult = await this.repo.persistFactReconciliation(
+            workspaceId,
+            businessId,
+            toSupersede,
+            toCreate,
+            toConflicts,
+          )
+          if (!reconcResult.ok) {
+            if (!options?.job) {
+              await this.repo.updateContextJob(workspaceId, job.id, {
+                status: JobStatus.FAILED_PERMANENT,
+                error: serializeError(reconcResult.error),
+              })
+            }
+            await this.repo.updateContextSource(workspaceId, sourceId, {
+              status: 'failed_permanent',
+              terminalOutcome: 'failed_permanent',
             })
+            return { ok: false, error: reconcResult.error }
           }
+          if (!Array.isArray(reconcResult.data.created_fact_ids)) {
+            return {
+              ok: false,
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Reconciliation RPC returned success but payload missing created_fact_ids',
+              },
+            }
+          }
+          factsExtracted += reconcResult.data.created_fact_ids.length
         }
 
         // Fact quality gates + lifecycle questions
@@ -365,6 +511,7 @@ export class SourceProcessingService {
           sourceId,
         })
         const facts = persistedFacts.ok ? persistedFacts.data.items : []
+        const gapKeys: string[] = []
 
         for (const fact of facts) {
           const hasConflict = conflictFactKeys.has(fact.factKey)
@@ -398,28 +545,36 @@ export class SourceProcessingService {
             })
           }
 
-          // Create lifecycle questions for low-confidence or conflicting facts
-          const needsQuestion =
-            fact.confidence < 0.7 || hasConflict
-          if (needsQuestion && options?.sessionId) {
-            const reason = hasConflict
-              ? `Conflicting values for "${fact.factKey}" — needs review`
-              : `Low confidence (${fact.confidence}) for "${fact.factKey}" — needs verification`
-            await this.repo.createOnboardingQuestion({
-              workspaceId,
-              sessionId: options?.sessionId ?? '',
-              businessId,
-              factKey: fact.factKey,
-              questionType: hasConflict ? 'conflict_review' : 'confidence_review',
-              question: `Please verify: ${fact.factKey} = ${JSON.stringify(fact.value)}`,
-              options: null,
-              reason,
-              priority: hasConflict ? 10 : 5,
-              status: 'open',
-              answer: null,
-              answeredBy: null,
-              answeredAt: null,
-            })
+          // Collect gap keys for lifecycle
+          if (fact.confidence < 0.7 || hasConflict) {
+            gapKeys.push(fact.factKey)
+          }
+        }
+
+        // ── Question lifecycle: create only toCreate, dismiss only toDismiss ──
+        if (options?.sessionId) {
+          const existingQs = await this.repo.listOnboardingQuestions({
+            workspaceId,
+            sessionId: options.sessionId,
+          })
+          const existingQuestions = existingQs.ok ? existingQs.data.items : []
+
+          const lifecycle = computeQuestionLifecycle({
+            gaps: gapKeys,
+            existingQuestions,
+            businessId,
+            workspaceId,
+            sessionId: options.sessionId,
+          })
+
+          for (const q of lifecycle.toCreate) {
+            const qResult = await this.repo.createOnboardingQuestion(q)
+            if (!qResult.ok) {
+              return { ok: false, error: qResult.error }
+            }
+          }
+          for (const questionId of lifecycle.toDismiss) {
+            await this.repo.dismissOnboardingQuestion(workspaceId, questionId)
           }
         }
       }
@@ -441,10 +596,12 @@ export class SourceProcessingService {
       warningsCount: warnings.length,
     })
 
-    await this.repo.updateContextJob(workspaceId, job.id, {
-      status: JobStatus.SUCCEEDED,
-      completedAt: new Date(),
-    })
+    if (!options?.job) {
+      await this.repo.updateContextJob(workspaceId, job.id, {
+        status: JobStatus.SUCCEEDED,
+        completedAt: new Date(),
+      })
+    }
 
     await this.repo.updateContextSource(workspaceId, sourceId, {
       status: terminalStatus,

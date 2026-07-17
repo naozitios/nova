@@ -9,7 +9,7 @@ import type { WorkspaceRole } from '@/core/business-context/types'
 
 // ─── JSON body parsing ──────────────────────────────────────────────────────
 
-export async function parseJsonBody<T>(req: NextRequest): Promise<
+export async function parseJsonBody<T>(req: Request): Promise<
   | { ok: true; data: T }
   | { ok: false; response: Response }
 > {
@@ -87,13 +87,26 @@ export async function withIdempotency(
     )
   }
 
-  const workspaceId = typeof opts.workspaceId === 'function'
+  const rawScope = typeof opts.workspaceId === 'function'
     ? opts.workspaceId()
     : (opts.workspaceId ?? extractWorkspaceId(req.nextUrl.pathname))
-  if (!workspaceId) {
+  if (!rawScope) {
     return Response.json(
       { error: { code: 'WORKSPACE_REQUIRED', message: 'Workspace ID could not be determined' } },
       { status: 400 },
+    )
+  }
+
+  // When the scope came from path extraction (not explicitly provided), it may
+  // be a business ID. Resolve it to the actual workspace FK for nested routes
+  // like /api/businesses/:id/context/... where :id is a business, not workspace.
+  const workspaceId = opts.workspaceId
+    ? rawScope
+    : await resolveWorkspaceFromPath(rawScope)
+  if (!workspaceId) {
+    return Response.json(
+      { error: { code: 'WORKSPACE_REQUIRED', message: 'Business not found or has no workspace' } },
+      { status: 404 },
     )
   }
 
@@ -280,6 +293,25 @@ export function extractWorkspaceId(pathname: string): string | null {
   // Matches /api/businesses/[workspaceId]/... or similar patterns
   const match = pathname.match(/\/api\/businesses\/([^/]+)/)
   return match?.[1] ?? null
+}
+
+/**
+ * When extractWorkspaceId pulls a value from the path it may actually be a
+ * business ID (nested routes use /api/businesses/:businessId/...). This
+ * resolves it to the real workspace FK via the businesses table. Returns the
+ * value unchanged if it already looks like a UUID (optimisation: skip DB hit
+ * for explicit workspace IDs passed through opts.workspaceId).
+ */
+async function resolveWorkspaceFromPath(candidateId: string): Promise<string | null> {
+  const client = getSupabaseServiceClient()
+  const { data, error } = await client
+    .from('businesses')
+    .select('workspace_id')
+    .eq('id', candidateId)
+    .single()
+
+  if (error || !data?.workspace_id) return null
+  return data.workspace_id as string
 }
 
 // ─── Pagination helpers ─────────────────────────────────────────────────────

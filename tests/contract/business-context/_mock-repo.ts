@@ -125,6 +125,12 @@ export function createMockRepo(
     }),
     answerOnboardingQuestion: vi.fn(),
 
+    // Atomic onboarding approval (RPC)
+    approveOnboardingV1: vi.fn().mockResolvedValue({
+      ok: true,
+      data: createProfileVersionData(now),
+    }),
+
     // Profile versions
     createProfileVersion: vi.fn().mockResolvedValue({
       ok: true,

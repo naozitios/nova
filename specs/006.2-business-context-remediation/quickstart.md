@@ -1,5 +1,7 @@
 # Quickstart: Business Context Pipeline Remediation
 
+**Boundary**: 006.2 owns backend API/worker/Supabase/RLS real-boundary E2E. Browser-driven onboarding/editor UI E2E deferred to PRD 007 frontend.
+
 ## Setup
 
 T000 constitution amendment is approved in constitution v1.3.0. Local Docker/Compose must provide Supabase and private ClamAV 1.4.3 pinned by immutable image digest; required NextAuth, Supabase, encryption, scanner, and provider environment variables must pass strict startup validation.
@@ -92,3 +94,20 @@ Originals remain private for manual supplementation or future reprocessing.
 6. Meta worker credentials are workspace-scoped/encrypted.
 7. Upload malware scanning passes clean/EICAR/unavailable fail-closed checks.
 8. OCR/legacy states are actionable and honest.
+
+## Current Honest Blockers
+
+- **B44**: User-flow approval/profile assembly — draft compilation, approval atomics, version publishing must reconcile with session/source/question state. Pending final reconciliation.
+- **B43**: Stale integration fixtures — test fixtures reference pre-remediation shapes. Pending update to current schema/handler signatures.
+- **B-E2E**: Next E2E process lifecycle — harness start/stop of app and worker must stabilize before E2E gate runs reliably in CI.
+- **B-FULL**: Full parallel tests and lint — complete suite + lint in parallel hits resource/timeout limitations. Known release blocker.
+
+## PRD 007 Frontend Handoff
+
+After 006.2 backend E2E passes:
+
+1. **Consume existing APIs**: business creation, onboarding lifecycle, sources, uploads, jobs/runs, facts, conflicts, questions, draft/diff, approval, versions, Meta status.
+2. **Auth**: NextAuth server session for routes; Supabase user JWTs for RLS. No `X-User-Id` in prod/E2E.
+3. **Build**: browser onboarding flow, editor evidence UI, profile review/diff, version history.
+4. **Test**: browser user flows after UI exists. Backend E2E does not cover browser interactions.
+5. **Route stages**: backend returns deterministic stage in readiness DTOs; frontend renders, never recomputes.

@@ -137,6 +137,30 @@ export function groupFactsBySection(
   return bySection
 }
 
+// ─── Nested value builder ────────────────────────────────────────────────────
+
+/**
+ * Set a value in an object using a dotted path.
+ * E.g. setNestedValue(obj, "pricing.tier_count", 3)
+ * creates obj.pricing = { tier_count: 3 }.
+ */
+function setNestedValue(
+  obj: Record<string, JsonValue>,
+  path: string,
+  value: JsonValue,
+): void {
+  const parts = path.split('.')
+  let current: Record<string, JsonValue> = obj
+  for (let i = 0; i < parts.length - 1; i++) {
+    const key = parts[i]
+    if (!(key in current) || typeof current[key] !== 'object' || Array.isArray(current[key])) {
+      current[key] = {}
+    }
+    current = current[key] as Record<string, JsonValue>
+  }
+  current[parts[parts.length - 1]] = value
+}
+
 // ─── Draft compilation ──────────────────────────────────────────────────────
 
 export interface CompiledDraft {
@@ -196,9 +220,9 @@ export async function compileDraftFromFacts(
         )
       }
 
-      // Use the leaf key within the section
+      // Use the leaf key within the section — nested via setNestedValue
       const leafKey = factKey.includes('.') ? factKey.split('.').slice(1).join('.') : factKey
-      sectionData[leafKey] = fact.value
+      setNestedValue(sectionData, leafKey, fact.value)
       sectionHasContent = true
     }
 
