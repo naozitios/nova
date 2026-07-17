@@ -4,7 +4,7 @@
 
 ### Files modified
 - `src/core/business-context/service/upload.service.ts` — added `UploadCompletionRepository`, `UploadContentValidator`, `completeUploadIntent()`
-- `src/core/business-context/service/upload.service.test.ts` — 14 new test cases
+- `src/core/business-context/service/upload.service.test.ts` — 17 new test cases
 
 ### What was added
 
@@ -29,7 +29,7 @@
 
 **DocumentClass → SourceType mapping:** brand_deck, product_document, research_document, campaign_brief → direct; website_content → website; other → system_inference.
 
-### Tests (14 new, 9 existing = 23 total)
+### Tests (17 new, 9 existing = 26 total)
 
 | # | Test | Status |
 |---|------|--------|
@@ -47,12 +47,17 @@
 | 12 | Preserves storage path and contentHash in created document | GREEN |
 | 13 | Uses custom stageTimeoutSeconds from config | GREEN |
 | 14 | Does not persist raw scanner details | GREEN |
+| 15 | Archives newly created source when createSourceDocument fails, leaves intent pending (partial-finalization regression) | GREEN |
+| 16 | Retries duplicate hash: finds existing job or creates one, completes intent without second source/doc (partial-finalization regression) | GREEN |
+| 17 | Source status after creation is queued with currentStage QUEUED | GREEN |
 
 ### Test counts
-- Passed: **23** (9 existing `createSignedUploadIntent` + 14 new `completeUploadIntent`)
+- Passed: **26** (9 existing `createSignedUploadIntent` + 17 new `completeUploadIntent`)
 - Failed: **0**
+- Command result: `vitest run src/core/business-context/service/upload.service.test.ts` — 26/26 passed
 
 ### Concerns
-- The `DocumentClass.OTHER` maps to `SYSTEM_INFERENCE` as a reasonable fallback — verify this matches product intent if OTHER is ever used in practice.
-- If `bcRepo.createContextSource` or `bcRepo.createSourceDocument` fails mid-success-path, no rollback occurs. Document is created but job is not. Acceptable for now; can add compensation later if needed.
+- `DocumentClass.OTHER` maps to `SYSTEM_INFERENCE`; `WEBSITE_CONTENT` maps to `WEBSITE`. Both mappings unvalidated against product intent — **must validate when route/parser E2E lands**. Do not treat as resolved.
+- If `bcRepo.createContextSource` or `bcRepo.createSourceDocument` fails mid-success-path, source is archived and intent left pending. Deterministic retry via idempotency key. Compensation for non-duplicate failures deferred.
 - `SourceProcessingStage.QUEUED` is set on the ContextSource at creation time — confirms a job has been queued.
+- Duplicate-hash path now creates a deterministic job (`getContextJobByIdempotencyKey` → create if missing). Retry after partial failure reuses existing job.
