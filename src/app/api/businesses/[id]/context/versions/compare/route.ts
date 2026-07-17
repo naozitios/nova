@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import {
   requireAuthz,
   errorResponse,
@@ -7,6 +8,39 @@ import {
 import { getSupabaseServiceClient } from '@/infrastructure/business-context/supabase-client'
 import { SupabaseRepository } from '@/infrastructure/business-context/supabase.repository'
 import { compareVersions } from '@/core/business-context/service'
+
+const CompareQuerySchema = z.object({
+  from: z.string().uuid(),
+  to: z.string().uuid(),
+})
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function flattenChanges(
+  section: string,
+  before: unknown,
+  after: unknown,
+  path = section,
+): Array<Record<string, unknown>> {
+  if (isRecord(before) && isRecord(after)) {
+    const keys = new Set([...Object.keys(before), ...Object.keys(after)])
+    return [...keys].flatMap((key) =>
+      flattenChanges(section, before[key], after[key], `${path}.${key}`),
+    )
+  }
+  if (JSON.stringify(before) === JSON.stringify(after)) return []
+  return [{
+    section,
+    fact_key: path,
+    previous_value: before === undefined ? null : before,
+    proposed_value: after === undefined ? null : after,
+    source_id: null,
+    source_name: null,
+    reason: 'Profile field changed between immutable versions',
+  }]
+}
 
 async function resolveWorkspaceFromBusiness(
   businessId: string,
@@ -31,12 +65,14 @@ export async function GET(
 ) {
   const { id: businessId } = await params
 
-  const from = req.nextUrl.searchParams.get('from')
-  const to = req.nextUrl.searchParams.get('to')
-
-  if (!from || !to) {
+  const query = CompareQuerySchema.safeParse({
+    from: req.nextUrl.searchParams.get('from'),
+    to: req.nextUrl.searchParams.get('to'),
+  })
+  if (!query.success) {
     return errorResponse(400, 'VALIDATION_ERROR', 'from and to query parameters are required')
   }
+  const { from, to } = query.data
 
   const wsResult = await resolveWorkspaceFromBusiness(businessId)
   if ('error' in wsResult) return wsResult.error
@@ -56,15 +92,13 @@ export async function GET(
     return errorResponse(500, result.error.code, result.error.message)
   }
 
-  const changes = Object.entries(result.data.diffs).map(([key, diff]) => ({
-    field_path: key,
-    previous_value: diff.before,
-    proposed_value: diff.after,
-  }))
+  const changes = Object.entries(result.data.diffs).flatMap(([key, diff]) =>
+    flattenChanges(key, diff.before, diff.after),
+  )
 
   return jsonResponse({
-    from_version_id: result.data.fromVersion,
-    to_version_id: result.data.toVersion,
+    base_version_id: result.data.fromVersionId,
+    draft_version_id: result.data.toVersionId,
     changes,
   })
 }

@@ -40,19 +40,18 @@ export async function GET(
   if (!result.ok) return errorResponse(500, result.error.code, result.error.message)
   if (!result.data) return errorResponse(404, 'NOT_FOUND', 'Profile version not found')
 
-  const v = result.data
+  const version = result.data
   return jsonResponse({
-    id: v.id,
-    workspace_id: v.workspaceId,
-    business_id: v.businessId,
-    version: v.version,
-    profile: v.profile,
-    profile_markdown: v.profileMarkdown,
-    status: v.status,
-    change_summary: v.changeSummary,
-    created_by: v.createdBy,
-    created_at: v.createdAt.toISOString(),
-    approved_by: v.approvedBy,
-    approved_at: v.approvedAt?.toISOString() ?? null,
+    id: version.id,
+    version: version.version,
+    status: version.status,
+    profile: version.profile,
+    base_version_id: null,
+    approved_by: version.approvedBy,
+    approved_at: version.approvedAt?.toISOString() ?? null,
+    updated_at: version.createdAt.toISOString(),
+    change_summary: version.changeSummary,
+    draft_change_count: 0,
+    section_readiness: [],
   })
 }

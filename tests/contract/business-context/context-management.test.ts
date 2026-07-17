@@ -4,12 +4,7 @@ import { approveBusinessProfile } from "../../../src/core/business-context/versi
 import { getVersion, compareVersions } from "../../../src/core/business-context/service/context.service";
 import { validateProfile } from "../../../src/core/business-context/compiler";
 import type { RepositoryPort } from "../../../src/core/business-context/repository.port";
-import type {
-  BusinessProfileVersion,
-  ContextFact,
-  ServiceResult,
-  JsonValue,
-} from "../../../src/core/business-context/types";
+import type { BusinessProfileVersion, ContextFact, JsonValue } from '../../../src/core/business-context/types';
 import { ProfileVersionStatus } from "../../../src/core/business-context/types";
 // ─── route handler mocks ────────────────────────────────────────────────────
 
@@ -716,20 +711,6 @@ describe("contract: GET /api/businesses/:id/context/versions/compare", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("missing from param returns 400 VALIDATION_ERROR", async () => {
-    const from = "";
-    const to = "pv-2";
-    const hasBoth = from.length > 0 && to.length > 0;
-    expect(hasBoth).toBe(false);
-  });
-
-  it("missing to param returns 400 VALIDATION_ERROR", async () => {
-    const from = "pv-1";
-    const to = "";
-    const hasBoth = from.length > 0 && to.length > 0;
-    expect(hasBoth).toBe(false);
-  });
-
   it("valid compare returns 200 with from_version_id, to_version_id, and changes", async () => {
     const fromVersion: BusinessProfileVersion = {
       id: "pv-1", workspaceId: "ws-1", businessId: "biz-1", version: 1,
@@ -972,7 +953,7 @@ describe("route handler: GET /api/businesses/:id/context/versions/:versionId", (
     expect(body.error.code).toBe("NOT_FOUND");
   });
 
-  it("allows viewer role, not editor", async () => {
+  it("requires viewer minimum role", async () => {
     mockRequireAuthz.mockResolvedValue({ ok: true });
     mockGetProfileVersion.mockResolvedValue({ ok: true, data: null });
 

@@ -208,6 +208,8 @@ export async function getVersion(
 }
 
 export interface VersionCompareResult {
+  fromVersionId: string
+  toVersionId: string
   fromVersion: number
   toVersion: number
   diffs: FieldDiffMap
@@ -235,6 +237,8 @@ export async function compareVersions(
   return {
     ok: true,
     data: {
+      fromVersionId: from.data.id,
+      toVersionId: to.data.id,
       fromVersion: from.data.version,
       toVersion: to.data.version,
       diffs: computeFieldDiffs(from.data.profile, to.data.profile),
