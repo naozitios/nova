@@ -153,6 +153,26 @@ describe('createSignedUploadIntent', () => {
     }
   })
 
+  it('persists user-selected provenance when supplied by the server route', async () => {
+    const repo = createMockRepo()
+    const storage = createMockStorage()
+
+    await createSignedUploadIntent(repo, storage, {
+      workspaceId: 'ws-1',
+      businessId: 'biz-1',
+      proposal: makeProposal(),
+      expectedSizeBytes: 1024,
+      sourceType: 'upload',
+      sourceName: 'test.pdf',
+      createdBy: 'user-1',
+      classificationSource: 'user_selected',
+    }, makeConfig())
+
+    expect(repo.createUploadIntent).toHaveBeenCalledWith(
+      expect.objectContaining({ classificationSource: 'user_selected' }),
+    )
+  })
+
   it('rejects forged proposal', async () => {
     const repo = createMockRepo()
     const storage = createMockStorage()
@@ -467,7 +487,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -506,7 +526,7 @@ describe('completeUploadIntent', () => {
 
     await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -525,7 +545,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-missing' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-missing', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -544,7 +564,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -565,7 +585,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -589,7 +609,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -608,7 +628,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -631,7 +651,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -657,7 +677,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -683,7 +703,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -713,7 +733,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -744,7 +764,7 @@ describe('completeUploadIntent', () => {
 
     await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -768,7 +788,7 @@ describe('completeUploadIntent', () => {
 
     await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig({ sourceProcessingStageTimeoutSeconds: 60 }),
     )
 
@@ -793,7 +813,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -832,7 +852,7 @@ describe('completeUploadIntent', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -869,7 +889,7 @@ describe('completeUploadIntent', () => {
     // First call: job creation fails
     const result1 = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -889,7 +909,7 @@ describe('completeUploadIntent', () => {
 
     const result2 = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -918,7 +938,7 @@ describe('completeUploadIntent', () => {
 
     await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'ws-1/biz-1/1000000-test.pdf' },
       makeCompletionConfig(),
     )
 

@@ -21,6 +21,7 @@ export interface CreateSignedUploadIntentParams {
   sourceName: string
   sourceId?: string | null
   createdBy: string
+  classificationSource?: 'user_selected' | 'system_proposed'
 }
 
 export interface UploadIntentWithSignedUrl {
@@ -78,7 +79,7 @@ export async function createSignedUploadIntent(
     sourceType: params.sourceType,
     sourceName: params.sourceName,
     documentClass: params.proposal.documentClass,
-    classificationSource: 'system_proposed',
+    classificationSource: params.classificationSource ?? verification.data.classificationSource,
     fileName: params.proposal.normalizedFilename,
     declaredMimeType: params.proposal.mimeType,
     expectedSizeBytes: params.expectedSizeBytes,

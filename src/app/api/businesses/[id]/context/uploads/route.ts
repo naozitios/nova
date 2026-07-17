@@ -9,7 +9,10 @@ import {
   validateWithSchema,
 } from '../../../_shared'
 import { createSignedUploadIntent } from '@/core/business-context/service/upload.service'
-import { createClassificationProposal } from '@/core/business-context/upload-classification-proposal'
+import {
+  createClassificationProposal,
+  decodeProposalToken,
+} from '@/core/business-context/upload-classification-proposal'
 import { getSupabaseServiceClient } from '@/infrastructure/business-context/supabase-client'
 import { Container } from '@/di/container'
 import { DocumentClass } from '@/core/business-context/types/remediation-entities'
@@ -30,14 +33,22 @@ async function resolveWorkspaceFromBusiness(
   return { workspaceId: data.workspace_id as string }
 }
 
-const UploadCreateSchema = z.object({
+const UploadCreateBaseSchema = z.object({
   source_type: z.literal('upload'),
   source_name: z.string().min(1),
-  document_class: z.nativeEnum(DocumentClass),
   file_name: z.string().min(1),
   mime_type: z.string().min(1),
   size_bytes: z.number().int().positive().max(52_428_800),
 })
+
+const UploadCreateSchema = z.union([
+  UploadCreateBaseSchema.extend({
+    document_class: z.nativeEnum(DocumentClass),
+  }).strict(),
+  UploadCreateBaseSchema.extend({
+    classification_proposal_token: z.string().min(32),
+  }).strict(),
+])
 
 export async function POST(
   req: NextRequest,
@@ -63,19 +74,40 @@ export async function POST(
       return errorResponse(503, 'UPLOAD_SIGNING_NOT_CONFIGURED', 'Upload signing is not configured')
     }
 
-    const proposal = createClassificationProposal(
-      {
-        workspaceId: wsResult.workspaceId,
-        businessId,
-        filename: validation.data.file_name,
-        mimeType: validation.data.mime_type,
-        documentClass: validation.data.document_class,
-      },
-      {
-        signingSecret,
-        ttlMs: 300_000,
-      },
-    )
+    const proposalConfig = { signingSecret, ttlMs: 300_000 }
+    const usesProposal = 'classification_proposal_token' in validation.data
+    const proposalResult = usesProposal
+      ? decodeProposalToken(
+          validation.data.classification_proposal_token,
+          proposalConfig,
+          { workspaceId: wsResult.workspaceId, businessId },
+        )
+      : { ok: true as const, data: createClassificationProposal(
+          {
+            workspaceId: wsResult.workspaceId,
+            businessId,
+            filename: validation.data.file_name,
+            mimeType: validation.data.mime_type,
+            documentClass: validation.data.document_class,
+          },
+          proposalConfig,
+        ) }
+
+    if (!proposalResult.ok) {
+      return errorResponse(400, proposalResult.error.code, proposalResult.error.message)
+    }
+    const proposal = proposalResult.data
+    if (
+      usesProposal &&
+      (proposal.normalizedFilename !== validation.data.file_name.trim().toLowerCase() ||
+        proposal.mimeType !== validation.data.mime_type)
+    ) {
+      return errorResponse(
+        400,
+        'PROPOSAL_INPUT_MISMATCH',
+        'Proposal does not match upload file metadata',
+      )
+    }
 
     const repo = Container.getUploadRepository()
     const storage = Container.getUploadStorage()
@@ -88,6 +120,7 @@ export async function POST(
       sourceType: validation.data.source_type,
       sourceName: validation.data.source_name,
       createdBy: authz.ctx.userId,
+      classificationSource: usesProposal ? 'system_proposed' : 'user_selected',
     }, {
       signingSecret,
       ttlMs: 300_000,

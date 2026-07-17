@@ -68,8 +68,10 @@ vi.mock('../../../src/core/business-context/service/upload.service', () => ({
 }))
 
 const mockCreateClassificationProposal = vi.fn()
+const mockDecodeProposalToken = vi.fn()
 vi.mock('../../../src/core/business-context/upload-classification-proposal', () => ({
   createClassificationProposal: mockCreateClassificationProposal,
+  decodeProposalToken: mockDecodeProposalToken,
 }))
 
 const mockGetUploadRepository = vi.fn()
@@ -105,7 +107,7 @@ function validBody() {
   return {
     source_type: 'upload',
     source_name: 'deck.pdf',
-    document_class: 'BRAND_DECK',
+    document_class: 'brand_deck',
     file_name: 'deck.pdf',
     mime_type: 'application/pdf',
     size_bytes: 1024,
@@ -144,11 +146,12 @@ describe('POST /api/businesses/[id]/context/uploads — route wiring', () => {
       data,
     }))
     mockCreateClassificationProposal.mockReturnValue({
+      proposalId: 'proposal-1',
       workspaceId: 'ws-1',
       businessId: 'biz-1',
       normalizedFilename: 'deck.pdf',
       mimeType: 'application/pdf',
-      documentClass: 'BRAND_DECK',
+      documentClass: 'brand_deck',
       issuedAt: 1_000_000,
       expiresAt: 1_300_000,
       signature: 'aa'.repeat(32),
@@ -158,8 +161,8 @@ describe('POST /api/businesses/[id]/context/uploads — route wiring', () => {
       data: {
         intent: {
           id: 'intent-1',
-          documentClass: 'BRAND_DECK',
-          classificationSource: 'system_proposed',
+          documentClass: 'brand_deck',
+          classificationSource: 'user_selected',
           expiresAt: new Date(1_300_000),
           status: 'pending',
           malwareScanStatus: 'pending',
@@ -214,12 +217,113 @@ describe('POST /api/businesses/[id]/context/uploads — route wiring', () => {
     expect(mockCreatedResponse).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'intent-1',
-        document_class: 'BRAND_DECK',
+        document_class: 'brand_deck',
         upload_url: 'https://signed.example.com/upload',
         status: 'pending',
         malware_scan_status: 'pending',
       }),
     )
+  })
+
+  it('persists user_selected provenance for direct document class', async () => {
+    const { POST } = await import(
+      '../../../src/app/api/businesses/[id]/context/uploads/route'
+    )
+    const req = makePostRequest(validBody(), { userId: 'user-1', idempotencyKey: 'idem-direct' })
+
+    await POST(req, { params: Promise.resolve({ id: 'biz-1' }) })
+
+    expect(mockCreateSignedUploadIntent).toHaveBeenCalledWith(
+      MOCK_REPO,
+      MOCK_STORAGE,
+      expect.objectContaining({ classificationSource: 'user_selected' }),
+      expect.anything(),
+    )
+  })
+
+  it('decodes and binds a system proposal token', async () => {
+    const proposal = {
+      proposalId: 'proposal-1',
+      workspaceId: 'ws-1',
+      businessId: 'biz-1',
+      normalizedFilename: 'deck.pdf',
+      mimeType: 'application/pdf',
+      documentClass: 'brand_deck',
+      issuedAt: 1_000_000,
+      expiresAt: 1_300_000,
+      signature: 'aa'.repeat(32),
+    }
+    mockDecodeProposalToken.mockReturnValue({ ok: true, data: proposal })
+    const body = {
+      source_type: 'upload',
+      source_name: 'deck.pdf',
+      classification_proposal_token: 'signed-proposal-token',
+      file_name: 'deck.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 1024,
+    }
+    const { POST } = await import(
+      '../../../src/app/api/businesses/[id]/context/uploads/route'
+    )
+
+    await POST(
+      makePostRequest(body, { userId: 'user-1', idempotencyKey: 'idem-proposal' }),
+      { params: Promise.resolve({ id: 'biz-1' }) },
+    )
+
+    expect(mockDecodeProposalToken).toHaveBeenCalledWith(
+      'signed-proposal-token',
+      expect.objectContaining({ signingSecret: 'test-signing-secret' }),
+      { workspaceId: 'ws-1', businessId: 'biz-1' },
+    )
+    expect(mockCreateClassificationProposal).not.toHaveBeenCalled()
+    expect(mockCreateSignedUploadIntent).toHaveBeenCalledWith(
+      MOCK_REPO,
+      MOCK_STORAGE,
+      expect.objectContaining({ proposal, classificationSource: 'system_proposed' }),
+      expect.anything(),
+    )
+  })
+
+  it('rejects a proposal token bound to different file metadata', async () => {
+    mockDecodeProposalToken.mockReturnValue({
+      ok: true,
+      data: {
+        proposalId: 'proposal-1',
+        workspaceId: 'ws-1',
+        businessId: 'biz-1',
+        normalizedFilename: 'different.pdf',
+        mimeType: 'application/pdf',
+        documentClass: 'brand_deck',
+        issuedAt: 1_000_000,
+        expiresAt: 1_300_000,
+        signature: 'aa'.repeat(32),
+      },
+    })
+    const body = {
+      source_type: 'upload',
+      source_name: 'deck.pdf',
+      classification_proposal_token: 'signed-proposal-token',
+      file_name: 'deck.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 1024,
+    }
+    const { POST } = await import(
+      '../../../src/app/api/businesses/[id]/context/uploads/route'
+    )
+
+    const response = await POST(
+      makePostRequest(body, { userId: 'user-1', idempotencyKey: 'idem-mismatch' }),
+      { params: Promise.resolve({ id: 'biz-1' }) },
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockErrorResponse).toHaveBeenCalledWith(
+      400,
+      'PROPOSAL_INPUT_MISMATCH',
+      'Proposal does not match upload file metadata',
+    )
+    expect(mockCreateSignedUploadIntent).not.toHaveBeenCalled()
   })
 
   it('returns 400 when source_type is not literal "upload"', async () => {
