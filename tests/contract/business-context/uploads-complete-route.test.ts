@@ -181,7 +181,10 @@ describe('POST /complete — route handler', () => {
 
     expect(res.status).toBe(202)
     expect(await res.clone().json()).toEqual(
-      expect.objectContaining({ upload: expect.objectContaining({ source_type: 'upload' }) }),
+      expect.objectContaining({
+        upload: expect.objectContaining({ source_type: 'upload' }),
+        source: expect.objectContaining({ failure: null }),
+      }),
     )
     expect(mockCompleteUploadIntent).toHaveBeenCalledWith(
       mockUploadRepo,

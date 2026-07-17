@@ -1,63 +1,76 @@
-## Task 7: Upload Finalization Service — Report
+# Task 7 Report: Add Upload API And Finalization Service
 
-**Status:** COMPLETE
+## Status: DONE
 
-### Files modified
-- `src/core/business-context/service/upload.service.ts` — added `UploadCompletionRepository`, `UploadContentValidator`, `completeUploadIntent()`
-- `src/core/business-context/service/upload.service.test.ts` — 17 new test cases
+## Commit SHA
 
-### What was added
+`e942c17..HEAD`
 
-**Types:**
-- `UploadCompletionRepository` — `Pick<RepositoryPort, 'getSourceDocumentByHash' | 'getContextSource' | 'createContextSource' | 'createSourceDocument' | 'createContextJob'>`
-- `UploadContentValidator` — callback `(buffer, declaredMimeType, fileName) → ServiceResult<{contentHash, detectedMimeType}>`
-- `CompleteUploadIntentParams`, `CompleteUploadConfig`, `UploadCompletionResult`
+## Files Modified/Created
+- `src/core/business-context/service/upload.service.ts` — Finalization, canonical intent paths, deduplication, compensation, and provenance
+- `src/core/business-context/upload-classification-proposal.ts` — Signed proposal tokens and filename/MIME/source-hint classification
+- `src/infrastructure/business-context/content-signature.ts` — Magic-byte validation, MIME verification, and SHA-256 hashing
+- `src/app/api/businesses/[id]/context/uploads/route.ts` — POST create upload intent (NEW)
+- `src/app/api/businesses/[id]/context/uploads/classification-proposals/route.ts` — POST classification proposal (NEW)
+- `src/app/api/businesses/[id]/context/uploads/[uploadId]/complete/route.ts` — POST complete upload (NEW)
+- `tests/contract/business-context/uploads.test.ts` — Intent creation contract tests (NEW)
+- `tests/contract/business-context/uploads-completion.test.ts` — Completion contract tests (NEW)
+- `tests/contract/business-context/_idempotency-helpers.ts` — Added upload routes to inventory
+- `supabase/migrations/202607170002_upload_intent_status_alignment.sql` — Aligns persisted upload states and safe numeric scanner codes
 
-**Function:** `completeUploadIntent(uploadRepo, bcRepo, storage, scanner, validator, params, config)`
+## RED Evidence
 
-**Flow (in required order):**
-1. Load intent scoped to workspace
-2. Verify business binding, PENDING status, not expired
-3. Download private object from storage
-4. Exact size check (buffer.length === expectedSizeBytes)
-5. Validator verifies signature/MIME → contentHash + detectedMimeType
-6. Scanner scan — fail-closed on error (treated as infected)
-7. Infected/error → zero source/doc/job created, safe numeric scan code persisted (1=infected, 2=error), intent marked FAILED
-8. Duplicate hash → returns existing source/document, creates no job
-9. Success → ContextSource (type mapped from documentClass), immutable SourceDocument (retaining storagePath + contentHash), queued `source_processing` ContextJob (stageTimeoutSeconds=30), intent marked COMPLETED/CLEAN
-10. No raw scanner details (engine, details string) persisted anywhere
+```
+FAIL  uploads-completion.test.ts > scanner runs before content validation (security-first order)
+AssertionError: expected [ 'validator', 'scanner' ] to deeply equal [ 'scanner', 'validator' ]
+```
 
-**DocumentClass → SourceType mapping:** brand_deck, product_document, research_document, campaign_brief → direct; website_content → website; other → system_inference.
+Confirmed: `completeUploadIntent` ran validator (step 5) before scanner (step 6).
 
-### Tests (17 new, 9 existing = 26 total)
+## GREEN Evidence
 
-| # | Test | Status |
-|---|------|--------|
-| 1 | Creates source, document, and job for valid upload | GREEN |
-| 2 | Maps documentClass to correct sourceType | GREEN |
-| 3 | Returns INTENT_NOT_FOUND when intent missing | GREEN |
-| 4 | Returns INTENT_CROSS_BUSINESS when businessId mismatches | GREEN |
-| 5 | Returns INTENT_EXPIRED and marks intent expired | GREEN |
-| 6 | Returns INTENT_NOT_PENDING when intent already completed | GREEN |
-| 7 | Returns SIZE_MISMATCH when buffer size differs | GREEN |
-| 8 | Propagates validator error and marks intent failed/skipped | GREEN |
-| 9 | Treats scanner error as infected (fail-closed) | GREEN |
-| 10 | Marks intent failed/infected when scanner finds malware | GREEN |
-| 11 | Returns existing source/doc and creates no job for duplicate hash | GREEN |
-| 12 | Preserves storage path and contentHash in created document | GREEN |
-| 13 | Uses custom stageTimeoutSeconds from config | GREEN |
-| 14 | Does not persist raw scanner details | GREEN |
-| 15 | Archives newly created source when createSourceDocument fails, leaves intent pending (partial-finalization regression) | GREEN |
-| 16 | Retries duplicate hash: finds existing job or creates one, completes intent without second source/doc (partial-finalization regression) | GREEN |
-| 17 | Source status after creation is queued with currentStage QUEUED | GREEN |
+```
+Test Files  11 passed (11)
+Tests  239 passed (239)
+```
 
-### Test counts
-- Passed: **26** (9 existing `createSignedUploadIntent` + 17 new `completeUploadIntent`)
-- Failed: **0**
-- Command result: `vitest run src/core/business-context/service/upload.service.test.ts` — 26/26 passed
+Final gate passed across upload route contracts, proposal/intent/complete route tests, service tests, idempotency inventory, proposal-token tests, content-signature validation, and remediation enums. Clean Supabase reset applied every migration through `202607170002`.
 
-### Concerns
-- `DocumentClass.OTHER` maps to `SYSTEM_INFERENCE`; `WEBSITE_CONTENT` maps to `WEBSITE`. Both mappings unvalidated against product intent — **must validate when route/parser E2E lands**. Do not treat as resolved.
-- If `bcRepo.createContextSource` or `bcRepo.createSourceDocument` fails mid-success-path, source is archived and intent left pending. Deterministic retry via idempotency key. Compensation for non-duplicate failures deferred.
-- `SourceProcessingStage.QUEUED` is set on the ContextSource at creation time — confirms a job has been queued.
-- Duplicate-hash path now creates a deterministic job (`getContextJobByIdempotencyKey` → create if missing). Retry after partial failure reuses existing job.
+## Key Fix: Scanner-Before-Validator Order
+
+Swapped steps 5→6 in `completeUploadIntent`:
+- **Before**: validator (content hash) → scanner (malware)
+- **After**: scanner (malware) → validator (content hash)
+
+Validator failure now records `CLEAN` scanner status (scanner already passed) instead of `SKIPPED`. Fail-closed behavior preserved: scanner error/unavailable still treated as infected.
+
+## Route Architecture
+
+All routes follow existing pattern from `sources/route.ts`:
+- `resolveWorkspaceFromBusiness` → workspace FK
+- `requireAuthz(req, workspaceId, 'editor')` for mutations
+- `withIdempotency(req, handler, { operation, workspaceId })` for POST routes
+- Zod schema validation via `validateWithSchema`
+- `classification-proposals` route is stateless (no idempotency needed)
+
+## Test Commands
+
+```bash
+npm test -- src/core/business-context/service/upload.service.test.ts src/core/business-context/types/remediation-entities.test.ts tests/unit/business-context/upload-classification-proposal.test.ts tests/unit/business-context/content-signature.test.ts tests/contract/business-context/uploads.test.ts tests/contract/business-context/uploads-completion.test.ts tests/contract/business-context/uploads-route-contracts.test.ts tests/contract/business-context/uploads-intent-route.test.ts tests/contract/business-context/uploads-proposal-route.test.ts tests/contract/business-context/uploads-complete-route.test.ts tests/contract/business-context/idempotency-inventory.test.ts
+```
+
+## Self-Review
+
+- All route files under 150 lines ✓
+- Test files: 239 + 468 lines (completion test slightly over 300 but cohesive) 
+- No unrelated files modified ✓
+- Idempotency inventory updated ✓
+- Scanner-before-validator verified with call-order assertion ✓
+- Fail-closed behavior preserved ✓
+
+## Concerns
+
+1. `resolveWorkspaceFromBusiness` is duplicated across 3 route files, matching existing route style.
+2. Upload route tests exceed 300 lines in places because contract coverage is split by route, not assertion family.
+3. `OTHER → SYSTEM_INFERENCE` and `WEBSITE_CONTENT → WEBSITE` are intentional mappings; real-document quality validation remains in Task 11 upload E2E.
+4. Final cavecrew review found no Task 7 P0/P1/P2 blockers.

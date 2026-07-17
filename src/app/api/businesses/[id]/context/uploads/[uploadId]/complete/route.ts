@@ -123,6 +123,7 @@ export async function POST(
         status: source.status,
         current_stage: source.currentStage,
         terminal_outcome: source.terminalOutcome,
+        failure: null,
         retryable: false,
         added_at: source.collectedAt.toISOString(),
         effective_at: null,
