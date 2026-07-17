@@ -143,13 +143,14 @@ git commit -m "fix(onboarding): derive readiness after answers"
 ### Task 3: Supersede Repeated User Facts Instead Of Duplicating Them
 
 **Files:**
+- Modify: `src/core/business-context/repository/fact.port.ts:24-32`
 - Modify: `src/core/business-context/service/onboarding.service.ts:260-296`
 - Modify: `tests/integration/business-context/onboarding-question-persistence.test.ts`
 - Modify: `tests/unit/business-context/service.test.ts`
 
 **Interfaces:**
 - Consumes: `persistFactReconciliation(workspaceId, businessId, supersessions, creations, conflicts)`.
-- Produces: one active user-verified fact per session/key with retained superseded history.
+- Produces: typed atomic reconciliation payload and one active user-verified fact per session/key with retained superseded history.
 
 - [ ] **Step 1: Add failing real-Supabase test**
 
@@ -164,6 +165,14 @@ Expected: FAIL with two active facts or missing supersession link.
 
 - [ ] **Step 3: Implement atomic supersession**
 
+First extend `PersistFactReconciliationCreate` with fields already consumed by the SQL RPC:
+```typescript
+sourceDocumentId?: string | null
+verificationStatus?: VerificationStatus
+validFrom?: Date
+validTo?: Date | null
+createdBy?: string
+```
 Load active same-key facts and call reconciliation with:
 ```typescript
 const supersessions = activeFacts.map((fact) => ({ oldFactId: fact.id }))
@@ -176,7 +185,7 @@ const creations = [{
   verificationStatus: VerificationStatus.USER_VERIFIED,
 }]
 ```
-Use repository payload names exactly as defined by `PersistFactReconciliationCreate`.
+Serialize `Date` values in the repository adapter before sending JSON to Supabase.
 
 - [ ] **Step 4: Run unit and integration gates**
 
@@ -188,7 +197,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/core/business-context/service/onboarding.service.ts tests/unit/business-context/service.test.ts tests/integration/business-context/onboarding-question-persistence.test.ts
+git add src/core/business-context/repository/fact.port.ts src/core/business-context/service/onboarding.service.ts tests/unit/business-context/service.test.ts tests/integration/business-context/onboarding-question-persistence.test.ts
 git commit -m "fix(onboarding): supersede repeated answers"
 ```
 
