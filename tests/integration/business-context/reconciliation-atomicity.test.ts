@@ -188,7 +188,91 @@ const fakeAdapter: SourceAdapterPort = {
   }),
 };
 
+// ─── Cross-workspace isolation constants ───────────────────────────────────
+
+const WS_B = "b2900000-0000-0000-0000-000000000010"; // foreign workspace
+const BIZ_B = "b2900000-0000-0000-0000-000000000011"; // foreign business
+
 // ─── Test ──────────────────────────────────────────────────────────────────
+
+describe.skipIf(!SUPABASE_KEY)(
+  "Cross-workspace reconciliation guard (B29) — reject mismatched business/workspace",
+  () => {
+    beforeAll(async () => {
+      if (!supabase) return;
+      await supabase.from("workspaces").upsert(
+        { id: WS_B, name: "B29 Cross-Workspace B" },
+        { onConflict: "id" },
+      );
+      await supabase.from("businesses").upsert(
+        { id: BIZ_B, workspace_id: WS_B, name: "B29 Cross-Workspace Business", status: "active" },
+        { onConflict: "id" },
+      );
+    });
+
+    afterAll(async () => {
+      if (!supabase) return;
+      await supabase.from("context_facts").delete().eq("workspace_id", WS_B).eq("business_id", BIZ_B);
+      await supabase.from("businesses").delete().eq("id", BIZ_B);
+      await supabase.from("workspaces").delete().eq("id", WS_B);
+    });
+
+    it("rejects cross-workspace RPC: business from workspace B called with workspace A (stable error, zero writes)", async () => {
+      // BIZ_B belongs to WS_B; calling RPC with WS as workspace should fail
+      const { data, error } = await supabase.rpc("persist_fact_reconciliation", {
+        p_workspace_id: WS, // wrong workspace — WS ≠ WS_B
+        p_business_id: BIZ_B, // belongs to WS_B
+        p_supersession_updates: [],
+        p_fact_creations: [
+          {
+            factKey: "company_name",
+            value: "IntruderCorp",
+            confidence: 0.9,
+            sourceId: "00000000-0000-0000-0000-000000000099",
+            sourceExcerpt: "cross workspace test",
+            evidenceLocator: null,
+            verificationStatus: "extracted",
+            validFrom: new Date().toISOString(),
+            createdBy: "test",
+          },
+        ],
+        p_conflicts: [],
+      });
+
+      // Stable error code — must not throw or return ok:true
+      expect(error).toBeNull();
+      expect(data).toBeDefined();
+      const result = data as Record<string, unknown>;
+      expect(result.ok).toBe(false);
+      const errObj = result.error as Record<string, unknown>;
+      expect(errObj.code).toBe("BUSINESS_WORKSPACE_MISMATCH");
+
+      // Zero facts persisted under WS+BIZ_B (the wrong workspace)
+      const factsWrongWs = await supabase
+        .from("context_facts")
+        .select("id")
+        .eq("workspace_id", WS)
+        .eq("business_id", BIZ_B);
+      expect(factsWrongWs.data ?? []).toHaveLength(0);
+
+      // Zero facts persisted under WS_B+BIZ_B (the correct workspace)
+      const factsCorrectWs = await supabase
+        .from("context_facts")
+        .select("id")
+        .eq("workspace_id", WS_B)
+        .eq("business_id", BIZ_B);
+      expect(factsCorrectWs.data ?? []).toHaveLength(0);
+
+      // No conflicts created
+      const conflicts = await supabase
+        .from("context_conflicts")
+        .select("id")
+        .eq("workspace_id", WS_B)
+        .eq("business_id", BIZ_B);
+      expect(conflicts.data ?? []).toHaveLength(0);
+    });
+  },
+);
 
 describe.skipIf(!SUPABASE_KEY)(
   "Reconciliation atomicity (B29) — real SourceProcessingService + SupabaseRepository",
