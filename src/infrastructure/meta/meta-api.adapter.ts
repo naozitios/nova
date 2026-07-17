@@ -29,6 +29,34 @@ export class MetaApiAdapter implements MetaClientPort {
     return response.json();
   }
 
+  /** Lists ad accounts accessible by the given access token with full field set. */
+  async listAccessibleAdAccounts(accessToken: string) {
+    const data = await this.fetch<{
+      data: Array<{
+        id: string;
+        account_id: string;
+        name: string;
+        currency?: string;
+        timezone_name?: string;
+        business?: { id: string; name: string } | null;
+        account_status: number;
+      }>;
+    }>(
+      'me/adaccounts?fields=id,account_id,name,currency,timezone_name,business{id,name},account_status',
+      accessToken
+    );
+    return data.data.map(a => ({
+      id: a.id,
+      accountId: a.account_id,
+      name: a.name,
+      currency: a.currency ?? null,
+      timezoneName: a.timezone_name ?? null,
+      businessId: a.business?.id ?? null,
+      businessName: a.business?.name ?? null,
+      rawMetadata: a,
+    }));
+  }
+
   /** Fetches all ad accounts accessible by the given access token. */
   async getAccounts(accessToken: string): Promise<MetaAccountDTO[]> {
     const data = await this.fetch<{ data: Array<{ id: string; name: string; account_id: string; currency: string; timezone_name: string; account_status: number }> }>(
