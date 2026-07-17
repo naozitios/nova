@@ -1,6 +1,8 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { QuestionRepository } from "@/infrastructure/business-context/repository/facts/question.repository";
+import { SupabaseRepository } from "@/infrastructure/business-context/supabase.repository";
+import { submitAnswers } from "@/core/business-context/service/onboarding.service";
 
 // ---------------------------------------------------------------------------
 // B26a verification — real Supabase integration test for onboarding question
@@ -346,6 +348,64 @@ describe.skipIf(!SUPABASE_SERVICE_KEY)(
       expect(verify.data!.status).toBe("answered");
       expect(verify.data!.answer).toBe("+15551234567");
       expect(verify.data!.answeredBy).toBe(TEST_USER);
+    });
+
+    it("submitAnswers twice for same factKey supersedes prior fact instead of duplicating", async () => {
+      // RED: submitAnswers currently creates a new context_fact per call
+      // without superseding the prior active fact for the same key.
+      // This test asserts the expected invariant (one active, one superseded)
+      // and MUST fail until Step 3 implements atomic supersession.
+      if (!supabase) return;
+      const repo = new SupabaseRepository(supabase);
+
+      // First submission — "market.primary" = "North America"
+      const first = await submitAnswers(
+        repo,
+        TEST_BUSINESS,
+        TEST_WORKSPACE,
+        TEST_USER,
+        { answers: [{ factKey: "market.primary", answer: "North America" }] },
+      );
+      expect(first.ok).toBe(true);
+
+      // Second submission — same key, different value
+      const second = await submitAnswers(
+        repo,
+        TEST_BUSINESS,
+        TEST_WORKSPACE,
+        TEST_USER,
+        { answers: [{ factKey: "market.primary", answer: "Europe" }] },
+      );
+      expect(second.ok).toBe(true);
+
+      // Query context_facts for this business + key
+      const { data: rows, error } = await supabase
+        .from("context_facts")
+        .select("*")
+        .eq("business_id", TEST_BUSINESS)
+        .eq("fact_key", "market.primary")
+        .order("created_at", { ascending: true });
+
+      expect(error).toBeNull();
+      expect(rows).not.toBeNull();
+      expect(rows!.length).toBe(2);
+
+      const prior = rows![0];
+      const latest = rows![1];
+
+      // Exactly one active fact (latest value, valid_to null, user_verified)
+      expect(latest.value).toBe("Europe");
+      expect(latest.valid_to).toBeNull();
+      expect(latest.verification_status).toBe("user_verified");
+
+      // Prior fact is superseded (valid_to set, supersedes_fact_id on latest points to prior)
+      expect(prior.valid_to).not.toBeNull();
+      expect(latest.supersedes_fact_id).toBe(prior.id);
+
+      // Prior should not also be active
+      expect(
+        prior.verification_status === "user_verified" && prior.valid_to === null,
+      ).toBe(false);
     });
   },
 );
