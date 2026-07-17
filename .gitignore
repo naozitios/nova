@@ -62,6 +62,7 @@ docs/superpowers/specs/
 # Local agent state and editor settings
 /data/
 /.vscode/
+/.worktrees/
 
 # Python virtual environments
 **/.venv/
