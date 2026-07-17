@@ -11,8 +11,7 @@ import {
 import { createSignedUploadIntent } from '@/core/business-context/service/upload.service'
 import { createClassificationProposal } from '@/core/business-context/upload-classification-proposal'
 import { getSupabaseServiceClient } from '@/infrastructure/business-context/supabase-client'
-import { UploadRepository } from '@/infrastructure/business-context/repository/upload.repository'
-import { SupabaseUploadStorage } from '@/infrastructure/business-context/supabase-upload.storage'
+import { Container } from '@/di/container'
 import { DocumentClass } from '@/core/business-context/types/remediation-entities'
 
 async function resolveWorkspaceFromBusiness(
@@ -32,7 +31,7 @@ async function resolveWorkspaceFromBusiness(
 }
 
 const UploadCreateSchema = z.object({
-  source_type: z.string().min(1),
+  source_type: z.literal('upload'),
   source_name: z.string().min(1),
   document_class: z.nativeEnum(DocumentClass),
   file_name: z.string().min(1),
@@ -59,6 +58,11 @@ export async function POST(
     const validation = validateWithSchema(UploadCreateSchema, bodyResult.data)
     if (!validation.ok) return validation.response
 
+    const signingSecret = process.env.UPLOAD_SIGNING_SECRET
+    if (!signingSecret) {
+      return errorResponse(503, 'UPLOAD_SIGNING_NOT_CONFIGURED', 'Upload signing is not configured')
+    }
+
     const proposal = createClassificationProposal(
       {
         workspaceId: wsResult.workspaceId,
@@ -68,24 +72,24 @@ export async function POST(
         documentClass: validation.data.document_class,
       },
       {
-        signingSecret: process.env.UPLOAD_SIGNING_SECRET ?? '',
+        signingSecret,
         ttlMs: 300_000,
       },
     )
 
-    const repo = new UploadRepository(getSupabaseServiceClient())
-    const storage = new SupabaseUploadStorage()
+    const repo = Container.getUploadRepository()
+    const storage = Container.getUploadStorage()
 
     const result = await createSignedUploadIntent(repo, storage, {
       workspaceId: wsResult.workspaceId,
       businessId,
       proposal,
       expectedSizeBytes: validation.data.size_bytes,
-      sourceType: validation.data.source_type as 'upload',
+      sourceType: validation.data.source_type,
       sourceName: validation.data.source_name,
       createdBy: authz.ctx.userId,
     }, {
-      signingSecret: process.env.UPLOAD_SIGNING_SECRET ?? '',
+      signingSecret,
       ttlMs: 300_000,
       storageBucket: process.env.UPLOAD_STORAGE_BUCKET ?? 'uploads',
     })
