@@ -15,12 +15,13 @@ import { FactRepository } from "@/infrastructure/business-context/repository/fac
 // PPTX has extractable text → used as primary test fixture.
 // ---------------------------------------------------------------------------
 
+const RUN_PROVIDER_TESTS = process.env.BUSINESS_CONTEXT_RUN_PROVIDER_TESTS === "1";
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY?.trim();
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v4-flash";
 const SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-const itIf = OPENROUTER_KEY && SUPABASE_KEY ? it : it.skip;
+const itIf = RUN_PROVIDER_TESTS && OPENROUTER_KEY && SUPABASE_KEY ? it : it.skip;
 
 // ─── Fixtures ──────────────────────────────────────────────────────────────
 

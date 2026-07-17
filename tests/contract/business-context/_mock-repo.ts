@@ -95,6 +95,10 @@ export function createMockRepo(
       data: { items: [], total: 0 },
     }),
     updateContextFact: vi.fn(),
+    persistFactReconciliation: vi.fn().mockResolvedValue({
+      ok: true,
+      data: { created_fact_ids: ['fact-1'], conflict_ids: [] },
+    }),
 
     // Context conflicts
     createContextConflict: vi.fn(),

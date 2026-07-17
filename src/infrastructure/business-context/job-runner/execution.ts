@@ -58,7 +58,7 @@ export async function executeJob(ctx: ExecutionContext): Promise<void> {
     const durationMs = completedAt.getTime() - startedAt.getTime()
     heartbeatTimer.stop()
     const terminalStatus = result.terminalStatus ?? 'succeeded'
-    const jobStatus = terminalStatus === 'failed_permanent' ? 'failed_permanent' : 'succeeded'
+    const jobStatus = terminalStatus === 'failed_permanent' || terminalStatus === 'blocked_needs_user_action' ? 'failed_permanent' : 'succeeded'
 
     await repo.updateContextJob(job.workspaceId, job.id, {
       status: jobStatus,
