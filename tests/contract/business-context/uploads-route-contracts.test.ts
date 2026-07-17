@@ -77,6 +77,21 @@ describe("openapi.yaml — source-audit schema strings", () => {
   });
 });
 
+describe("upload intent migration alignment", () => {
+  const migration = () => readFileSource(
+    "supabase/migrations/202607170002_upload_intent_status_alignment.sql",
+  );
+
+  it("aligns upload and malware status constraints with runtime enums", () => {
+    expect(migration()).toContain("'pending', 'scanning', 'storing', 'processing', 'completed', 'failed', 'expired'");
+    expect(migration()).toContain("'pending', 'clean', 'infected', 'error', 'skipped'");
+  });
+
+  it("stores sanitized malware scan codes as integers", () => {
+    expect(migration()).toMatch(/alter column malware_scan_code type integer/i);
+  });
+});
+
 // ─── File existence ─────────────────────────────────────────────────────────
 
 describe("Upload routes — file existence", () => {

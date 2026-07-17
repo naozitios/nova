@@ -6,7 +6,7 @@ Migration: `supabase/migrations/202607150001_business_context_remediation.sql`. 
 
 Required fields: `id`, `workspace_id`, `business_id`, nullable `source_id`, `source_type`, `source_name`, `document_class`, `classification_source`, `file_name`, `declared_mime_type`, `expected_size_bytes`, unique `storage_path`, `created_by`, `status`, `malware_scan_status`, nullable `malware_scan_code`, nullable `malware_scanned_at`, `expires_at`, nullable `completed_at`, `created_at`.
 
-Statuses: `pending | uploaded | completed | expired | rejected`. Malware statuses: `pending | clean | infected | suspicious | unavailable | failed`. Size constraint: 1 through 52,428,800 bytes. Indexes: business/status, expiry, unique path. Authenticated clients cannot directly insert/update/finalize; server service owns transitions. Only `clean` may queue parsing; all other terminal scan outcomes create zero facts. Sanitized status/code is returned through API.
+Statuses: `pending | scanning | storing | processing | completed | failed | expired`. Malware statuses: `pending | clean | infected | error | skipped`; sanitized scanner codes are nullable integers. Size constraint: 1 through 52,428,800 bytes. Indexes: business/status, expiry, unique path. Authenticated clients cannot directly insert/update/finalize; server service owns transitions. Only `clean` may queue parsing; all other terminal scan outcomes create zero facts. Sanitized status/code is returned through API.
 
 ## `context_idempotency_records`
 
