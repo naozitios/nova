@@ -1,3 +1,4 @@
+import { NextRequest } from 'next/server';
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { approveBusinessProfile } from "../../../src/core/business-context/versioning";
 import { getVersion, compareVersions } from "../../../src/core/business-context/service/context.service";
@@ -10,7 +11,35 @@ import type {
   JsonValue,
 } from "../../../src/core/business-context/types";
 import { ProfileVersionStatus } from "../../../src/core/business-context/types";
+// ─── route handler mocks ────────────────────────────────────────────────────
 
+const mockRequireAuthz = vi.fn();
+const mockErrorResponse = vi.fn(
+  (status: number, code: string, message: string) =>
+    new Response(JSON.stringify({ error: { code, message } }), { status }),
+);
+const mockJsonResponse = vi.fn(
+  (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), { status }),
+);
+const mockGetSupabaseServiceClient = vi.fn();
+const mockGetProfileVersion = vi.fn();
+
+vi.mock("../../../src/app/api/businesses/_shared", () => ({
+  requireAuthz: mockRequireAuthz,
+  errorResponse: mockErrorResponse,
+  jsonResponse: mockJsonResponse,
+}));
+
+vi.mock("../../../src/infrastructure/business-context/supabase-client", () => ({
+  getSupabaseServiceClient: mockGetSupabaseServiceClient,
+}));
+
+vi.mock("../../../src/infrastructure/business-context/supabase.repository", () => ({
+  SupabaseRepository: class {
+    getProfileVersion = mockGetProfileVersion;
+  },
+}));
 // ─── Mock repository factory ──────────────────────────────────────────────────
 
 function createMockRepo(overrides: Partial<RepositoryPort> = {}): RepositoryPort {
@@ -808,6 +837,8 @@ describe("contract: compareVersions", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
+      expect(result.data.fromVersionId).toBe("pv-1");
+      expect(result.data.toVersionId).toBe("pv-2");
       expect(result.data.fromVersion).toBe(1);
       expect(result.data.toVersion).toBe(2);
       expect(result.data.diffs.business).toEqual({
@@ -861,5 +892,96 @@ describe("contract: compareVersions", () => {
     if (!result.ok) {
       expect(result.error.code).toBe("NOT_FOUND");
     }
+  });
+});
+
+// ─── route handler: GET /api/businesses/:id/context/versions/:versionId ──────
+
+describe("route handler: GET /api/businesses/:id/context/versions/:versionId", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSupabaseServiceClient.mockReturnValue({
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: { workspace_id: "ws-1" }, error: null }),
+    });
+  });
+
+  it("returns 200 for same-business version", async () => {
+    mockRequireAuthz.mockResolvedValue({ ok: true });
+    mockGetProfileVersion.mockResolvedValue({
+      ok: true,
+      data: {
+        id: "pv-1", workspaceId: "ws-1", businessId: "biz-1", version: 1,
+        profile: { business: { name: "Acme" } }, profileMarkdown: null,
+        status: ProfileVersionStatus.CURRENT, changeSummary: null,
+        createdBy: "user-1", createdAt: new Date(),
+        approvedBy: "user-1", approvedAt: new Date(),
+      },
+    });
+
+    const { GET } = await import(
+      "../../../src/app/api/businesses/[id]/context/versions/[versionId]/route"
+    );
+    const req = new NextRequest("http://localhost/api/businesses/biz-1/context/versions/pv-1");
+    const res = await GET(req, { params: Promise.resolve({ id: "biz-1", versionId: "pv-1" }) });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual(expect.objectContaining({ id: "pv-1", version: 1 }));
+    expect(mockRequireAuthz).toHaveBeenCalledWith(expect.any(NextRequest), "ws-1", "viewer");
+  });
+
+  it("returns 404 when version not found", async () => {
+    mockRequireAuthz.mockResolvedValue({ ok: true });
+    mockGetProfileVersion.mockResolvedValue({ ok: true, data: null });
+
+    const { GET } = await import(
+      "../../../src/app/api/businesses/[id]/context/versions/[versionId]/route"
+    );
+    const req = new NextRequest("http://localhost/api/businesses/biz-1/context/versions/pv-999");
+    const res = await GET(req, { params: Promise.resolve({ id: "biz-1", versionId: "pv-999" }) });
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error.code).toBe("NOT_FOUND");
+  });
+
+  it("returns 404 for cross-business version", async () => {
+    mockRequireAuthz.mockResolvedValue({ ok: true });
+    mockGetProfileVersion.mockResolvedValue({
+      ok: true,
+      data: {
+        id: "pv-1", workspaceId: "ws-1", businessId: "other-biz", version: 1,
+        profile: {}, profileMarkdown: null,
+        status: ProfileVersionStatus.CURRENT, changeSummary: null,
+        createdBy: "user-1", createdAt: new Date(),
+        approvedBy: "user-1", approvedAt: new Date(),
+      },
+    });
+
+    const { GET } = await import(
+      "../../../src/app/api/businesses/[id]/context/versions/[versionId]/route"
+    );
+    const req = new NextRequest("http://localhost/api/businesses/biz-1/context/versions/pv-1");
+    const res = await GET(req, { params: Promise.resolve({ id: "biz-1", versionId: "pv-1" }) });
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error.code).toBe("NOT_FOUND");
+  });
+
+  it("allows viewer role, not editor", async () => {
+    mockRequireAuthz.mockResolvedValue({ ok: true });
+    mockGetProfileVersion.mockResolvedValue({ ok: true, data: null });
+
+    const { GET } = await import(
+      "../../../src/app/api/businesses/[id]/context/versions/[versionId]/route"
+    );
+    const req = new NextRequest("http://localhost/api/businesses/biz-1/context/versions/pv-1");
+    await GET(req, { params: Promise.resolve({ id: "biz-1", versionId: "pv-1" }) });
+
+    expect(mockRequireAuthz).toHaveBeenCalledWith(expect.any(NextRequest), "ws-1", "viewer");
   });
 });
