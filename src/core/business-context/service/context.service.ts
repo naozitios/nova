@@ -188,6 +188,60 @@ export async function listVersions(
   })
 }
 
+// ─── Version detail ─────────────────────────────────────────────────────────
+
+/**
+ * Get a single profile version by ID, returning null if not found or belongs to different business.
+ */
+export async function getVersion(
+  repo: RepositoryPort,
+  businessId: string,
+  workspaceId: string,
+  versionId: string,
+): Promise<{ ok: true; data: BusinessProfileVersion | null } | { ok: false; error: { code: string; message: string; details?: unknown } }> {
+  const result = await repo.getProfileVersion(workspaceId, versionId)
+  if (!result.ok) return result
+  if (!result.data || result.data.businessId !== businessId) {
+    return { ok: true, data: null }
+  }
+  return { ok: true, data: result.data }
+}
+
+export interface VersionCompareResult {
+  fromVersion: number
+  toVersion: number
+  diffs: FieldDiffMap
+}
+
+/**
+ * Compare two profile versions, returning field-level diffs.
+ */
+export async function compareVersions(
+  repo: RepositoryPort,
+  businessId: string,
+  workspaceId: string,
+  fromVersionId: string,
+  toVersionId: string,
+): Promise<{ ok: true; data: VersionCompareResult } | { ok: false; error: { code: string; message: string; details?: unknown } }> {
+  const from = await getVersion(repo, businessId, workspaceId, fromVersionId)
+  if (!from.ok) return from
+  const to = await getVersion(repo, businessId, workspaceId, toVersionId)
+  if (!to.ok) return to
+
+  if (!from.data || !to.data) {
+    return { ok: false, error: { code: 'NOT_FOUND', message: 'Profile version not found' } }
+  }
+
+  return {
+    ok: true,
+    data: {
+      fromVersion: from.data.version,
+      toVersion: to.data.version,
+      diffs: computeFieldDiffs(from.data.profile, to.data.profile),
+    },
+  }
+}
+
 export interface RestoreContextInput {
   businessId: string
   workspaceId: string

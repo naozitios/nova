@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { approveBusinessProfile } from "../../../src/core/business-context/versioning";
+import { getVersion, compareVersions } from "../../../src/core/business-context/service/context.service";
 import { validateProfile } from "../../../src/core/business-context/compiler";
 import type { RepositoryPort } from "../../../src/core/business-context/repository.port";
 import type {
@@ -594,5 +595,152 @@ describe("contract: POST /api/businesses/:id/context/versions/:versionId/restore
 
     const listResult = await repo.listProfileVersions({ workspaceId: "ws-1", businessId: "biz-1" });
     expect(listResult.ok && listResult.data.items).toHaveLength(3);
+  });
+});
+
+// ─── getVersion ──────────────────────────────────────────────────────────────
+
+describe("contract: getVersion", () => {
+  it("returns version when repo returns matching businessId", async () => {
+    const version: BusinessProfileVersion = {
+      id: "pv-1", workspaceId: "ws-1", businessId: "biz-1", version: 1,
+      profile: { business: { name: "Acme" } }, profileMarkdown: null,
+      status: ProfileVersionStatus.CURRENT, changeSummary: null,
+      createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+
+    const repo = createMockRepo({
+      getProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: version }),
+    });
+
+    const result = await getVersion(repo, "biz-1", "ws-1", "pv-1");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).not.toBeNull();
+      expect(result.data?.id).toBe("pv-1");
+    }
+  });
+
+  it("returns ok null when repo returns null", async () => {
+    const repo = createMockRepo({
+      getProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: null }),
+    });
+
+    const result = await getVersion(repo, "biz-1", "ws-1", "pv-999");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toBeNull();
+    }
+  });
+
+  it("returns ok null when version belongs to different business", async () => {
+    const version: BusinessProfileVersion = {
+      id: "pv-1", workspaceId: "ws-1", businessId: "other-biz", version: 1,
+      profile: {}, profileMarkdown: null,
+      status: ProfileVersionStatus.CURRENT, changeSummary: null,
+      createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+
+    const repo = createMockRepo({
+      getProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: version }),
+    });
+
+    const result = await getVersion(repo, "biz-1", "ws-1", "pv-1");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toBeNull();
+    }
+  });
+});
+
+// ─── compareVersions ─────────────────────────────────────────────────────────
+
+describe("contract: compareVersions", () => {
+  it("returns diffs with before/after from profile values", async () => {
+    const fromVersion: BusinessProfileVersion = {
+      id: "pv-1", workspaceId: "ws-1", businessId: "biz-1", version: 1,
+      profile: { business: { name: "Old Name" }, offers: { primary: "Widget" } },
+      profileMarkdown: null, status: ProfileVersionStatus.SUPERSEDED,
+      changeSummary: null, createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+    const toVersion: BusinessProfileVersion = {
+      id: "pv-2", workspaceId: "ws-1", businessId: "biz-1", version: 2,
+      profile: { business: { name: "New Name" }, offers: { primary: "Widget" } },
+      profileMarkdown: null, status: ProfileVersionStatus.CURRENT,
+      changeSummary: null, createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+
+    const repo = createMockRepo({
+      getProfileVersion: vi.fn().mockImplementation((_ws: string, id: string) => {
+        if (id === "pv-1") return Promise.resolve({ ok: true, data: fromVersion });
+        if (id === "pv-2") return Promise.resolve({ ok: true, data: toVersion });
+        return Promise.resolve({ ok: true, data: null });
+      }),
+    });
+
+    const result = await compareVersions(repo, "biz-1", "ws-1", "pv-1", "pv-2");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.fromVersion).toBe(1);
+      expect(result.data.toVersion).toBe(2);
+      expect(result.data.diffs.business).toEqual({
+        before: { name: "Old Name" },
+        after: { name: "New Name" },
+      });
+      expect(result.data.diffs.offers).toBeUndefined();
+    }
+  });
+
+  it("returns NOT_FOUND when either version is missing", async () => {
+    const repo = createMockRepo({
+      getProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: null }),
+    });
+
+    const result = await compareVersions(repo, "biz-1", "ws-1", "pv-1", "pv-2");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("NOT_FOUND");
+    }
+  });
+
+  it("returns NOT_FOUND when either version belongs to different business", async () => {
+    const fromVersion: BusinessProfileVersion = {
+      id: "pv-1", workspaceId: "ws-1", businessId: "biz-1", version: 1,
+      profile: {}, profileMarkdown: null,
+      status: ProfileVersionStatus.SUPERSEDED, changeSummary: null,
+      createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+    const otherVersion: BusinessProfileVersion = {
+      id: "pv-2", workspaceId: "ws-1", businessId: "other-biz", version: 1,
+      profile: {}, profileMarkdown: null,
+      status: ProfileVersionStatus.CURRENT, changeSummary: null,
+      createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+
+    const repo = createMockRepo({
+      getProfileVersion: vi.fn().mockImplementation((_ws: string, id: string) => {
+        if (id === "pv-1") return Promise.resolve({ ok: true, data: fromVersion });
+        if (id === "pv-2") return Promise.resolve({ ok: true, data: otherVersion });
+        return Promise.resolve({ ok: true, data: null });
+      }),
+    });
+
+    const result = await compareVersions(repo, "biz-1", "ws-1", "pv-1", "pv-2");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("NOT_FOUND");
+    }
   });
 });
