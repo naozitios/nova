@@ -99,6 +99,7 @@ function makeConfig(overrides?: Partial<UploadServiceConfig>): UploadServiceConf
     ttlMs: TTL_MS,
     nowFn: () => NOW,
     storageBucket: 'uploads',
+    generateIntentId: () => 'intent-1',
     ...overrides,
   }
 }
