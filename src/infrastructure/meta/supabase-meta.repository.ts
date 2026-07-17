@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ServiceResult } from '@/core/business-context/types'
+import type { JsonValue, ServiceResult } from '@/core/business-context/types'
 import type { MetaAdAccountSummary, MetaConnectionStatusView } from '@/core/meta-data/entities'
 import type {
   ConsumeOAuthStateInput,
@@ -19,7 +19,7 @@ function ok<T>(data: T): ServiceResult<T> {
   return { ok: true, data }
 }
 
-function err<T>(code: string, message: string, details?: Record<string, unknown>): ServiceResult<T> {
+function err<T>(code: string, message: string, details?: Record<string, JsonValue>): ServiceResult<T> {
   return { ok: false, error: { code, message, details } }
 }
 
