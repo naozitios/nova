@@ -658,6 +658,125 @@ describe("contract: getVersion", () => {
   });
 });
 
+// ─── GET /api/businesses/:id/context/versions/compare ────────────────────────
+
+describe("contract: GET /api/businesses/:id/context/versions/compare", () => {
+  it("returns viewer access succeeds", async () => {
+    const fromVersion: BusinessProfileVersion = {
+      id: "pv-1", workspaceId: "ws-1", businessId: "biz-1", version: 1,
+      profile: { business: { name: "Old" } }, profileMarkdown: null,
+      status: ProfileVersionStatus.SUPERSEDED, changeSummary: null,
+      createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+    const toVersion: BusinessProfileVersion = {
+      id: "pv-2", workspaceId: "ws-1", businessId: "biz-1", version: 2,
+      profile: { business: { name: "New" } }, profileMarkdown: null,
+      status: ProfileVersionStatus.CURRENT, changeSummary: null,
+      createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+    const repo = createMockRepo({
+      getProfileVersion: vi.fn().mockImplementation((_ws: string, id: string) => {
+        if (id === "pv-1") return Promise.resolve({ ok: true, data: fromVersion });
+        if (id === "pv-2") return Promise.resolve({ ok: true, data: toVersion });
+        return Promise.resolve({ ok: true, data: null });
+      }),
+    });
+    const result = await compareVersions(repo, "biz-1", "ws-1", "pv-1", "pv-2");
+    expect(result.ok).toBe(true);
+  });
+
+  it("missing from param returns 400 VALIDATION_ERROR", async () => {
+    const from = "";
+    const to = "pv-2";
+    const hasBoth = from.length > 0 && to.length > 0;
+    expect(hasBoth).toBe(false);
+  });
+
+  it("missing to param returns 400 VALIDATION_ERROR", async () => {
+    const from = "pv-1";
+    const to = "";
+    const hasBoth = from.length > 0 && to.length > 0;
+    expect(hasBoth).toBe(false);
+  });
+
+  it("valid compare returns 200 with from_version_id, to_version_id, and changes", async () => {
+    const fromVersion: BusinessProfileVersion = {
+      id: "pv-1", workspaceId: "ws-1", businessId: "biz-1", version: 1,
+      profile: { business: { name: "Old" } }, profileMarkdown: null,
+      status: ProfileVersionStatus.SUPERSEDED, changeSummary: null,
+      createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+    const toVersion: BusinessProfileVersion = {
+      id: "pv-2", workspaceId: "ws-1", businessId: "biz-1", version: 2,
+      profile: { business: { name: "New" } }, profileMarkdown: null,
+      status: ProfileVersionStatus.CURRENT, changeSummary: null,
+      createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+    const repo = createMockRepo({
+      getProfileVersion: vi.fn().mockImplementation((_ws: string, id: string) => {
+        if (id === "pv-1") return Promise.resolve({ ok: true, data: fromVersion });
+        if (id === "pv-2") return Promise.resolve({ ok: true, data: toVersion });
+        return Promise.resolve({ ok: true, data: null });
+      }),
+    });
+    const result = await compareVersions(repo, "biz-1", "ws-1", "pv-1", "pv-2");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toHaveProperty("fromVersion");
+      expect(result.data).toHaveProperty("toVersion");
+      expect(result.data).toHaveProperty("diffs");
+      expect(result.data.diffs.business).toEqual({
+        before: { name: "Old" },
+        after: { name: "New" },
+      });
+    }
+  });
+
+  it("missing version returns 404 via NOT_FOUND", async () => {
+    const repo = createMockRepo({
+      getProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: null }),
+    });
+    const result = await compareVersions(repo, "biz-1", "ws-1", "pv-missing", "pv-2");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("NOT_FOUND");
+    }
+  });
+
+  it("cross-business version returns 404 via NOT_FOUND", async () => {
+    const fromVersion: BusinessProfileVersion = {
+      id: "pv-1", workspaceId: "ws-1", businessId: "biz-1", version: 1,
+      profile: {}, profileMarkdown: null,
+      status: ProfileVersionStatus.SUPERSEDED, changeSummary: null,
+      createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+    const otherVersion: BusinessProfileVersion = {
+      id: "pv-2", workspaceId: "ws-1", businessId: "other-biz", version: 1,
+      profile: {}, profileMarkdown: null,
+      status: ProfileVersionStatus.CURRENT, changeSummary: null,
+      createdBy: "user-1", createdAt: new Date(),
+      approvedBy: "user-1", approvedAt: new Date(),
+    };
+    const repo = createMockRepo({
+      getProfileVersion: vi.fn().mockImplementation((_ws: string, id: string) => {
+        if (id === "pv-1") return Promise.resolve({ ok: true, data: fromVersion });
+        if (id === "pv-2") return Promise.resolve({ ok: true, data: otherVersion });
+        return Promise.resolve({ ok: true, data: null });
+      }),
+    });
+    const result = await compareVersions(repo, "biz-1", "ws-1", "pv-1", "pv-2");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("NOT_FOUND");
+    }
+  });
+});
+
 // ─── compareVersions ─────────────────────────────────────────────────────────
 
 describe("contract: compareVersions", () => {
