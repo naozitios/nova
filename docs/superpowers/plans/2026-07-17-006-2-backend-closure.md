@@ -257,7 +257,7 @@ git commit -m "fix(onboarding): compile drafts from facts"
 
 - [ ] **Step 1: Add failing integration cases**
 
-Add cases for `EVIDENCE_SOURCE_REQUIRED`, `MISSING_REQUIRED_FACT`, `REQUIRED_KEY_UNKNOWN`, `SOURCE_NOT_PROCESSED`, blocking quality, and stale expected base. Each case asserts no new version, no session approval, and no audit row.
+Add cases for `EVIDENCE_SOURCE_REQUIRED`, `MISSING_REQUIRED_FACT`, `REQUIRED_KEY_UNKNOWN`, `SOURCE_NOT_PROCESSED`, and blocking quality. Each case asserts no new version, no session approval, and no audit row. Expected-base enforcement belongs to update approval and is covered in Task 13 because initial-v1 RPC has no base-version input.
 
 - [ ] **Step 2: Run red gate**
 
