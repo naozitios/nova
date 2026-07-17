@@ -550,11 +550,8 @@ describe.skipIf(!SUPABASE_KEY)(
       await seedFact(sourceId, { factKey: "economics.monthly_meta_budget", value: 5000, verificationStatus: "user_verified" });
       // Raw SQL insert: 'null'::jsonb is the JSON literal null that the domain
       // layer uses for "explicitly unknown" fact values.
-      // exec_sql wraps in SELECT row_to_json(t) from (<query>) t — INSERT...RETURNING
-      // is a valid table expression, so this works for DML that PostgREST can't handle.
-      // Raw psql insert: 'null'::jsonb is the JSON literal null. PostgREST
-      // converts JSON null to SQL NULL which violates the NOT NULL constraint,
-      // so we bypass it with direct Postgres access via docker exec.
+      // PostgREST maps JS null to SQL NULL, which violates the NOT NULL
+      // constraint. Insert the JSON literal null through the local test DB.
       execSync(
         `docker exec supabase_db_nova psql -U postgres -d postgres -c "INSERT INTO context_facts (workspace_id, business_id, source_id, fact_key, value, confidence, verification_status, created_by) VALUES ('${WS}', '${BIZ}', '${sourceId}', 'business.name', 'null'::jsonb, 0.9, 'user_verified', 'system')"`,
         { stdio: "pipe" },
