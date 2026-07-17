@@ -49,6 +49,7 @@ export const IdempotencyOperation = {
   COMPLETE_UPLOAD: 'complete_upload',
   CHECK_IDEMPOTENCY: 'check_idempotency',
   META_OAUTH_CALLBACK: 'meta_oauth_callback',
+  META_START_CONNECTION: 'meta_start_connection',
   META_ACCOUNT_SELECT: 'meta_account_select',
   CREATE_BUSINESS: 'create_business',
   START_ONBOARDING: 'start_onboarding',
