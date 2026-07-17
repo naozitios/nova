@@ -411,15 +411,25 @@ describe.skipIf(!SUPABASE_KEY)(
       expect(await countCurrentVersions()).toBe(1);
     });
 
-    // ─── Readiness enforcement cases (Task 5 RED phase) ─────────────────
+    // ─── Readiness rejection cases (Task 5 RED phase) ─────────────────
+    // v2 RPC only checks session status, sections, and conflicts.
     // These seed valid session + complete questions (so SQL's section/conflict
-    // checks pass), but add conditions that readiness blockers should reject.
-    // The v2 RPC does NOT enforce readiness → these will PASS (RED).
+    // checks pass), then assert RPC returns exact readiness error code and
+    // leaves version count, session status, and audit count unchanged.
+    // Expected: FAIL because v2 RPC has no readiness checks → ok=true, not ok=false.
 
-    it("rejects when no evidence source exists — EVIDENCE_SOURCE_REQUIRED", async () => {
+    it("rejects when no qualifying processed evidence source exists — EVIDENCE_SOURCE_REQUIRED", async () => {
       const sessionId = await seedSession("ready_for_approval");
       await seedAnsweredQuestions(sessionId);
-      // No context_sources seeded → readiness should block
+      // No evidence source seeded — readiness should block
+
+      const versionsBefore = await countCurrentVersions();
+      const sessionStatusBefore = (await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single())?.data?.status;
+      const auditBefore = await countAuditEvents();
 
       const { data, error } = await supabase.rpc("approve_onboarding_v1", {
         p_workspace_id: WS,
@@ -428,26 +438,34 @@ describe.skipIf(!SUPABASE_KEY)(
       });
 
       expect(error).toBeNull();
-      // v2 RPC has no evidence-source check — this will wrongly succeed (RED)
-      expect(data.ok).toBe(true, "RED: v2 RPC allowed approval with no evidence source");
+      expect(data.ok).toBe(false);
+      expect(data.error.code).toBe("EVIDENCE_SOURCE_REQUIRED");
 
-      // Must not create version or approve session when readiness is enforced
-      expect(await countCurrentVersions()).toBe(0);
+      // No state changes
+      expect(await countCurrentVersions()).toBe(versionsBefore);
       const { data: session } = await supabase
         .from("onboarding_sessions")
         .select("status")
         .eq("id", sessionId)
         .single();
-      expect(session?.status).toBe("ready_for_approval");
-      expect(await countAuditEvents()).toBe(0);
+      expect(session?.status).toBe(sessionStatusBefore);
+      expect(await countAuditEvents()).toBe(auditBefore);
     });
 
-    it("rejects when evidence source is not yet processed — SOURCE_NOT_PROCESSED", async () => {
+    it("rejects when required source is still processing — SOURCE_NOT_PROCESSED", async () => {
       const sessionId = await seedSession("ready_for_approval");
       await seedAnsweredQuestions(sessionId);
       // Source in 'registered' (non-terminal) state
       await seedSource({ status: "registered", terminalOutcome: null, currentStage: "registered" });
 
+      const versionsBefore = await countCurrentVersions();
+      const sessionStatusBefore = (await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single())?.data?.status;
+      const auditBefore = await countAuditEvents();
+
       const { data, error } = await supabase.rpc("approve_onboarding_v1", {
         p_workspace_id: WS,
         p_business_id: BIZ,
@@ -455,17 +473,18 @@ describe.skipIf(!SUPABASE_KEY)(
       });
 
       expect(error).toBeNull();
-      // v2 RPC does not check source processing status — this will wrongly succeed (RED)
-      expect(data.ok).toBe(true, "RED: v2 RPC allowed approval with unprocessed source");
+      expect(data.ok).toBe(false);
+      expect(data.error.code).toBe("SOURCE_NOT_PROCESSED");
 
-      expect(await countCurrentVersions()).toBe(0);
+      // No state changes
+      expect(await countCurrentVersions()).toBe(versionsBefore);
       const { data: session } = await supabase
         .from("onboarding_sessions")
         .select("status")
         .eq("id", sessionId)
         .single();
-      expect(session?.status).toBe("ready_for_approval");
-      expect(await countAuditEvents()).toBe(0);
+      expect(session?.status).toBe(sessionStatusBefore);
+      expect(await countAuditEvents()).toBe(auditBefore);
     });
 
     it("rejects when required fact is not user-verified — MISSING_REQUIRED_FACT", async () => {
@@ -479,6 +498,14 @@ describe.skipIf(!SUPABASE_KEY)(
         verificationStatus: "extracted",
       });
 
+      const versionsBefore = await countCurrentVersions();
+      const sessionStatusBefore = (await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single())?.data?.status;
+      const auditBefore = await countAuditEvents();
+
       const { data, error } = await supabase.rpc("approve_onboarding_v1", {
         p_workspace_id: WS,
         p_business_id: BIZ,
@@ -486,17 +513,18 @@ describe.skipIf(!SUPABASE_KEY)(
       });
 
       expect(error).toBeNull();
-      // v2 RPC compiles profile from questions only — fact verification is unchecked (RED)
-      expect(data.ok).toBe(true, "RED: v2 RPC allowed approval with non-user-verified fact");
+      expect(data.ok).toBe(false);
+      expect(data.error.code).toBe("MISSING_REQUIRED_FACT");
 
-      expect(await countCurrentVersions()).toBe(0);
+      // No state changes
+      expect(await countCurrentVersions()).toBe(versionsBefore);
       const { data: session } = await supabase
         .from("onboarding_sessions")
         .select("status")
         .eq("id", sessionId)
         .single();
-      expect(session?.status).toBe("ready_for_approval");
-      expect(await countAuditEvents()).toBe(0);
+      expect(session?.status).toBe(sessionStatusBefore);
+      expect(await countAuditEvents()).toBe(auditBefore);
     });
 
     it("rejects when disallowed key is null — REQUIRED_KEY_UNKNOWN", async () => {
@@ -510,6 +538,14 @@ describe.skipIf(!SUPABASE_KEY)(
         verificationStatus: "user_verified",
       });
 
+      const versionsBefore = await countCurrentVersions();
+      const sessionStatusBefore = (await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single())?.data?.status;
+      const auditBefore = await countAuditEvents();
+
       const { data, error } = await supabase.rpc("approve_onboarding_v1", {
         p_workspace_id: WS,
         p_business_id: BIZ,
@@ -517,17 +553,18 @@ describe.skipIf(!SUPABASE_KEY)(
       });
 
       expect(error).toBeNull();
-      // v2 RPC does not check fact values against disallowed keys (RED)
-      expect(data.ok).toBe(true, "RED: v2 RPC allowed approval with null disallowed key");
+      expect(data.ok).toBe(false);
+      expect(data.error.code).toBe("REQUIRED_KEY_UNKNOWN");
 
-      expect(await countCurrentVersions()).toBe(0);
+      // No state changes
+      expect(await countCurrentVersions()).toBe(versionsBefore);
       const { data: session } = await supabase
         .from("onboarding_sessions")
         .select("status")
         .eq("id", sessionId)
         .single();
-      expect(session?.status).toBe("ready_for_approval");
-      expect(await countAuditEvents()).toBe(0);
+      expect(session?.status).toBe(sessionStatusBefore);
+      expect(await countAuditEvents()).toBe(auditBefore);
     });
 
     it("rejects when blocking quality gate exists — QUALITY_GATE_BLOCKING", async () => {
@@ -535,6 +572,13 @@ describe.skipIf(!SUPABASE_KEY)(
       await seedAnsweredQuestions(sessionId);
       // Seed a source so evidence-source check passes
       const sourceId = await seedSource();
+      // Seed all required verified facts
+      await seedFact(sourceId, { factKey: "business.name", value: "Acme" });
+      await seedFact(sourceId, { factKey: "market.primary", value: "SMB" });
+      await seedFact(sourceId, { factKey: "advertising.primary_objective", value: "lead_gen" });
+      await seedFact(sourceId, { factKey: "business.primary_outcome", value: "revenue_growth" });
+      await seedFact(sourceId, { factKey: "economics.monthly_meta_budget", value: 5000 });
+
       // Seed a blocking quality gate result
       await seedQualityGate({
         gateName: "min_word_count",
@@ -544,6 +588,14 @@ describe.skipIf(!SUPABASE_KEY)(
         sourceId,
       });
 
+      const versionsBefore = await countCurrentVersions();
+      const sessionStatusBefore = (await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single())?.data?.status;
+      const auditBefore = await countAuditEvents();
+
       const { data, error } = await supabase.rpc("approve_onboarding_v1", {
         p_workspace_id: WS,
         p_business_id: BIZ,
@@ -551,17 +603,18 @@ describe.skipIf(!SUPABASE_KEY)(
       });
 
       expect(error).toBeNull();
-      // v2 RPC does not check quality gate results (RED)
-      expect(data.ok).toBe(true, "RED: v2 RPC allowed approval with blocking quality gate");
+      expect(data.ok).toBe(false);
+      expect(data.error.code).toBe("QUALITY_GATE_BLOCKING");
 
-      expect(await countCurrentVersions()).toBe(0);
+      // No state changes
+      expect(await countCurrentVersions()).toBe(versionsBefore);
       const { data: session } = await supabase
         .from("onboarding_sessions")
         .select("status")
         .eq("id", sessionId)
         .single();
-      expect(session?.status).toBe("ready_for_approval");
-      expect(await countAuditEvents()).toBe(0);
+      expect(session?.status).toBe(sessionStatusBefore);
+      expect(await countAuditEvents()).toBe(auditBefore);
     });
   },
 );
