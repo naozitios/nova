@@ -97,6 +97,84 @@ export interface MetaSyncCheckpointRecord {
   cursor: JsonValue | null
 }
 
+export interface DailyInsightInput {
+  metaCampaignId?: string
+  metaAdSetId?: string
+  metaAdId?: string
+  dateStart?: string
+  dateStop?: string
+  spend?: number | string
+  impressions?: number | string
+  reach?: number | string
+  frequency?: number | string
+  clicks?: number | string
+  linkClicks?: number | string
+  landingPageViews?: number | string
+  actions?: unknown[]
+  actionValues?: unknown[]
+  attributionSetting?: string
+  dataCompletenessState?: string
+  [key: string]: unknown
+}
+
+export interface UpsertDailyInsightsInput {
+  workspaceId: string
+  metaAdAccountId: string
+  runId: string
+  apiVersion: string
+  accountTimezone: string
+  currency: string
+  insights: DailyInsightInput[]
+}
+
+export interface MetaDailyInsightRecord {
+  id: string
+  workspaceId: string
+  metaAdAccountId: string
+  metaCampaignId: string | null
+  metaAdSetId: string | null
+  metaAdId: string
+  dateStart: string
+  dateStop: string
+  spend: number | null
+  impressions: number | null
+  reach: number | null
+  frequency: number | null
+  clicks: number | null
+  linkClicks: number | null
+  landingPageViews: number | null
+  actions: unknown[]
+  actionValues: unknown[]
+  attributionSetting: string
+  currency: string | null
+  accountTimezone: string | null
+  dataCompletenessState: string
+  metaSyncRunId: string | null
+  apiVersion: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface DataFreshnessInput {
+  workspaceId: string
+  metaAdAccountId: string
+  since?: string
+  until?: string
+}
+
+export interface DataFreshnessResult {
+  latestDate: string | null
+  missingWindowCount: number
+  gapCount: number
+}
+
+export interface ListDailyInsightsInput {
+  workspaceId: string
+  metaAdAccountId: string
+  since: string
+  until: string
+}
+
 export interface UpsertCampaignsInput {
   workspaceId: string
   metaAdAccountId: string
@@ -124,6 +202,9 @@ export interface MetaRepositoryPort {
   getSyncRun(workspaceId: string, runId: string): Promise<ServiceResult<MetaSyncRunRecord | null>>
   scheduleSyncRetry(workspaceId: string, runId: string): Promise<ServiceResult<MetaSyncRunRecord>>
   advanceCheckpoint(input: AdvanceCheckpointInput): Promise<ServiceResult<MetaSyncCheckpointRecord>>
+  upsertDailyInsights(input: UpsertDailyInsightsInput): Promise<ServiceResult<unknown>>
+  getDataFreshness(input: DataFreshnessInput): Promise<ServiceResult<DataFreshnessResult>>
+  listDailyInsights(input: ListDailyInsightsInput): Promise<ServiceResult<MetaDailyInsightRecord[]>>
   upsertCampaigns(input: UpsertCampaignsInput): Promise<ServiceResult<unknown>>
   upsertAds(input: UpsertAdsInput): Promise<ServiceResult<unknown>>
 }
