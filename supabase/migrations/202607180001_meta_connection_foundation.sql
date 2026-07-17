@@ -57,7 +57,7 @@ on public.meta_ad_accounts (workspace_id, business_id)
 where is_selected = true and business_id is not null;
 
 create or replace view public.v_meta_connection_status
-with (security_barrier = true, security_invoker = true) as
+with (security_barrier = true) as
 select id,
        workspace_id,
        connected_by,
