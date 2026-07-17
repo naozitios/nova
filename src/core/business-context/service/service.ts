@@ -45,11 +45,14 @@ import {
   computeDiff,
   approveContext,
   listVersions,
+  getVersion,
+  compareVersions,
   restoreContextVersion,
   type AddCorrectionInput,
   type ApproveContextInput,
   type CompiledDraftResult,
   type DiffResult,
+  type VersionCompareResult,
   type RestoreContextInput,
 } from './context.service'
 
@@ -181,6 +184,21 @@ export class BusinessContextService {
     workspaceId: string,
   ): Promise<ServiceResult<{ items: BusinessProfileVersion[]; total: number }>> {
     return listVersions(this.repo, businessId, workspaceId)
+  }
+  getVersion(
+    businessId: string,
+    workspaceId: string,
+    versionId: string,
+  ): Promise<ServiceResult<BusinessProfileVersion | null>> {
+    return getVersion(this.repo, businessId, workspaceId, versionId)
+  }
+  compareVersions(
+    businessId: string,
+    workspaceId: string,
+    fromVersionId: string,
+    toVersionId: string,
+  ): Promise<ServiceResult<VersionCompareResult>> {
+    return compareVersions(this.repo, businessId, workspaceId, fromVersionId, toVersionId)
   }
   restoreVersion(
     input: RestoreContextInput,

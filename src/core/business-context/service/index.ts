@@ -40,11 +40,14 @@ export {
   computeDiff,
   approveContext,
   listVersions,
+  getVersion,
+  compareVersions,
   restoreContextVersion,
   type AddCorrectionInput,
   type ApproveContextInput,
   type CompiledDraftResult,
   type DiffResult,
+  type VersionCompareResult,
   type RestoreContextInput,
 } from './context.service'
 
