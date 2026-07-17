@@ -2,13 +2,19 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { JsonValue, ServiceResult } from '@/core/business-context/types'
 import type { MetaAdAccountSummary, MetaConnectionStatusView } from '@/core/meta-data/entities'
 import type {
+  AdvanceCheckpointInput,
   ConsumeOAuthStateInput,
   CreateOAuthStateInput,
+  CreateSyncRunInput,
   MetaConnectionRecord,
   MetaOAuthStateRecord,
   MetaRepositoryPort,
+  MetaSyncCheckpointRecord,
+  MetaSyncRunRecord,
   SelectAdAccountInput,
   UpsertAdAccountsInput,
+  UpsertAdsInput,
+  UpsertCampaignsInput,
   UpsertConnectionInput,
 } from '@/core/meta-data/repository.port'
 import { getSupabaseServiceClient } from '@/infrastructure/business-context/supabase-client'
@@ -254,5 +260,147 @@ export class SupabaseMetaRepository implements MetaRepositoryPort {
 
     if (error) return err('SELECT_AD_ACCOUNT_FAILED', error.message)
     return ok(mapAdAccount(data as Row))
+  }
+
+  async createSyncRun(input: CreateSyncRunInput): Promise<ServiceResult<MetaSyncRunRecord>> {
+    const { data, error } = await this.db
+      .from('meta_sync_runs')
+      .insert({
+        workspace_id: input.workspaceId,
+        meta_ad_account_id: input.metaAdAccountId,
+        mode: input.mode,
+        status: 'queued',
+        idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
+      })
+      .select('*')
+      .single()
+
+    if (error) return err('CREATE_SYNC_RUN_FAILED', error.message)
+    return ok({
+      id: String(data.id),
+      workspaceId: String(data.workspace_id),
+      metaAdAccountId: String(data.meta_ad_account_id),
+      mode: String(data.mode),
+      status: String(data.status),
+      idempotencyKey: data.idempotency_key ? String(data.idempotency_key) : null,
+    })
+  }
+
+  async advanceCheckpoint(input: AdvanceCheckpointInput): Promise<ServiceResult<MetaSyncCheckpointRecord>> {
+    const { data, error } = await this.db
+      .from('meta_sync_checkpoints')
+      .upsert(
+        {
+          workspace_id: input.workspaceId,
+          run_id: input.runId,
+          partition_key: input.partitionKey,
+        status: input.status,
+        cursor: input.cursor != null ? String(input.cursor) : null,
+        },
+        { onConflict: 'run_id,partition_key' },
+      )
+      .select('*')
+      .single()
+
+    if (error) return err('ADVANCE_CHECKPOINT_FAILED', error.message)
+    return ok({
+      id: String(data.id),
+      workspaceId: String(data.workspace_id),
+      runId: String(data.run_id),
+      partitionKey: String(data.partition_key),
+      status: String(data.status),
+      cursor: data.cursor as JsonValue | null,
+    })
+  }
+
+  async upsertCampaigns(input: UpsertCampaignsInput): Promise<ServiceResult<unknown>> {
+    if (input.campaigns.length === 0) return ok(null)
+    const now = new Date().toISOString()
+    const rows = input.campaigns.map((c) => ({
+      workspace_id: input.workspaceId,
+      meta_ad_account_id: input.metaAdAccountId,
+      meta_campaign_id: String(c.id),
+      name: String(c.name ?? ''),
+      objective: c.objective ? String(c.objective) : null,
+      effective_status: c.effective_status ? String(c.effective_status) : null,
+      configured_status: c.configured_status ? String(c.configured_status) : null,
+      buying_type: c.buying_type ? String(c.buying_type) : null,
+      start_time: c.start_time ? String(c.start_time) : null,
+      stop_time: c.stop_time ? String(c.stop_time) : null,
+      provider_created_time: c.created_time ? String(c.created_time) : null,
+      provider_updated_time: c.updated_time ? String(c.updated_time) : null,
+      raw_metadata_json: c,
+      meta_sync_run_id: input.runId,
+      last_seen_at: now,
+      updated_at: now,
+    }))
+    const { error } = await this.db
+      .from('meta_campaigns')
+      .upsert(rows, { onConflict: 'workspace_id,meta_ad_account_id,meta_campaign_id' })
+    if (error) return err('UPSERT_CAMPAIGNS_FAILED', error.message)
+    return ok(null)
+  }
+
+  async upsertAds(input: UpsertAdsInput): Promise<ServiceResult<unknown>> {
+    if (input.ads.length === 0) return ok(null)
+    const now = new Date().toISOString()
+    const validAds: Row[] = []
+    const quarantinePayloads: Array<{ ad: Record<string, unknown>; validationErrors: string }> = []
+
+    for (const ad of input.ads) {
+      const adsetMetaId = ad.adset_id ? String(ad.adset_id) : null
+      if (!adsetMetaId) {
+        quarantinePayloads.push({ ad, validationErrors: 'Missing adset_id' })
+        continue
+      }
+      const { data: adset } = await this.db
+        .from('meta_ad_sets')
+        .select('id')
+        .eq('workspace_id', input.workspaceId)
+        .eq('meta_ad_account_id', input.metaAdAccountId)
+        .eq('meta_ad_set_id', adsetMetaId)
+        .maybeSingle()
+      if (!adset) {
+        quarantinePayloads.push({ ad, validationErrors: `Parent meta_ad_set not found: ${adsetMetaId}` })
+        continue
+      }
+      validAds.push({
+        workspace_id: input.workspaceId,
+        meta_ad_account_id: input.metaAdAccountId,
+        meta_ad_id: String(ad.id),
+        meta_campaign_id: ad.campaign_id ? String(ad.campaign_id) : null,
+        meta_ad_set_id: adsetMetaId,
+        name: ad.name ? String(ad.name) : null,
+        effective_status: ad.effective_status ? String(ad.effective_status) : null,
+        configured_status: ad.configured_status ? String(ad.configured_status) : null,
+        provider_created_time: ad.created_time ? String(ad.created_time) : null,
+        provider_updated_time: ad.updated_time ? String(ad.updated_time) : null,
+        raw_metadata_json: ad,
+        meta_sync_run_id: input.runId,
+        last_seen_at: now,
+        updated_at: now,
+      })
+    }
+
+    if (validAds.length > 0) {
+      const { error } = await this.db
+        .from('meta_ads')
+        .upsert(validAds, { onConflict: 'workspace_id,meta_ad_account_id,meta_ad_id' })
+      if (error) return err('UPSERT_ADS_FAILED', error.message)
+    }
+
+    if (quarantinePayloads.length > 0) {
+      const qRows = quarantinePayloads.map((q) => ({
+        workspace_id: input.workspaceId,
+        source_table: 'meta_ads',
+        provider_id: String(q.ad.id),
+        redacted_payload: q.ad as JsonValue,
+        validation_errors: [q.validationErrors] as JsonValue,
+      }))
+      const { error } = await this.db.from('meta_quarantined_records').insert(qRows)
+      if (error) return err('QUARANTINE_ADS_FAILED', error.message)
+    }
+
+    return ok(null)
   }
 }

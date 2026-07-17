@@ -1,4 +1,4 @@
-import type { ServiceResult } from '@/core/business-context/types'
+import type { JsonValue, ServiceResult } from '@/core/business-context/types'
 import type { MetaAdAccountSummary, MetaConnectionStatusView } from './entities'
 
 export interface MetaOAuthStateRecord {
@@ -64,6 +64,53 @@ export interface SelectAdAccountInput {
   businessId: string
 }
 
+export interface CreateSyncRunInput {
+  workspaceId: string
+  metaAdAccountId: string
+  mode: string
+  idempotencyKey?: string
+}
+
+export interface MetaSyncRunRecord {
+  id: string
+  workspaceId: string
+  metaAdAccountId: string
+  mode: string
+  status: string
+  idempotencyKey: string | null
+}
+
+export interface AdvanceCheckpointInput {
+  workspaceId: string
+  runId: string
+  partitionKey: string
+  status: string
+  cursor: JsonValue | null
+}
+
+export interface MetaSyncCheckpointRecord {
+  id: string
+  workspaceId: string
+  runId: string
+  partitionKey: string
+  status: string
+  cursor: JsonValue | null
+}
+
+export interface UpsertCampaignsInput {
+  workspaceId: string
+  metaAdAccountId: string
+  runId: string
+  campaigns: Record<string, unknown>[]
+}
+
+export interface UpsertAdsInput {
+  workspaceId: string
+  metaAdAccountId: string
+  runId: string
+  ads: Record<string, unknown>[]
+}
+
 export interface MetaRepositoryPort {
   createOAuthState(input: CreateOAuthStateInput): Promise<ServiceResult<MetaOAuthStateRecord>>
   consumeOAuthState(input: ConsumeOAuthStateInput): Promise<ServiceResult<MetaOAuthStateRecord>>
@@ -73,4 +120,8 @@ export interface MetaRepositoryPort {
   upsertAdAccounts(input: UpsertAdAccountsInput): Promise<ServiceResult<MetaAdAccountSummary[]>>
   listAdAccounts(workspaceId: string, connectionId?: string): Promise<ServiceResult<MetaAdAccountSummary[]>>
   selectAdAccount(input: SelectAdAccountInput): Promise<ServiceResult<MetaAdAccountSummary>>
+  createSyncRun(input: CreateSyncRunInput): Promise<ServiceResult<MetaSyncRunRecord>>
+  advanceCheckpoint(input: AdvanceCheckpointInput): Promise<ServiceResult<MetaSyncCheckpointRecord>>
+  upsertCampaigns(input: UpsertCampaignsInput): Promise<ServiceResult<unknown>>
+  upsertAds(input: UpsertAdsInput): Promise<ServiceResult<unknown>>
 }
