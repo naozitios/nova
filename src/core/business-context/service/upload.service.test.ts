@@ -416,6 +416,9 @@ function createMockBcRepo() {
     createContextSource: vi.fn().mockResolvedValue({ ok: true, data: makeContextSource() }),
     createSourceDocument: vi.fn().mockResolvedValue({ ok: true, data: makeSourceDocument() }),
     createContextJob: vi.fn().mockResolvedValue({ ok: true, data: makeContextJob() }),
+    archiveSource: vi.fn().mockResolvedValue({ ok: true, data: makeContextSource({ status: 'archived' }) }),
+    getContextJobByIdempotencyKey: vi.fn().mockResolvedValue({ ok: true, data: null }),
+    updateContextSource: vi.fn().mockResolvedValue({ ok: true, data: makeContextSource() }),
   }
 }
 
@@ -695,7 +698,7 @@ describe('completeUploadIntent', () => {
     expect(bcRepo.createContextJob).not.toHaveBeenCalled()
   })
 
-  it('returns existing source/doc and creates no job for duplicate hash', async () => {
+  it('returns existing source/doc and creates deterministic job for duplicate hash', async () => {
     const repo = createMockRepo()
     repo.getUploadIntent = vi.fn().mockResolvedValue({ ok: true, data: makePendingIntent() })
     const existingSource = makeContextSource({ id: 'src-existing' })
@@ -718,12 +721,16 @@ describe('completeUploadIntent', () => {
     if (result.ok) {
       expect(result.data.source.id).toBe('src-existing')
       expect(result.data.document.id).toBe('doc-existing')
-      expect(result.data.job).toBeNull()
+      expect(result.data.job).toBeDefined()
       expect(result.data.intent.status).toBe(UploadIntentStatus.COMPLETED)
     }
     expect(bcRepo.createContextSource).not.toHaveBeenCalled()
     expect(bcRepo.createSourceDocument).not.toHaveBeenCalled()
-    expect(bcRepo.createContextJob).not.toHaveBeenCalled()
+    expect(bcRepo.getContextJobByIdempotencyKey).toHaveBeenCalledWith(`upload-intent-1-${CONTENT_HASH}`)
+    expect(bcRepo.createContextJob).toHaveBeenCalledOnce()
+    expect(bcRepo.createContextJob).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: `upload-intent-1-${CONTENT_HASH}` }),
+    )
   })
 
   it('preserves storage path and contentHash in created document', async () => {
@@ -804,5 +811,122 @@ describe('completeUploadIntent', () => {
     const additionalFields = updateCall[3]
     expect(additionalFields).not.toHaveProperty('engine')
     expect(additionalFields).not.toHaveProperty('details')
+  })
+
+  // ── Recovery tests ──────────────────────────────────────────────────────
+
+  it('archives newly created source when createSourceDocument fails, leaves intent pending', async () => {
+    const repo = createMockRepo()
+    repo.getUploadIntent = vi.fn().mockResolvedValue({ ok: true, data: makePendingIntent() })
+    const bcRepo = createMockBcRepo()
+    const createdSource = makeContextSource({ id: 'src-new' })
+    bcRepo.createContextSource = vi.fn().mockResolvedValue({ ok: true, data: createdSource })
+    bcRepo.createSourceDocument = vi.fn().mockResolvedValue({
+      ok: false,
+      error: { code: 'CREATE_FAILED', message: 'db write error' },
+    })
+    const storage = createMockStorage()
+    storage.download = vi.fn().mockResolvedValue({ ok: true, data: CONTENT_BUFFER })
+    const scanner = createMockScanner()
+    const validator = createValidator()
+
+    const result = await completeUploadIntent(
+      repo, bcRepo, storage, scanner, validator,
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      makeCompletionConfig(),
+    )
+
+    expect(result.ok).toBe(false)
+    expect(getError(result).code).toBe('CREATE_FAILED')
+    expect(bcRepo.archiveSource).toHaveBeenCalledWith('ws-1', 'src-new')
+    // Intent stays pending — not completed, not failed
+    expect(repo.updateUploadIntentStatus).not.toHaveBeenCalledWith(
+      'ws-1', 'intent-1', UploadIntentStatus.COMPLETED,
+      expect.anything(),
+    )
+  })
+
+  it('retries duplicate hash: finds existing job or creates one, completes intent without second source/doc', async () => {
+    const repo = createMockRepo()
+    repo.getUploadIntent = vi.fn().mockResolvedValue({ ok: true, data: makePendingIntent() })
+    const bcRepo = createMockBcRepo()
+    const existingSource = makeContextSource({ id: 'src-existing' })
+    const existingDoc = makeSourceDocument({ id: 'doc-existing', sourceId: 'src-existing' })
+    bcRepo.getSourceDocumentByHash = vi.fn().mockResolvedValue({ ok: true, data: existingDoc })
+    bcRepo.getContextSource = vi.fn().mockResolvedValue({ ok: true, data: existingSource })
+
+    // First attempt: createContextJob fails
+    bcRepo.createContextJob = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'CREATE_FAILED', message: 'db write error' },
+    })
+
+    const storage = createMockStorage()
+    storage.download = vi.fn().mockResolvedValue({ ok: true, data: CONTENT_BUFFER })
+    const scanner = createMockScanner()
+    const validator = createValidator()
+
+    // First call: job creation fails
+    const result1 = await completeUploadIntent(
+      repo, bcRepo, storage, scanner, validator,
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      makeCompletionConfig(),
+    )
+
+    expect(result1.ok).toBe(false)
+    expect(getError(result1).code).toBe('CREATE_FAILED')
+    // Source/doc were NOT created (we hit duplicate path)
+    expect(bcRepo.createContextSource).not.toHaveBeenCalled()
+    expect(bcRepo.createSourceDocument).not.toHaveBeenCalled()
+
+    // Second call: duplicate hash → getContextJobByIdempotencyKey finds existing job
+    const idempotencyKey = `upload-intent-1-${CONTENT_HASH}`
+    const existingJob = makeContextJob({ id: 'job-existing', idempotencyKey })
+    bcRepo.getContextJobByIdempotencyKey = vi.fn().mockResolvedValue({ ok: true, data: existingJob })
+
+    // Reset intent back to pending for retry
+    repo.getUploadIntent = vi.fn().mockResolvedValue({ ok: true, data: makePendingIntent() })
+
+    const result2 = await completeUploadIntent(
+      repo, bcRepo, storage, scanner, validator,
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      makeCompletionConfig(),
+    )
+
+    expect(result2.ok).toBe(true)
+    if (result2.ok) {
+      expect(result2.data.source.id).toBe('src-existing')
+      expect(result2.data.document.id).toBe('doc-existing')
+      expect(result2.data.job?.id).toBe('job-existing')
+      expect(result2.data.intent.status).toBe(UploadIntentStatus.COMPLETED)
+    }
+    // No new source/doc created on retry
+    expect(bcRepo.createContextSource).not.toHaveBeenCalled()
+    expect(bcRepo.createSourceDocument).not.toHaveBeenCalled()
+    // Job lookup used deterministic key
+    expect(bcRepo.getContextJobByIdempotencyKey).toHaveBeenCalledWith(idempotencyKey)
+  })
+
+  it('source status after creation is queued with currentStage QUEUED', async () => {
+    const repo = createMockRepo()
+    repo.getUploadIntent = vi.fn().mockResolvedValue({ ok: true, data: makePendingIntent() })
+    const bcRepo = createMockBcRepo()
+    const storage = createMockStorage()
+    storage.download = vi.fn().mockResolvedValue({ ok: true, data: CONTENT_BUFFER })
+    const scanner = createMockScanner()
+    const validator = createValidator()
+
+    await completeUploadIntent(
+      repo, bcRepo, storage, scanner, validator,
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      makeCompletionConfig(),
+    )
+
+    expect(bcRepo.createContextSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'queued',
+        currentStage: 'queued',
+      }),
+    )
   })
 })

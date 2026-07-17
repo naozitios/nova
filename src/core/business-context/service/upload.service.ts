@@ -136,6 +136,9 @@ export type UploadCompletionRepository = Pick<
   | 'createContextSource'
   | 'createSourceDocument'
   | 'createContextJob'
+  | 'archiveSource'
+  | 'getContextJobByIdempotencyKey'
+  | 'updateContextSource'
 >
 
 export interface CompleteUploadIntentParams {
@@ -276,13 +279,48 @@ export async function completeUploadIntent(
   }
 
   if (existingDocResult.data) {
-    // Duplicate → return existing source/doc, create no job
+    // Duplicate → return existing source/doc, ensure job exists via deterministic key
     const existingSourceResult = await bcRepo.getContextSource(params.workspaceId, existingDocResult.data.sourceId)
     if (!existingSourceResult.ok) {
       return existingSourceResult as ServiceResult<never>
     }
     if (!existingSourceResult.data) {
       return { ok: false, error: { code: 'SOURCE_NOT_FOUND', message: 'Existing source not found for duplicate document' } }
+    }
+
+    const idempotencyKey = `upload-${intent.id}-${contentHash}`
+    let jobResult = await bcRepo.getContextJobByIdempotencyKey(idempotencyKey)
+    if (!jobResult.ok) {
+      return jobResult as ServiceResult<never>
+    }
+
+    if (!jobResult.data) {
+      jobResult = await bcRepo.createContextJob({
+        workspaceId: params.workspaceId,
+        businessId: params.businessId,
+        sessionId: null,
+        jobType: 'source_processing',
+        status: JobStatus.QUEUED,
+        attemptCount: 0,
+        maxAttempts: 3,
+        idempotencyKey,
+        stage: SourceProcessingStage.QUEUED,
+        input: { sourceId: existingDocResult.data.sourceId, documentId: existingDocResult.data.id },
+        output: null,
+        error: null,
+        errorClass: null,
+        retryPolicy: {},
+        nextRunAt: null,
+        lockedBy: null,
+        lockedAt: null,
+        heartbeatAt: null,
+        stageTimeoutSeconds: config.sourceProcessingStageTimeoutSeconds ?? 30,
+        startedAt: null,
+        completedAt: null,
+      })
+      if (!jobResult.ok) {
+        return jobResult as ServiceResult<never>
+      }
     }
 
     const completedIntent = await uploadRepo.updateUploadIntentStatus(params.workspaceId, params.intentId, UploadIntentStatus.COMPLETED, {
@@ -301,7 +339,7 @@ export async function completeUploadIntent(
         intent: completedIntent.data,
         source: existingSourceResult.data,
         document: existingDocResult.data,
-        job: null,
+        job: jobResult.data,
       },
     }
   }
@@ -314,7 +352,7 @@ export async function completeUploadIntent(
     sourceType,
     sourceName: intent.sourceName,
     externalReference: null,
-    status: 'registered',
+    status: 'queued',
     currentStage: SourceProcessingStage.QUEUED,
     terminalOutcome: null,
     metadata: {},
@@ -347,6 +385,8 @@ export async function completeUploadIntent(
     retrievedAt: new Date(now),
   })
   if (!docResult.ok) {
+    // Archive orphaned source, leave intent pending for retry
+    await bcRepo.archiveSource(params.workspaceId, sourceResult.data.id)
     return docResult as ServiceResult<never>
   }
 
