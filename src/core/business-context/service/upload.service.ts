@@ -1,9 +1,13 @@
 import type { ClassificationProposal, ClassificationProposalConfig } from '../upload-classification-proposal'
 import { acceptClassificationProposal } from '../upload-classification-proposal'
 import type { UploadRepositoryPort } from '../repository/upload.port'
+import type { RepositoryPort } from '../repository/repository.port'
 import type { UploadStoragePort } from '../upload-storage.port'
+import type { MalwareScannerPort } from '../malware-scanner.port'
 import type { UploadIntent, SourceType } from '../types/remediation-entities'
-import { UploadIntentStatus, MalwareScanStatus } from '../types/remediation-entities'
+import { UploadIntentStatus, MalwareScanStatus, DocumentClass } from '../types/remediation-entities'
+import type { ContextSource, SourceDocument, ContextJob } from '../types'
+import { SourceProcessingStage, JobStatus, SourceType as ContextSourceType } from '../types/enums'
 import type { ServiceResult, ServiceError } from '../types/service'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -108,6 +112,289 @@ export async function createSignedUploadIntent(
     data: {
       intent: intentResult.data,
       signedUrl: signedUrlResult.data,
+    },
+  }
+}
+
+// ── Completion Types ───────────────────────────────────────────────────────
+
+export interface UploadContentValidatorResult {
+  contentHash: string
+  detectedMimeType: string
+}
+
+export type UploadContentValidator = (
+  buffer: Buffer,
+  declaredMimeType: string,
+  fileName: string,
+) => Promise<ServiceResult<UploadContentValidatorResult>>
+
+export type UploadCompletionRepository = Pick<
+  RepositoryPort,
+  | 'getSourceDocumentByHash'
+  | 'getContextSource'
+  | 'createContextSource'
+  | 'createSourceDocument'
+  | 'createContextJob'
+>
+
+export interface CompleteUploadIntentParams {
+  workspaceId: string
+  businessId: string
+  intentId: string
+}
+
+export interface CompleteUploadConfig {
+  storageBucket: string
+  sourceProcessingStageTimeoutSeconds?: number
+  nowFn?: () => number
+}
+
+export interface UploadCompletionResult {
+  intent: UploadIntent
+  source: ContextSource
+  document: SourceDocument
+  job: ContextJob | null
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+const DOC_CLASS_TO_SOURCE_TYPE: Record<DocumentClass, ContextSourceType> = {
+  [DocumentClass.BRAND_DECK]: ContextSourceType.BRAND_DECK,
+  [DocumentClass.PRODUCT_DOCUMENT]: ContextSourceType.PRODUCT_DOCUMENT,
+  [DocumentClass.RESEARCH_DOCUMENT]: ContextSourceType.RESEARCH_DOCUMENT,
+  [DocumentClass.CAMPAIGN_BRIEF]: ContextSourceType.CAMPAIGN_BRIEF,
+  [DocumentClass.WEBSITE_CONTENT]: ContextSourceType.WEBSITE,
+  [DocumentClass.OTHER]: ContextSourceType.SYSTEM_INFERENCE,
+}
+
+// ── Completion API ─────────────────────────────────────────────────────────
+
+export async function completeUploadIntent(
+  uploadRepo: UploadRepositoryPort,
+  bcRepo: UploadCompletionRepository,
+  storage: UploadStoragePort,
+  scanner: MalwareScannerPort,
+  validator: UploadContentValidator,
+  params: CompleteUploadIntentParams,
+  config: CompleteUploadConfig,
+): Promise<ServiceResult<UploadCompletionResult>> {
+  const now = (config.nowFn ?? Date.now)()
+
+  // 1. Load intent scoped to workspace
+  const intentResult = await uploadRepo.getUploadIntent(params.workspaceId, params.intentId)
+  if (!intentResult.ok) {
+    return intentResult as ServiceResult<never>
+  }
+  const intent = intentResult.data
+  if (!intent) {
+    return { ok: false, error: { code: 'INTENT_NOT_FOUND', message: 'Upload intent not found' } }
+  }
+
+  // 2. Verify business binding, status pending, not expired
+  if (intent.businessId !== params.businessId) {
+    return { ok: false, error: { code: 'INTENT_CROSS_BUSINESS', message: 'Intent belongs to different business' } }
+  }
+  if (intent.status !== UploadIntentStatus.PENDING) {
+    return { ok: false, error: { code: 'INTENT_NOT_PENDING', message: 'Intent is not in pending status' } }
+  }
+  if (intent.expiresAt.getTime() < now) {
+    await uploadRepo.updateUploadIntentStatus(params.workspaceId, params.intentId, UploadIntentStatus.EXPIRED)
+    return { ok: false, error: { code: 'INTENT_EXPIRED', message: 'Upload intent has expired' } }
+  }
+
+  // 3. Download private object
+  const downloadResult = await storage.download({
+    bucket: config.storageBucket,
+    path: intent.storagePath,
+  })
+  if (!downloadResult.ok) {
+    return downloadResult as ServiceResult<never>
+  }
+  const buffer = downloadResult.data
+
+  // 4. Exact size check
+  if (buffer.length !== intent.expectedSizeBytes) {
+    return {
+      ok: false,
+      error: {
+        code: 'SIZE_MISMATCH',
+        message: `Expected ${intent.expectedSizeBytes} bytes, got ${buffer.length}`,
+      },
+    }
+  }
+
+  // 5. Validator verifies signature/MIME → contentHash + detectedMimeType
+  const validationResult = await validator(buffer, intent.declaredMimeType, intent.fileName)
+  if (!validationResult.ok) {
+    await uploadRepo.updateUploadIntentStatus(params.workspaceId, params.intentId, UploadIntentStatus.FAILED, {
+      malwareScanStatus: MalwareScanStatus.SKIPPED,
+      malwareScanCode: null,
+      malwareScannedAt: new Date(now),
+    })
+    return validationResult as ServiceResult<never>
+  }
+  const { contentHash, detectedMimeType } = validationResult.data
+
+  // 6. Scanner scan — fail-closed
+  const scanResult = await scanner.scan({ buffer, fileName: intent.fileName })
+  let scanStatus: MalwareScanStatus
+  let scanCode: number
+
+  if (!scanResult.ok) {
+    // Scanner unavailable → fail-closed → treated as infected
+    scanStatus = MalwareScanStatus.ERROR
+    scanCode = 2
+  } else if (!scanResult.data.clean) {
+    scanStatus = MalwareScanStatus.INFECTED
+    scanCode = 1
+  } else {
+    scanStatus = MalwareScanStatus.CLEAN
+    scanCode = 0
+  }
+
+  // 7. Infected/error → zero source/doc/job, persist safe scan code
+  if (scanStatus !== MalwareScanStatus.CLEAN) {
+    await uploadRepo.updateUploadIntentStatus(params.workspaceId, params.intentId, UploadIntentStatus.FAILED, {
+      malwareScanStatus: scanStatus,
+      malwareScanCode: scanCode,
+      malwareScannedAt: new Date(now),
+    })
+    return {
+      ok: false,
+      error: {
+        code: scanStatus === MalwareScanStatus.INFECTED ? 'MALWARE_DETECTED' : 'SCAN_FAILED',
+        message: 'Content failed security scan',
+      },
+    }
+  }
+
+  // 8. Check duplicate hash
+  const existingDocResult = await bcRepo.getSourceDocumentByHash(params.businessId, contentHash)
+  if (!existingDocResult.ok) {
+    return existingDocResult as ServiceResult<never>
+  }
+
+  if (existingDocResult.data) {
+    // Duplicate → return existing source/doc, create no job
+    const existingSourceResult = await bcRepo.getContextSource(params.workspaceId, existingDocResult.data.sourceId)
+    if (!existingSourceResult.ok) {
+      return existingSourceResult as ServiceResult<never>
+    }
+    if (!existingSourceResult.data) {
+      return { ok: false, error: { code: 'SOURCE_NOT_FOUND', message: 'Existing source not found for duplicate document' } }
+    }
+
+    const completedIntent = await uploadRepo.updateUploadIntentStatus(params.workspaceId, params.intentId, UploadIntentStatus.COMPLETED, {
+      malwareScanStatus: MalwareScanStatus.CLEAN,
+      malwareScanCode: 0,
+      malwareScannedAt: new Date(now),
+      completedAt: new Date(now),
+    })
+    if (!completedIntent.ok) {
+      return completedIntent as ServiceResult<never>
+    }
+
+    return {
+      ok: true,
+      data: {
+        intent: completedIntent.data,
+        source: existingSourceResult.data,
+        document: existingDocResult.data,
+        job: null,
+      },
+    }
+  }
+
+  // 9. Success → create source, document, job
+  const sourceType = DOC_CLASS_TO_SOURCE_TYPE[intent.documentClass]
+  const sourceResult = await bcRepo.createContextSource({
+    workspaceId: params.workspaceId,
+    businessId: params.businessId,
+    sourceType,
+    sourceName: intent.sourceName,
+    externalReference: null,
+    status: 'registered',
+    currentStage: SourceProcessingStage.QUEUED,
+    terminalOutcome: null,
+    metadata: {},
+    collectedAt: new Date(now),
+  })
+  if (!sourceResult.ok) {
+    return sourceResult as ServiceResult<never>
+  }
+
+  const docResult = await bcRepo.createSourceDocument({
+    workspaceId: params.workspaceId,
+    businessId: params.businessId,
+    sourceId: sourceResult.data.id,
+    url: null,
+    title: null,
+    documentType: intent.documentClass,
+    mimeType: detectedMimeType,
+    fileName: intent.fileName,
+    fileSizeBytes: intent.expectedSizeBytes,
+    contentText: null,
+    storagePath: intent.storagePath,
+    contentHash,
+    httpStatus: null,
+    pageOrSlideCount: null,
+    parserName: null,
+    parserVersion: null,
+    effectiveAt: null,
+    supersedesDocumentId: null,
+    metadata: {},
+    retrievedAt: new Date(now),
+  })
+  if (!docResult.ok) {
+    return docResult as ServiceResult<never>
+  }
+
+  const jobResult = await bcRepo.createContextJob({
+    workspaceId: params.workspaceId,
+    businessId: params.businessId,
+    sessionId: null,
+    jobType: 'source_processing',
+    status: JobStatus.QUEUED,
+    attemptCount: 0,
+    maxAttempts: 3,
+    idempotencyKey: `upload-${intent.id}-${contentHash}`,
+    stage: SourceProcessingStage.QUEUED,
+    input: { sourceId: sourceResult.data.id, documentId: docResult.data.id },
+    output: null,
+    error: null,
+    errorClass: null,
+    retryPolicy: {},
+    nextRunAt: null,
+    lockedBy: null,
+    lockedAt: null,
+    heartbeatAt: null,
+    stageTimeoutSeconds: config.sourceProcessingStageTimeoutSeconds ?? 30,
+    startedAt: null,
+    completedAt: null,
+  })
+  if (!jobResult.ok) {
+    return jobResult as ServiceResult<never>
+  }
+
+  // 10. Mark intent completed/clean
+  const completedIntent = await uploadRepo.updateUploadIntentStatus(params.workspaceId, params.intentId, UploadIntentStatus.COMPLETED, {
+    malwareScanStatus: MalwareScanStatus.CLEAN,
+    malwareScanCode: 0,
+    malwareScannedAt: new Date(now),
+    completedAt: new Date(now),
+  })
+  if (!completedIntent.ok) {
+    return completedIntent as ServiceResult<never>
+  }
+
+  return {
+    ok: true,
+    data: {
+      intent: completedIntent.data,
+      source: sourceResult.data,
+      document: docResult.data,
+      job: jobResult.data,
     },
   }
 }
