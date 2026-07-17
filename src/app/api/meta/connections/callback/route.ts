@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { Container } from '@/di/container'
-import { MetaOAuthAdapter } from '@/infrastructure/meta/meta-oauth.adapter'
+
 
 // ─── State parsing ──────────────────────────────────────────────────────────
 
@@ -131,7 +131,7 @@ export async function GET(req: NextRequest) {
 
   if (activeConn.ok && activeConn.data) {
     // Update existing connection
-    await repo.updateConnectionStatus(workspaceId, activeConn.data.id, 'connected', {
+    await repo.updateConnectionStatus(workspaceId, activeConn.data.id, 'active', {
       tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // long-lived token
       selectedAdAccountId: tokenResult.adAccountId ?? null,
     })
@@ -145,7 +145,7 @@ export async function GET(req: NextRequest) {
       tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
       selectedAdAccountId: tokenResult.adAccountId ?? null,
       accountMetadata: {},
-      status: 'connected',
+      status: 'active',
     })
   }
 
