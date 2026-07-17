@@ -120,35 +120,36 @@ components:
       required: [id, document_class, classification_source, upload_url, expires_at, status, malware_scan_status]
       properties:
         id: { type: string, format: uuid }
-        document_class: { type: string, enum: [marketing_campaign, business_plan, financial_report, brand_material, product_material, research] }
+        source_type: { type: string, enum: [upload] }
+        document_class: { type: string, enum: [brand_deck, product_document, research_document, campaign_brief, website_content, other] }
         classification_source: { type: string, enum: [user_selected, system_proposed] }
-        upload_url: { type: string, format: uri }
+        upload_url: { type: [string, 'null'], format: uri }
         expires_at: { type: string, format: date-time }
-        status: { type: string, enum: [pending, uploaded, completed, expired, rejected] }
-        malware_scan_status: { type: string, enum: [pending, clean, infected, suspicious, unavailable, failed] }
-        malware_scan_code: { type: [string, 'null'] }
+        status: { type: string, enum: [pending, scanning, storing, processing, completed, failed, expired] }
+        malware_scan_status: { type: string, enum: [pending, clean, infected, error, skipped] }
+        malware_scan_code: { type: [integer, 'null'] }
     ClassificationProposal:
       type: object
       required: [proposal_token, document_class, expires_at]
       properties:
         proposal_token: { type: string, minLength: 32 }
-        document_class: { type: string, enum: [marketing_campaign, business_plan, financial_report, brand_material, product_material, research] }
+        document_class: { type: string, enum: [brand_deck, product_document, research_document, campaign_brief, website_content, other] }
         expires_at: { type: string, format: date-time }
     UploadCreate:
       oneOf:
         - type: object
           required: [source_type, source_name, document_class, file_name, mime_type, size_bytes]
           properties:
-            source_type: { type: string }
+            source_type: { type: string, enum: [upload] }
             source_name: { type: string }
-            document_class: { type: string, enum: [marketing_campaign, business_plan, financial_report, brand_material, product_material, research] }
+            document_class: { type: string, enum: [brand_deck, product_document, research_document, campaign_brief, website_content, other] }
             file_name: { type: string }
             mime_type: { type: string }
             size_bytes: { type: integer, minimum: 1, maximum: 52428800 }
         - type: object
           required: [source_type, source_name, classification_proposal_token, file_name, mime_type, size_bytes]
           properties:
-            source_type: { type: string }
+            source_type: { type: string, enum: [upload] }
             source_name: { type: string }
             classification_proposal_token: { type: string, minLength: 32 }
             file_name: { type: string }

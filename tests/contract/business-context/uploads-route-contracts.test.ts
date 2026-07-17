@@ -20,6 +20,63 @@ const ROUTE_UPLOAD_PROPOSAL =
 const ROUTE_UPLOAD_COMPLETE =
   "src/app/api/businesses/[id]/context/uploads/[uploadId]/complete/route.ts";
 
+// ─── Source-audit: pin exact OpenAPI schema strings (RED before fix) ───────
+
+describe("openapi.yaml — source-audit schema strings", () => {
+  const openapi = () =>
+    readFileSource("specs/006.2-business-context-remediation/contracts/openapi.yaml");
+
+  it("UploadIntent.document_class enum: brand_deck,product_document,research_document,campaign_brief,website_content,other", () => {
+    expect(openapi()).toContain(
+      "enum: [brand_deck, product_document, research_document, campaign_brief, website_content, other]"
+    );
+  });
+
+  it("ClassificationProposal.document_class enum: brand_deck,product_document,research_document,campaign_brief,website_content,other", () => {
+    // Both UploadIntent and ClassificationProposal use the same enum
+    const count = (
+      openapi().match(/enum: \[brand_deck, product_document, research_document, campaign_brief, website_content, other\]/g) ?? []
+    ).length;
+    expect(count).toBeGreaterThanOrEqual(2);
+  });
+
+  it("UploadCreate.document_class enum: brand_deck,product_document,research_document,campaign_brief,website_content,other", () => {
+    // Count all occurrences of the corrected enum across all schemas
+    const count = (
+      openapi().match(/enum: \[brand_deck, product_document, research_document, campaign_brief, website_content, other\]/g) ?? []
+    ).length;
+    expect(count).toBe(3);
+  });
+
+  it("UploadIntent.source_type enum: [upload]", () => {
+    expect(openapi()).toContain("source_type: { type: string, enum: [upload] }");
+  });
+
+  it("UploadIntent.status enum: pending,scanning,storing,processing,completed,failed,expired", () => {
+    expect(openapi()).toContain(
+      "enum: [pending, scanning, storing, processing, completed, failed, expired]"
+    );
+  });
+
+  it("UploadIntent.malware_scan_status enum: pending,clean,infected,error,skipped", () => {
+    expect(openapi()).toContain(
+      "enum: [pending, clean, infected, error, skipped]"
+    );
+  });
+
+  it("UploadIntent.malware_scan_code type: integer or null", () => {
+    expect(openapi()).toContain(
+      "malware_scan_code: { type: [integer, 'null'] }"
+    );
+  });
+
+  it("UploadIntent.upload_url allows null: type [string, null] format uri", () => {
+    expect(openapi()).toContain(
+      "upload_url: { type: [string, 'null'], format: uri }"
+    );
+  });
+});
+
 // ─── File existence ─────────────────────────────────────────────────────────
 
 describe("Upload routes — file existence", () => {
@@ -66,12 +123,12 @@ describe("uploads/route.ts — source contract", () => {
     expect(source()).toMatch(/validateWithSchema\s*\(/);
   });
 
-  it("instantiates UploadRepository from infrastructure", () => {
-    expect(source()).toMatch(/new\s+UploadRepository\s*\(/);
+  it("gets UploadRepository from Container", () => {
+    expect(source()).toMatch(/Container\.getUploadRepository\s*\(/);
   });
 
-  it("instantiates SupabaseUploadStorage from infrastructure", () => {
-    expect(source()).toMatch(/new\s+SupabaseUploadStorage\s*\(/);
+  it("gets UploadStorage from Container", () => {
+    expect(source()).toMatch(/Container\.getUploadStorage\s*\(/);
   });
 
   it("calls createSignedUploadIntent service", () => {
@@ -105,7 +162,7 @@ describe("uploads/classification-proposals/route.ts — source contract", () => 
   });
 
   it("imports requireAuthz from _shared", () => {
-    expect(source()).toMatch(/requireAuthz[\s\S]*from\s*['"]\.\.\/\.\.\/\.\.\/_shared['"]\/?/);
+    expect(source()).toMatch(/requireAuthz[\s\S]*from\s*['"]\.\.\/\.\.\/\.\.\/\.\.\/_shared['"]\/?/);
   });
 
   it("calls requireAuthz with editor role", () => {
@@ -163,7 +220,7 @@ describe("uploads/[uploadId]/complete/route.ts — source contract", () => {
   });
 
   it("imports requireAuthz from _shared", () => {
-    expect(source()).toMatch(/requireAuthz[\s\S]*from\s*['"]\.\.\/\.\.\/\.\.\/_shared['"]\/?/);
+    expect(source()).toMatch(/requireAuthz[\s\S]*from\s*['"]\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/_shared['"]\/?/);
   });
 
   it("calls requireAuthz with editor role", () => {
@@ -171,7 +228,7 @@ describe("uploads/[uploadId]/complete/route.ts — source contract", () => {
   });
 
   it("imports withIdempotency from _shared", () => {
-    expect(source()).toMatch(/withIdempotency[\s\S]*from\s*['"]\.\.\/\.\.\/\.\.\/_shared['"]\/?/);
+    expect(source()).toMatch(/withIdempotency[\s\S]*from\s*['"]\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/_shared['"]\/?/);
   });
 
   it("wraps handler body in withIdempotency", () => {
