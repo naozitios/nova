@@ -81,7 +81,7 @@ export function createSourceProcessingHandler(
     }
 
     if (result.data.status === 'blocked_needs_user_action') {
-      return { output, stageEvents, terminalStatus: 'failed_permanent' }
+      return { output, stageEvents, terminalStatus: 'blocked_needs_user_action' }
     }
 
     return { output, stageEvents }

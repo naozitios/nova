@@ -17,7 +17,7 @@ export type JobHandler = (
 ) => Promise<{
   output?: Record<string, JsonValue>
   stageEvents?: StageEventUpdate[]
-  terminalStatus?: 'succeeded' | 'failed_permanent'
+  terminalStatus?: 'succeeded' | 'failed_permanent' | 'blocked_needs_user_action'
   errorClass?: string | null
 }>
 
