@@ -145,6 +145,8 @@ export interface CompleteUploadIntentParams {
   workspaceId: string
   businessId: string
   intentId: string
+  storagePath: string
+  checksumSha256?: string | null
 }
 
 export interface CompleteUploadConfig {
@@ -204,6 +206,11 @@ export async function completeUploadIntent(
   if (intent.expiresAt.getTime() < now) {
     await uploadRepo.updateUploadIntentStatus(params.workspaceId, params.intentId, UploadIntentStatus.EXPIRED)
     return { ok: false, error: { code: 'INTENT_EXPIRED', message: 'Upload intent has expired' } }
+  }
+
+  // 2b. Verify caller-supplied storage path matches intent
+  if (params.storagePath !== intent.storagePath) {
+    return { ok: false, error: { code: 'STORAGE_PATH_MISMATCH', message: 'Caller storage path does not match intent' } }
   }
 
   // 3. Download private object
@@ -271,6 +278,16 @@ export async function completeUploadIntent(
     return validationResult as ServiceResult<never>
   }
   const { contentHash, detectedMimeType } = validationResult.data
+
+  // 7b. Verify caller-supplied checksum matches computed hash
+  if (params.checksumSha256 != null && params.checksumSha256 !== contentHash) {
+    await uploadRepo.updateUploadIntentStatus(params.workspaceId, params.intentId, UploadIntentStatus.FAILED, {
+      malwareScanStatus: MalwareScanStatus.CLEAN,
+      malwareScanCode: 0,
+      malwareScannedAt: new Date(now),
+    })
+    return { ok: false, error: { code: 'CHECKSUM_MISMATCH', message: 'Caller checksum does not match computed content hash' } }
+  }
 
   // 8. Check duplicate hash
   const existingDocResult = await bcRepo.getSourceDocumentByHash(params.businessId, contentHash)

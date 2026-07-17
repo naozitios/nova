@@ -44,7 +44,7 @@ function makeIntent(overrides?: Partial<UploadIntent>): UploadIntent {
     fileName: 'test.pdf',
     declaredMimeType: 'application/pdf',
     expectedSizeBytes: 1024,
-    storagePath: 'ws-1/biz-1/1000000-test.pdf',
+    storagePath: 'uploads/ws-1/biz-1/test.pdf',
     createdBy: 'user-1',
     status: UploadIntentStatus.PENDING,
     malwareScanStatus: MalwareScanStatus.PENDING,
@@ -110,7 +110,7 @@ function makeSourceDocument(overrides?: Partial<SourceDocument>): SourceDocument
     fileName: 'test.pdf',
     fileSizeBytes: 1024,
     contentText: null,
-    storagePath: 'ws-1/biz-1/1000000-test.pdf',
+    storagePath: 'uploads/ws-1/biz-1/test.pdf',
     contentHash: CONTENT_HASH,
     httpStatus: null,
     pageOrSlideCount: null,
@@ -211,7 +211,7 @@ describe('completeUploadIntent — contract', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -240,7 +240,7 @@ describe('completeUploadIntent — contract', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-missing' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-missing', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -259,7 +259,7 @@ describe('completeUploadIntent — contract', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -280,7 +280,7 @@ describe('completeUploadIntent — contract', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -304,7 +304,7 @@ describe('completeUploadIntent — contract', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -323,7 +323,7 @@ describe('completeUploadIntent — contract', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -345,7 +345,7 @@ describe('completeUploadIntent — contract', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -371,7 +371,7 @@ describe('completeUploadIntent — contract', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -399,7 +399,7 @@ describe('completeUploadIntent — contract', () => {
 
     const result = await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -433,7 +433,7 @@ describe('completeUploadIntent — contract', () => {
 
     await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -456,7 +456,7 @@ describe('completeUploadIntent — contract', () => {
 
     await completeUploadIntent(
       repo, bcRepo, storage, scanner, validator,
-      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1' },
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
       makeCompletionConfig(),
     )
 
@@ -464,5 +464,52 @@ describe('completeUploadIntent — contract', () => {
     const additionalFields = updateCall[3]
     expect(additionalFields).not.toHaveProperty('engine')
     expect(additionalFields).not.toHaveProperty('details')
+  })
+
+  it('returns STORAGE_PATH_MISMATCH when storagePath differs from intent', async () => {
+    const repo = createMockRepo()
+    repo.getUploadIntent = vi.fn().mockResolvedValue({ ok: true, data: makePendingIntent() })
+    const bcRepo = createMockBcRepo()
+    const storage = createMockStorage()
+    storage.download = vi.fn().mockResolvedValue({ ok: true, data: CONTENT_BUFFER })
+    const scanner = createMockScanner()
+    const validator = createValidator()
+
+    const result = await completeUploadIntent(
+      repo, bcRepo, storage, scanner, validator,
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'wrong/path/file.pdf' },
+      makeCompletionConfig(),
+    )
+
+    expect(result.ok).toBe(false)
+    expect(getError(result).code).toBe('STORAGE_PATH_MISMATCH')
+    expect(storage.download).not.toHaveBeenCalled()
+    expect(scanner.scan).not.toHaveBeenCalled()
+  })
+
+  it('returns CHECKSUM_MISMATCH when supplied checksum differs from contentHash', async () => {
+    const repo = createMockRepo()
+    repo.getUploadIntent = vi.fn().mockResolvedValue({ ok: true, data: makePendingIntent() })
+    const bcRepo = createMockBcRepo()
+    const storage = createMockStorage()
+    storage.download = vi.fn().mockResolvedValue({ ok: true, data: CONTENT_BUFFER })
+    const scanner = createMockScanner()
+    const validator = createValidator()
+
+    const result = await completeUploadIntent(
+      repo, bcRepo, storage, scanner, validator,
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf', checksumSha256: 'sha256-different-hash' },
+      makeCompletionConfig(),
+    )
+
+    expect(result.ok).toBe(false)
+    expect(getError(result).code).toBe('CHECKSUM_MISMATCH')
+    expect(repo.updateUploadIntentStatus).toHaveBeenCalledWith(
+      'ws-1', 'intent-1', UploadIntentStatus.FAILED,
+      expect.objectContaining({ malwareScanStatus: MalwareScanStatus.CLEAN, malwareScanCode: 0 }),
+    )
+    expect(bcRepo.createContextSource).not.toHaveBeenCalled()
+    expect(bcRepo.createSourceDocument).not.toHaveBeenCalled()
+    expect(bcRepo.createContextJob).not.toHaveBeenCalled()
   })
 })
