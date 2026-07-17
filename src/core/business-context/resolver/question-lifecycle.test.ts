@@ -65,6 +65,14 @@ describe('computeQuestionLifecycle', () => {
     expect(r.toCreate[0].factKey).toBe('offers.primary')
   })
 
+  it('deduplicates repeated gaps for the same normalized factKey', () => {
+    const r = computeQuestionLifecycle(input({
+      gaps: ['customers.target_segment', ' Customers.Target_Segment '],
+    }))
+    expect(r.toCreate).toHaveLength(1)
+    expect(r.toCreate[0].factKey).toBe('customers.target_segment')
+  })
+
   it('dismisses obsolete open questions when gap is resolved', () => {
     const open = q({ id: 'q-obs', factKey: 'offers.pricing', status: 'open' })
     const r = computeQuestionLifecycle(input({ existingQuestions: [open] }))

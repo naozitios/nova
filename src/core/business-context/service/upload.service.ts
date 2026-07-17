@@ -100,11 +100,9 @@ export async function createSignedUploadIntent(
     return { ok: false, error: (intentResult as { ok: false; error: ServiceError }).error }
   }
 
-  const expiresIn = Math.floor(intentTtlMs / 1000)
   const signedUrlResult = await storage.getSignedUrl({
     bucket: config.storageBucket,
     path: storagePath,
-    expiresIn,
   })
   if (!signedUrlResult.ok) {
     await repo.deleteUploadIntent(params.workspaceId, intentId)

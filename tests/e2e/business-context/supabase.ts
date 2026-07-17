@@ -27,6 +27,7 @@ const BUSINESS_CONTEXT_TABLES = [
   "source_documents",
   "context_sources",
   "onboarding_sessions",
+  "context_upload_intents",
   "context_jobs",
   "businesses",
 ];

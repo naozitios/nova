@@ -74,11 +74,12 @@ export async function processSource(
   }
 
   const idempotencyKey = `process-${sourceId}-${Date.now()}`
+  const sessionId = await getLatestSessionId(repo, businessId, workspaceId)
 
   const jobResult = await repo.createContextJob({
     workspaceId,
     businessId,
-    sessionId: null,
+    sessionId,
     jobType: 'source_processing',
     status: JobStatus.QUEUED,
     attemptCount: 0,
@@ -152,13 +153,14 @@ export async function queueScan(
   if (!sourcesResult.ok) return sourcesResult
 
   const jobs: ContextJob[] = []
+  const sessionId = await getLatestSessionId(repo, businessId, workspaceId)
   for (const source of sourcesResult.data.items) {
     const idempotencyKey = `scan-${source.id}-${Date.now()}`
 
     const jobResult = await repo.createContextJob({
       workspaceId,
       businessId,
-      sessionId: null,
+      sessionId,
       jobType: 'source_processing',
       status: JobStatus.QUEUED,
       attemptCount: 0,
@@ -189,4 +191,15 @@ export async function queueScan(
   }
 
   return { ok: true, data: jobs }
+}
+
+async function getLatestSessionId(
+  repo: RepositoryPort,
+  businessId: string,
+  workspaceId: string,
+): Promise<string | null> {
+  const sessions = await repo.listOnboardingSessions({ workspaceId, businessId })
+  if (!sessions.ok) return null
+  // Repository returns newest sessions first; source jobs bind to active onboarding.
+  return sessions.data.items[0]?.id ?? null
 }

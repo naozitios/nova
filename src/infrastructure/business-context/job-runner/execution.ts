@@ -58,9 +58,10 @@ export async function executeJob(ctx: ExecutionContext): Promise<void> {
     const durationMs = completedAt.getTime() - startedAt.getTime()
     heartbeatTimer.stop()
     const terminalStatus = result.terminalStatus ?? 'succeeded'
+    const jobStatus = terminalStatus === 'failed_permanent' ? 'failed_permanent' : 'succeeded'
 
     await repo.updateContextJob(job.workspaceId, job.id, {
-      status: terminalStatus,
+      status: jobStatus,
       output: result.output ?? null,
       errorClass: result.errorClass ?? null,
       completedAt,
@@ -77,7 +78,7 @@ export async function executeJob(ctx: ExecutionContext): Promise<void> {
       jobId: job.id,
       sourceId: (job.input.sourceId as string) ?? '',
       stage: sourceStage,
-      status: terminalStatus,
+      status: jobStatus,
       attempt,
       workerId,
       startedAt,

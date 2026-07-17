@@ -29,7 +29,15 @@ export function computeQuestionLifecycle(
   const answeredKeys = new Set(answered.map((q) => normalizeFactKey(q.factKey)))
   const openKeys = new Set(open.map((q) => normalizeFactKey(q.factKey)))
 
-  const normalizedGaps = gaps.map((g) => normalizeFactKey(g))
+  const dedupedGapMap = new Map<string, string>()
+  for (const gap of gaps) {
+    const normalized = normalizeFactKey(gap)
+    if (!dedupedGapMap.has(normalized)) {
+      dedupedGapMap.set(normalized, gap.trim())
+    }
+  }
+  const dedupedGaps = Array.from(dedupedGapMap.values())
+  const normalizedGaps = dedupedGaps.map((g) => normalizeFactKey(g))
   const openKeySet = new Set(normalizedGaps)
 
   const dismissed = open.filter(
@@ -37,7 +45,7 @@ export function computeQuestionLifecycle(
   )
   const toDismiss = dismissed.map((q) => q.id)
 
-  const uncovered = gaps.filter((g) => {
+  const uncovered = dedupedGaps.filter((g) => {
     const norm = normalizeFactKey(g)
     return !answeredKeys.has(norm) && !openKeys.has(norm)
   })

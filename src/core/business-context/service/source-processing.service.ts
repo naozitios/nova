@@ -552,10 +552,11 @@ export class SourceProcessingService {
         }
 
         // ── Question lifecycle: create only toCreate, dismiss only toDismiss ──
-        if (options?.sessionId) {
+        const sessionId = options?.sessionId ?? options?.job?.sessionId ?? null
+        if (sessionId) {
           const existingQs = await this.repo.listOnboardingQuestions({
             workspaceId,
-            sessionId: options.sessionId,
+            sessionId,
           })
           const existingQuestions = existingQs.ok ? existingQs.data.items : []
 
@@ -564,7 +565,7 @@ export class SourceProcessingService {
             existingQuestions,
             businessId,
             workspaceId,
-            sessionId: options.sessionId,
+            sessionId,
           })
 
           for (const q of lifecycle.toCreate) {

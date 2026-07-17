@@ -39,10 +39,10 @@
 - [ ] T010 Add `test`, `test:watch`, and `test:coverage` scripts plus Vitest dependencies in `package.json`.
 - [ ] T011 Create Vitest configuration in `vitest.config.ts` with path alias support for `@/*` and Node test environment.
 - [ ] T012 [P] Create test setup file `tests/setup.ts` for shared test environment defaults.
-- [ ] T013 [P] Create Business Context domain directory `src/core/business-context/` with `.gitkeep` or initial empty index-free files removed by later tasks.
-- [ ] T014 [P] Create Business Context infrastructure directory `src/infrastructure/business-context/` with `.gitkeep` or initial empty index-free files removed by later tasks.
-- [ ] T015 [P] Create API route directory skeleton under `src/app/api/businesses/` and `src/app/api/context-jobs/` matching `contracts/openapi.yaml`.
-- [ ] T016 [P] Create PaddleOCR worker directories `workers/paddleocr/` and `workers/paddleocr/tests/`.
+- [x] T013 [P] Create Business Context domain directory `src/core/business-context/` with `.gitkeep` or initial empty index-free files removed by later tasks.
+- [x] T014 [P] Create Business Context infrastructure directory `src/infrastructure/business-context/` with `.gitkeep` or initial empty index-free files removed by later tasks.
+- [x] T015 [P] Create API route directory skeleton under `src/app/api/businesses/` and `src/app/api/context-jobs/` matching `contracts/openapi.yaml`.
+- [x] T016 [P] Create PaddleOCR worker directories `workers/paddleocr/` and `workers/paddleocr/tests/`.
 - [ ] T017 Update `src/infrastructure/config.ts` with server-only Business Context configuration keys for local Supabase URL, anon key, service-role key, Firecrawl, crawl budgets, upload size, storage buckets, and PaddleOCR flags.
 
 ---

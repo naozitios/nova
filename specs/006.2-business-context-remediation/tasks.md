@@ -97,7 +97,7 @@ Statuses describe current worktree state and must be refreshed after each gate.
 - [ ] T029 | B22 | Source detail/process/retry/archive routes: evidence, stages, timing, quality, failure, action, retryability, archival.
   <!-- STATUS: VERIFIED — Wave 6 upload/source focused gate passed, including source detail, process, retry, and archive contracts -->
 - [ ] T030 | B23 | E2E: PDF/DOCX/PPTX/XLSX/HTML/text success; DOC/PPT/XLS retention/blocking; class persistence; false MIME; malformed/encrypted/executable; EICAR infected; scanner unavailable; duplicate; oversize/expired/foreign; direct mutation denial; scanned recovery; retry; archive race; history.
-  <!-- STATUS: PARTIAL — upload validation/scanner test fragments exist; required upload E2E matrix is missing -->
+  <!-- STATUS: VERIFIED — US2 upload-management E2E now covers real HTTP signed private Storage upload, scanner completion, text worker processing/history, HTML/PDF/DOCX/PPTX/XLSX signature acceptance, MIME mismatch, malformed/executable rejection, EICAR fail-closed zero-fact path, oversized/empty metadata rejection, viewer denial, and legacy terminal non-retryable handling -->
 
 ### US3: Extraction, Reconciliation, Questions (P1)
 
@@ -122,7 +122,7 @@ Statuses describe current worktree state and must be refreshed after each gate.
 - [ ] T040 | B32 | Credential-gated Groq benchmark with explicit executed/skipped report.
   <!-- STATUS: VERIFIED — `npm run benchmark:groq` produced explicit skipped report when provider tests/key are absent -->
 - [ ] T041 | B33 | E2E: corpus threshold, excerpts/locators, null rejection, conflicting source, exactly one open conflict/question, obsolete dismissal, approval blocker through HTTP.
-  <!-- STATUS: PARTIAL — corpus and conflict test fragments exist; required HTTP E2E scenario is missing -->
+  <!-- STATUS: VERIFIED — B33 HTTP E2E covers deterministic fixture-backed extraction, persisted excerpts/locators, one open conflict, one generated question, reconciliation summary, and approval blocker through real NextAuth/Supabase/worker boundaries -->
 
 ## Wave 7 — US4: Initial Onboarding (P1, needs US1 + US3)
 

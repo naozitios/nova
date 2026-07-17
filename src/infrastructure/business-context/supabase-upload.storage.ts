@@ -32,11 +32,11 @@ export class SupabaseUploadStorage implements UploadStoragePort {
     return { ok: true, data: undefined }
   }
 
-  async getSignedUrl(params: { bucket: string; path: string; expiresIn?: number }): Promise<ServiceResult<string>> {
+  async getSignedUrl(params: { bucket: string; path: string }): Promise<ServiceResult<string>> {
     const client = getSupabaseServiceClient()
     const { data, error } = await client.storage
       .from(params.bucket)
-      .createSignedUrl(params.path, params.expiresIn ?? 3600)
+      .createSignedUploadUrl(params.path)
     if (error) {
       return { ok: false, error: { code: 'SIGNING_FAILED', message: error.message } }
     }

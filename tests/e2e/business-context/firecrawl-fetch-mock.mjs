@@ -68,5 +68,42 @@ globalThis.fetch = async (input, init) => {
     return Response.json(SUCCESSFUL_FIXTURE);
   }
 
+  if (url === "https://openrouter.ai/api/v1/chat/completions") {
+    const request = JSON.parse(init?.body ?? "{}");
+    const userContent = request.messages?.find((m) => m.role === "user")?.content ?? "";
+    const page = String(userContent).includes("Consectetur adipiscing") ? 2 : 1;
+    const businessName = page === 1 ? "Conflicting Evidence Co" : "Divergent Evidence Co";
+    const extraction = {
+      facts: [
+        {
+          factKey: "business.name",
+          value: businessName,
+          confidence: 0.92,
+          sourceExcerpt: `${businessName} appears in extracted website copy.`,
+          evidenceLocator: { url: "https://example.com/", page },
+        },
+        {
+          factKey: "customers.target_segment",
+          value: "operators comparing conflicting source evidence",
+          confidence: 0.6,
+          sourceExcerpt: "Operators comparing conflicting source evidence need follow-up.",
+          evidenceLocator: { url: "https://example.com/", page },
+        },
+      ],
+      conflicts: [],
+      warnings: [],
+    };
+
+    return Response.json({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify(extraction),
+          },
+        },
+      ],
+    });
+  }
+
   return originalFetch(input, init);
 };
