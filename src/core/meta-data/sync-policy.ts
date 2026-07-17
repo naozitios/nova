@@ -1,3 +1,5 @@
+export type DateWindow = { since: string; until: string }
+
 export type MetaHierarchyObjectType = 'campaigns' | 'ad_sets' | 'ads' | 'creatives'
 
 export interface MetaSyncPartition {
@@ -47,4 +49,38 @@ export function classifyMetaSyncError(
   if (isValidationError(error)) return 'schema'
 
   return 'permanent'
+}
+
+function toDateStr(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+function subDays(dateStr: string, n: number): Date {
+  const d = new Date(dateStr + "T00:00:00Z")
+  d.setUTCDate(d.getUTCDate() - n)
+  return d
+}
+
+function buildWindows(today: string, count: number, offset: number): DateWindow[] {
+  const windows: DateWindow[] = []
+  for (let i = offset + count - 1; i >= offset; i--) {
+    const since = toDateStr(subDays(today, i + 1))
+    const until = toDateStr(subDays(today, i))
+    windows.push({ since, until })
+  }
+  return windows
+}
+
+export function buildInitialInsightWindows(
+  today: string,
+  days = 90,
+): DateWindow[] {
+  return buildWindows(today, days, 0)
+}
+
+export function buildIncrementalInsightWindows(
+  today: string,
+  lookbackDays = 7,
+): DateWindow[] {
+  return buildWindows(today, lookbackDays, 0)
 }

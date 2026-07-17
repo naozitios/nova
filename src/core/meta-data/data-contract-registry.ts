@@ -1,6 +1,6 @@
 /** Meta data contract registry — read contracts for Meta Marketing API objects. */
 
-export type MetaContractObjectType = "campaign" | "ad_set" | "ad" | "creative";
+export type MetaContractObjectType = "campaign" | "ad_set" | "ad" | "creative" | "insight";
 
 export interface MetaDataContract {
   contractId: string;
@@ -11,6 +11,8 @@ export interface MetaDataContract {
   requiredPermissions: string[];
   grain: string;
   validationKeys: string[];
+  level?: string;
+  cadence?: { initial_backfill: string; incremental: string };
 }
 
 export const META_DATA_CONTRACTS: MetaDataContract[] = [
@@ -99,6 +101,33 @@ export const META_DATA_CONTRACTS: MetaDataContract[] = [
     requiredPermissions: ["ads_read"],
     grain: "account",
     validationKeys: ["id", "name"],
+  },
+  {
+    contractId: "insights.ad_daily.v1",
+    version: "1.0",
+    objectType: "insight",
+    endpoint: "/{ad_account_id}/insights",
+    fields: [
+      "date_start",
+      "date_stop",
+      "campaign_id",
+      "adset_id",
+      "ad_id",
+      "spend",
+      "impressions",
+      "reach",
+      "clicks",
+      "actions",
+      "action_values",
+    ],
+    requiredPermissions: ["ads_read"],
+    grain: "ad_daily",
+    validationKeys: ["date_start", "date_stop", "campaign_id", "ad_id"],
+    level: "ad",
+    cadence: {
+      initial_backfill: "37d",
+      incremental: "1d",
+    },
   },
 ];
 
