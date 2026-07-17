@@ -53,22 +53,23 @@ v3 `approve_onboarding_v1` SQL function replaces v2. Same signature `(uuid, uuid
 
 1. **EVIDENCE_SOURCE_REQUIRED** — at least one source with `status in ('processed','processed_with_warnings')` AND `source_type in ('website','brand_deck','brand_playbook','product_document','campaign_brief','research_document','meta')`
 2. **SOURCE_NOT_PROCESSED** — no evidence source type left in non-terminal status
-3. **QUALITY_GATE_BLOCKING** — no `failed_blocking` quality gate results
-4. **MISSING_REQUIRED_FACT** — all 5 required keys (`business.name`, `market.primary`, `advertising.primary_objective`, `business.primary_outcome`, `economics.monthly_meta_budget`) must have active facts (`verification_status in ('user_verified','verified')`, `valid_to is null`)
-5. **REQUIRED_KEY_UNKNOWN** — `business.name` cannot have null/`'null'::jsonb` value
+3. **MISSING_REQUIRED_FACT** — all 5 required keys (`business.name`, `market.primary`, `advertising.primary_objective`, `business.primary_outcome`, `economics.monthly_meta_budget`) must have active facts with `verification_status = 'user_verified'`, `valid_to is null`
+4. **REQUIRED_KEY_UNKNOWN** — `business.name` cannot have `'null'::jsonb` value
+5. **QUALITY_GATE_BLOCKING** — no `failed_blocking` quality gate results
 6. **OPEN_CONFLICTS** — no open conflicts (preserved from v2)
 
-Profile compiled from active facts (not questions): `distinct on (fact_key) ... order by confidence desc`.
+Profile compiled from active facts (not questions): `distinct on (fact_key) ... order by confidence desc`, nested via dotted key split.
 
-**Preserved from v2:** session lock `for update`, business lock, session status gate, section validation, conflict check, supersede current → insert sole current, session approved, two audit rows, service_role-only execute.
+**Preserved from v2:** session lock `for update`, business lock `for update`, session status gate, section validation, conflict check, supersede current → insert sole current v1, session approved, two audit rows, service_role-only execute.
+
+**Test helper added:** `_test_insert_jsonb_null_fact(uuid,uuid,uuid,text)` — PL/pgSQL function to insert `'null'::jsonb` (JSON literal null). PostgREST maps JS null → SQL NULL which violates NOT NULL; this bypasses that.
 
 ### Test changes
 
 - Added `seedReadyEvidence()` helper: seeds terminal evidence source + all 5 required verified facts
-- Updated existing tests (`approves session`, `supersedes`, `open conflicts`, `duplicate approval`) to call `seedReadyEvidence()` so readiness checks pass for their specific scenario
-- `SOURCE_NOT_PROCESSED` test: seeds one terminal source (passes EVIDENCE_SOURCE_REQUIRED) + one non-terminal source (triggers SOURCE_NOT_PROCESSED)
-- `REQUIRED_KEY_UNKNOWN` test: seeds all 5 required facts with user_verified status, business.name uses `'null'::jsonb` via raw psql (NOT NULL constraint prevents PostgREST JSON null)
-- `seedFact` helper: changed `value: overrides.value ?? "Acme"` to `value: "value" in overrides ? overrides.value : "Acme"` so explicit `null` passes through
+- Updated existing tests (`approves session`, `supersedes`, `open conflicts`, `duplicate approval`) to call `seedReadyEvidence()`
+- Changed `rejects when required sections are missing` → `rejects when required facts are missing` (expects `MISSING_REQUIRED_FACT` instead of old `PROFILE_INCOMPLETE`)
+- `REQUIRED_KEY_UNKNOWN` test: uses `_test_insert_jsonb_null_fact` RPC for `'null'::jsonb` insert
 
 ### GREEN confirmation
 
@@ -77,4 +78,4 @@ Test Files  2 passed (2)
      Tests  12 passed (12)
 ```
 
-11 atomic tests + 1 profile-versions test all pass. All 5 new readiness rejection cases return exact error codes with no state changes.
+11 atomic approval tests + 1 profile-versions test all pass. All 5 readiness rejection cases return exact error codes with no state changes (no new version, no session approval, no audit rows).
