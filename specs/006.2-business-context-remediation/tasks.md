@@ -149,7 +149,7 @@ Statuses describe current worktree state and must be refreshed after each gate.
 - [ ] T051 | B43 | Approval SQL: validate readiness, publish sole current v1, audit, approve session atomically.
   <!-- STATUS: VERIFIED — focused Wave 7 gate passed after clean Supabase reset: six-case atomic approval RPC covers session transition, sole-current v1, audit, blockers, and duplicate rejection -->
 - [ ] T052 | B44 | E2E: creation fields/facts, optional website, no source-array, route-stage polling, typed questions, explicit unknown, manual-only rejection, qualifying approval, one provenance, nested draft, viewer denial, blocker rejection, idempotent approval, sole v1.
-  <!-- STATUS: NOT_IMPLEMENTED — no E2E test file found for onboarding -->
+  <!-- STATUS: PARTIAL — b44-onboarding-user-flow.e2e.test.ts exists with happy-path coverage; fails on harness lock contention; required scenario matrix incomplete -->
 
 ## Wave 8 — US5: Repeat Setup + Corrections (P2, needs US4)
 
@@ -233,11 +233,11 @@ Statuses describe current worktree state and must be refreshed after each gate.
 
 Real HTTP/NextAuth/Supabase/worker E2E remains required for 006.2. Browser/frontend onboarding and context-editor E2E are deferred to PRD 007.
 
-1. **B44 onboarding E2E**: resolve user-flow approval/profile RPC gaps and stale B43 fixtures before the onboarding E2E can pass end-to-end.
+1. **B44 onboarding E2E** (PARTIAL): happy-path file exists; resolve harness lock contention, complete required scenario matrix, and stabilize B43 fixtures before end-to-end pass.
 2. **Next E2E harness lifecycle**: stabilize app+worker startup/shutdown coordination to eliminate flaky harness teardown in serial E2E runs.
 3. **Release gates** (B63–B66): contract-completeness audit, full parallel test suite, all six E2E suites, and lint/build quickstart validation.
 
-B44 and B43 are NOT completed. Release gates remain open.
+B44 and B43 are NOT completed (B44 PARTIAL, B43 PARTIAL). Release gates remain open.
 
 ---
 
@@ -262,18 +262,18 @@ B44 and B43 are NOT completed. Release gates remain open.
 
 ## Reconciliation
 
-**Date**: 2026-07-15
+**Date**: 2026-07-17
 **Worktree**: current as of session start.
 
 | Status | Count |
 |--------|-------|
 | VERIFIED | 2 (B01, B14) |
 | IMPLEMENTED_UNVERIFIED | 24 (B02–B07, B09–B13, B16, B18–B20, B24, B27–B28, B53–B56, B59, B64) |
-| PARTIAL | 35 (B08, B15, B17, B21–B23, B25–B26, B29–B31, B33–B36, B38–B43, B45–B47, B49–B50, B52, B57–B58, B60–B63, B65–B66) |
-| NOT_IMPLEMENTED | 5 (B32, B37, B44, B48, B51) |
+| PARTIAL | 36 (B08, B15, B17, B21–B23, B25–B26, B29–B31, B33–B36, B38–B44, B45–B47, B49–B50, B52, B57–B58, B60–B63, B65–B66) |
+| NOT_IMPLEMENTED | 4 (B32, B37, B48, B51) |
 | BLOCKED | 0 |
 
-**Total: 66 B-blocks** (2 + 24 + 35 + 5 = 66). Each B01–B66 appears exactly once.
+**Total: 66 B-blocks** (2 + 24 + 36 + 4 = 66). Each B01–B66 appears exactly once.
 
 Statuses must be refreshed after each wave gate passes. Do not carry stale statuses forward.
 
