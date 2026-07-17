@@ -733,16 +733,6 @@ describe("compileOnboardingDraft", () => {
         ok: true,
         data: { items: facts, total: facts.length },
       }),
-      listOnboardingQuestions: vi.fn().mockResolvedValue({
-        ok: true,
-        data: {
-          items: [
-            { id: "q-1", factKey: "business.name", status: "answered", answer: "Old Draft Name" },
-            { id: "q-2", factKey: "offers.primary", status: "answered", answer: "Stale Widget" },
-          ],
-          total: 2,
-        },
-      }),
     });
     const r = await compileOnboardingDraft(repo, "biz-1", "ws-1");
     expect(r.ok).toBe(true);
