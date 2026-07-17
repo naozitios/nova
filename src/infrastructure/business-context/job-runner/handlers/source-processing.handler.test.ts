@@ -129,6 +129,22 @@ describe('source-processing.handler', () => {
       expect(result.output!.warnings).toEqual(['low_quality_pdf'])
     })
 
+    it('returns blocked_needs_user_action terminalStatus when source is blocked', async () => {
+      const job = makeJob()
+      const service = makeService({
+        processSource: vi.fn().mockResolvedValue({
+          ok: true,
+          data: { status: 'blocked_needs_user_action', warnings: [] },
+        }),
+      })
+
+      const handler = createSourceProcessingHandler(service)
+      const result = await handler(job)
+
+      expect(result.output!.status).toBe('blocked_needs_user_action')
+      expect(result.terminalStatus).toBe('blocked_needs_user_action')
+    })
+
     it('returns failed terminal status when source is blocked for user action', async () => {
       const job = makeJob()
       const service = makeService({

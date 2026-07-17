@@ -78,6 +78,32 @@ describe("createBusiness", () => {
     expect(r.ok).toBe(false);
   });
 
+  it("queues website job with stageTimeoutSeconds=30 when websiteUrl provided", async () => {
+    const createJobSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { id: "job-1" },
+    });
+    const createSourceSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { id: "src-w" } as ContextSource,
+    });
+    const repo = createFakeRepository({
+      createBusiness: vi.fn().mockResolvedValue({ ok: true, data: makeBusiness() }),
+      createContextSource: createSourceSpy,
+      createContextJob: createJobSpy,
+    });
+    const r = await createBusiness(repo, {
+      ...fullInput,
+      websiteUrl: "https://acme.com",
+      initialSources: [],
+    });
+    expect(r.ok).toBe(true);
+    expect(createJobSpy).toHaveBeenCalledTimes(1);
+    expect(createJobSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ stageTimeoutSeconds: 30 }),
+    );
+  });
+
   it("skips source creation when initialSources is empty", async () => {
     const createSourceSpy = vi.fn();
     const repo = createFakeRepository({
