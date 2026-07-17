@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll, beforeEach } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { execSync } from "node:child_process";
 
 // B43 — Atomic onboarding v1 approval
 //
@@ -176,7 +177,7 @@ async function seedFact(
       business_id: BIZ,
       source_id: sourceId,
       fact_key: overrides.factKey ?? "business.name",
-      value: overrides.value ?? "Acme",
+      value: "value" in overrides ? overrides.value : "Acme",
       confidence: overrides.confidence ?? 0.9,
       verification_status: overrides.verificationStatus ?? "user_verified",
       valid_to: overrides.validTo ?? null,
@@ -206,6 +207,16 @@ async function seedQualityGate(overrides: {
   if (error) throw new Error(`seedQualityGate: ${error.message}`);
 }
 
+/** Seed a valid evidence source + all required verified facts so readiness checks pass. */
+async function seedReadyEvidence(): Promise<void> {
+  const sourceId = await seedSource();
+  await seedFact(sourceId, { factKey: "business.name", value: "Acme Corp" });
+  await seedFact(sourceId, { factKey: "market.primary", value: "SMB" });
+  await seedFact(sourceId, { factKey: "advertising.primary_objective", value: "lead_gen" });
+  await seedFact(sourceId, { factKey: "business.primary_outcome", value: "revenue_growth" });
+  await seedFact(sourceId, { factKey: "economics.monthly_meta_budget", value: 5000 });
+}
+
 async function listAuditEvents(): Promise<Array<{ event_type: string; entity_type: string; entity_id: string }>> {
   const { data, error } = await supabase
     .from("context_audit_log")
@@ -224,6 +235,7 @@ describe.skipIf(!SUPABASE_KEY)(
     it("approves session, publishes sole current v1, writes audit — all atomically", async () => {
       const sessionId = await seedSession("ready_for_approval");
       await seedAnsweredQuestions(sessionId);
+      await seedReadyEvidence();
 
       const { data, error } = await supabase.rpc("approve_onboarding_v1", {
         p_workspace_id: WS,
@@ -259,6 +271,7 @@ describe.skipIf(!SUPABASE_KEY)(
     it("supersedes pre-existing current version — no duplicate current", async () => {
       const sessionId = await seedSession("ready_for_approval");
       await seedAnsweredQuestions(sessionId);
+      await seedReadyEvidence();
 
       // Seed an existing current version
       await supabase.from("business_profile_versions").insert({
@@ -319,22 +332,15 @@ describe.skipIf(!SUPABASE_KEY)(
       expect(session?.status).toBe("created");
     });
 
-    it("rejects approval when required sections are missing from questions", async () => {
+    it("rejects when required facts are missing from context_facts", async () => {
       const sessionId = await seedSession("ready_for_approval");
-      // Seed only 1 of 4 required sections (business.name → section "business")
-      await supabase.from("onboarding_questions").insert({
-        workspace_id: WS,
-        business_id: BIZ,
-        session_id: sessionId,
-        fact_key: "business.name",
-        question_type: "manual",
-        question: "What is the business name?",
-        reason: "Required",
-        priority: 1,
-        status: "answered",
-        answer: { value: "Acme" },
-        answered_by: ACTOR,
-        answered_at: new Date().toISOString(),
+      await seedAnsweredQuestions(sessionId);
+      // Seed source + only business.name fact — other required facts missing
+      const sourceId = await seedSource();
+      await seedFact(sourceId, {
+        factKey: "business.name",
+        value: "Acme",
+        verificationStatus: "user_verified",
       });
 
       const { data, error } = await supabase.rpc("approve_onboarding_v1", {
@@ -345,7 +351,7 @@ describe.skipIf(!SUPABASE_KEY)(
 
       expect(error).toBeNull();
       expect(data.ok).toBe(false);
-      expect(data.error.code).toBe("PROFILE_INCOMPLETE");
+      expect(data.error.code).toBe("MISSING_REQUIRED_FACT");
 
       // No state changes
       expect(await countCurrentVersions()).toBe(0);
@@ -360,6 +366,7 @@ describe.skipIf(!SUPABASE_KEY)(
     it("rejects approval when open conflicts exist", async () => {
       const sessionId = await seedSession("ready_for_approval");
       await seedAnsweredQuestions(sessionId);
+      await seedReadyEvidence();
 
       // Seed an open conflict
       await supabase.from("context_conflicts").insert({
@@ -387,6 +394,7 @@ describe.skipIf(!SUPABASE_KEY)(
     it("rejects duplicate approval — session cannot be approved twice", async () => {
       const sessionId = await seedSession("ready_for_approval");
       await seedAnsweredQuestions(sessionId);
+      await seedReadyEvidence();
 
       // First approval succeeds
       const { data: data1, error: err1 } = await supabase.rpc("approve_onboarding_v1", {
@@ -455,7 +463,9 @@ describe.skipIf(!SUPABASE_KEY)(
     it("rejects when required source is still processing — SOURCE_NOT_PROCESSED", async () => {
       const sessionId = await seedSession("ready_for_approval");
       await seedAnsweredQuestions(sessionId);
-      // Source in 'registered' (non-terminal) state
+      // Terminal evidence source so EVIDENCE_SOURCE_REQUIRED passes
+      await seedSource({ status: "processed", terminalOutcome: "processed" });
+      // Additional source in 'registered' (non-terminal) state — triggers SOURCE_NOT_PROCESSED
       await seedSource({ status: "registered", terminalOutcome: null, currentStage: "registered" });
 
       const versionsBefore = await countCurrentVersions();
@@ -530,13 +540,25 @@ describe.skipIf(!SUPABASE_KEY)(
     it("rejects when disallowed key is null — REQUIRED_KEY_UNKNOWN", async () => {
       const sessionId = await seedSession("ready_for_approval");
       await seedAnsweredQuestions(sessionId);
-      // Seed a source + fact for business.name with null value
+      // Seed a source + all required facts with user_verified status.
+      // business.name uses 'null'::jsonb (JSON literal null) because the
+      // value column is jsonb NOT NULL — SQL NULL violates the constraint.
       const sourceId = await seedSource();
-      await seedFact(sourceId, {
-        factKey: "business.name",
-        value: null,
-        verificationStatus: "user_verified",
-      });
+      await seedFact(sourceId, { factKey: "market.primary", value: "SMB", verificationStatus: "user_verified" });
+      await seedFact(sourceId, { factKey: "advertising.primary_objective", value: "lead_gen", verificationStatus: "user_verified" });
+      await seedFact(sourceId, { factKey: "business.primary_outcome", value: "revenue_growth", verificationStatus: "user_verified" });
+      await seedFact(sourceId, { factKey: "economics.monthly_meta_budget", value: 5000, verificationStatus: "user_verified" });
+      // Raw SQL insert: 'null'::jsonb is the JSON literal null that the domain
+      // layer uses for "explicitly unknown" fact values.
+      // exec_sql wraps in SELECT row_to_json(t) from (<query>) t — INSERT...RETURNING
+      // is a valid table expression, so this works for DML that PostgREST can't handle.
+      // Raw psql insert: 'null'::jsonb is the JSON literal null. PostgREST
+      // converts JSON null to SQL NULL which violates the NOT NULL constraint,
+      // so we bypass it with direct Postgres access via docker exec.
+      execSync(
+        `docker exec supabase_db_nova psql -U postgres -d postgres -c "INSERT INTO context_facts (workspace_id, business_id, source_id, fact_key, value, confidence, verification_status, created_by) VALUES ('${WS}', '${BIZ}', '${sourceId}', 'business.name', 'null'::jsonb, 0.9, 'user_verified', 'system')"`,
+        { stdio: "pipe" },
+      );
 
       const versionsBefore = await countCurrentVersions();
       const sessionStatusBefore = (await supabase
