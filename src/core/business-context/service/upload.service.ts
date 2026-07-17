@@ -227,19 +227,7 @@ export async function completeUploadIntent(
     }
   }
 
-  // 5. Validator verifies signature/MIME → contentHash + detectedMimeType
-  const validationResult = await validator(buffer, intent.declaredMimeType, intent.fileName)
-  if (!validationResult.ok) {
-    await uploadRepo.updateUploadIntentStatus(params.workspaceId, params.intentId, UploadIntentStatus.FAILED, {
-      malwareScanStatus: MalwareScanStatus.SKIPPED,
-      malwareScanCode: null,
-      malwareScannedAt: new Date(now),
-    })
-    return validationResult as ServiceResult<never>
-  }
-  const { contentHash, detectedMimeType } = validationResult.data
-
-  // 6. Scanner scan — fail-closed
+  // 5. Scanner scan — fail-closed (must run before content validation)
   const scanResult = await scanner.scan({ buffer, fileName: intent.fileName })
   let scanStatus: MalwareScanStatus
   let scanCode: number
@@ -256,7 +244,7 @@ export async function completeUploadIntent(
     scanCode = 0
   }
 
-  // 7. Infected/error → zero source/doc/job, persist safe scan code
+  // 6. Infected/error → zero source/doc/job, persist safe scan code
   if (scanStatus !== MalwareScanStatus.CLEAN) {
     await uploadRepo.updateUploadIntentStatus(params.workspaceId, params.intentId, UploadIntentStatus.FAILED, {
       malwareScanStatus: scanStatus,
@@ -271,6 +259,18 @@ export async function completeUploadIntent(
       },
     }
   }
+
+  // 7. Validator verifies signature/MIME → contentHash + detectedMimeType
+  const validationResult = await validator(buffer, intent.declaredMimeType, intent.fileName)
+  if (!validationResult.ok) {
+    await uploadRepo.updateUploadIntentStatus(params.workspaceId, params.intentId, UploadIntentStatus.FAILED, {
+      malwareScanStatus: MalwareScanStatus.CLEAN,
+      malwareScanCode: 0,
+      malwareScannedAt: new Date(now),
+    })
+    return validationResult as ServiceResult<never>
+  }
+  const { contentHash, detectedMimeType } = validationResult.data
 
   // 8. Check duplicate hash
   const existingDocResult = await bcRepo.getSourceDocumentByHash(params.businessId, contentHash)

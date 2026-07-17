@@ -110,6 +110,18 @@ export const BUSINESS_MUTATIONS: MutatingRoute[] = [
     file: "src/app/api/businesses/[id]/context/reconcile/route.ts",
     description: "Trigger reconciliation",
   },
+  {
+    method: "POST",
+    path: "/api/businesses/[id]/context/uploads",
+    file: "src/app/api/businesses/[id]/context/uploads/route.ts",
+    description: "Create upload intent",
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/[id]/context/uploads/[uploadId]/complete",
+    file: "src/app/api/businesses/[id]/context/uploads/[uploadId]/complete/route.ts",
+    description: "Complete upload and queue processing",
+  },
 ];
 
 // Context job mutations (not under businesses/ but still business-context)

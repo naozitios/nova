@@ -639,9 +639,9 @@ describe('completeUploadIntent', () => {
     expect(getError(result).code).toBe('CONTENT_VALIDATION_FAILED')
     expect(repo.updateUploadIntentStatus).toHaveBeenCalledWith(
       'ws-1', 'intent-1', UploadIntentStatus.FAILED,
-      expect.objectContaining({ malwareScanStatus: MalwareScanStatus.SKIPPED }),
+      expect.objectContaining({ malwareScanStatus: MalwareScanStatus.CLEAN, malwareScanCode: 0 }),
     )
-    expect(scanner.scan).not.toHaveBeenCalled()
+    expect(scanner.scan).toHaveBeenCalled()
   })
 
   it('treats scanner error as infected (fail-closed)', async () => {
