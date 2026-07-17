@@ -110,7 +110,7 @@ describe('source-processing.handler', () => {
       const handler = createSourceProcessingHandler(service)
       await handler(job)
 
-      expect(service.processSource).toHaveBeenCalledWith('biz-42', 'ws-99', 'src-7')
+      expect(service.processSource).toHaveBeenCalledWith('biz-42', 'ws-99', 'src-7', { job })
     })
 
     it('includes warnings in output when present', async () => {
@@ -145,7 +145,7 @@ describe('source-processing.handler', () => {
       expect(result.terminalStatus).toBe('blocked_needs_user_action')
     })
 
-    it('returns failed terminal status when source is blocked for user action', async () => {
+    it('returns blocked_needs_user_action terminalStatus when source is blocked for user action', async () => {
       const job = makeJob()
       const service = makeService({
         processSource: vi.fn().mockResolvedValue({
@@ -158,7 +158,7 @@ describe('source-processing.handler', () => {
       const result = await handler(job)
 
       expect(result.output!.status).toBe('blocked_needs_user_action')
-      expect(result.terminalStatus).toBe('failed_permanent')
+      expect(result.terminalStatus).toBe('blocked_needs_user_action')
     })
   })
 
