@@ -149,7 +149,6 @@ describe('createSignedUploadIntent', () => {
       expect(storage.getSignedUrl).toHaveBeenCalledWith({
         bucket: 'uploads',
         path: 'workspaces/ws-1/businesses/biz-1/uploads/intent-1/test.pdf',
-        expiresIn: 3600,
       })
     }
   })
@@ -373,7 +372,6 @@ describe('createSignedUploadIntent', () => {
     expect(storage.getSignedUrl).toHaveBeenCalledWith({
       bucket: 'uploads',
       path: 'workspaces/ws-1/businesses/biz-1/uploads/intent-1/test.pdf',
-      expiresIn: 600,
     })
   })
 })

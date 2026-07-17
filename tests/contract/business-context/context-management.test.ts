@@ -289,6 +289,8 @@ describe("contract: POST /api/businesses/:id/context/draft", () => {
       brand: { tone: "pro" },
       creative_capacity: { capacity: "high" },
       measurement: { kpis: [] },
+      market: { region: "NA" },
+      advertising: { channels: ["search"] },
     };
 
     const result = await validateProfile(repo, "biz-1", "ws-1", profile);
