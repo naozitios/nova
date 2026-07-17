@@ -243,4 +243,16 @@ export class MetaApiAdapter implements MetaClientPort {
       after,
     );
   }
+
+  /** Fetches a paginated page of daily ad-level insights for a given account and date window. */
+  async getDailyAdInsightsPage(
+    accountId: string,
+    window: { since: string; until: string },
+    accessToken: string,
+    after?: string,
+  ): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
+    const fields = 'date_start,date_stop,campaign_id,adset_id,ad_id,spend,impressions,reach,clicks,actions,action_values';
+    const path = `${accountId}/insights?fields=${fields}&level=ad&time_range={'since':'${window.since}','until':'${window.until}'}`;
+    return this.fetchPage<Record<string, string>>(path, accessToken, after);
+  }
 }
