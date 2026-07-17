@@ -12,6 +12,12 @@ export interface ClassificationProposalInput {
   documentClass: DocumentClass
 }
 
+export interface DocumentClassProposalInput {
+  fileName: string
+  mimeType: string
+  sourceName: string
+}
+
 export interface ClassificationProposalConfig {
   signingSecret: string
   ttlMs: number
@@ -89,6 +95,18 @@ function verifySignature(
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────
+
+export function proposeDocumentClass(input: DocumentClassProposalInput): DocumentClass {
+  const hints = `${input.fileName} ${input.sourceName}`.toLowerCase()
+  if (input.mimeType === 'text/html' || /\b(web(site)?|homepage|landing page)\b/.test(hints)) {
+    return 'website_content'
+  }
+  if (/\b(campaign|brief|launch plan)\b/.test(hints)) return 'campaign_brief'
+  if (/\b(brand|style guide|guidelines|identity)\b/.test(hints)) return 'brand_deck'
+  if (/\b(product|catalog|specification|spec)\b/.test(hints)) return 'product_document'
+  if (/\b(research|survey|study|analysis|report)\b/.test(hints)) return 'research_document'
+  return 'other'
+}
 
 export function createClassificationProposal(
   input: ClassificationProposalInput,

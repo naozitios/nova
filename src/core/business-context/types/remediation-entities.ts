@@ -46,6 +46,7 @@ export type MalwareScanStatus =
 
 export const IdempotencyOperation = {
   CREATE_UPLOAD_INTENT: 'create_upload_intent',
+  COMPLETE_UPLOAD: 'complete_upload',
   CHECK_IDEMPOTENCY: 'check_idempotency',
   META_OAUTH_CALLBACK: 'meta_oauth_callback',
   META_ACCOUNT_SELECT: 'meta_account_select',

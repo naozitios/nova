@@ -104,6 +104,7 @@ function makeConfig(overrides?: Partial<UploadServiceConfig>): UploadServiceConf
     ttlMs: TTL_MS,
     nowFn: () => NOW,
     storageBucket: 'uploads',
+    generateIntentId: () => 'intent-1',
     ...overrides,
   }
 }
@@ -147,7 +148,7 @@ describe('createSignedUploadIntent', () => {
       expect(storage.getSignedUrl).toHaveBeenCalledOnce()
       expect(storage.getSignedUrl).toHaveBeenCalledWith({
         bucket: 'uploads',
-        path: 'ws-1/biz-1/1000000-test.pdf',
+        path: 'workspaces/ws-1/businesses/biz-1/uploads/intent-1/test.pdf',
         expiresIn: 3600,
       })
     }
@@ -170,6 +171,33 @@ describe('createSignedUploadIntent', () => {
 
     expect(repo.createUploadIntent).toHaveBeenCalledWith(
       expect.objectContaining({ classificationSource: 'user_selected' }),
+    )
+  })
+
+  it('uses intent id in canonical workspace storage path', async () => {
+    const repo = createMockRepo()
+    const storage = createMockStorage()
+
+    await createSignedUploadIntent(repo, storage, {
+      workspaceId: 'ws-1',
+      businessId: 'biz-1',
+      proposal: makeProposal(),
+      expectedSizeBytes: 1024,
+      sourceType: 'upload',
+      sourceName: 'test.pdf',
+      createdBy: 'user-1',
+    }, makeConfig({ generateIntentId: () => 'intent-generated' }))
+
+    expect(repo.createUploadIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'intent-generated',
+        storagePath: 'workspaces/ws-1/businesses/biz-1/uploads/intent-generated/test.pdf',
+      }),
+    )
+    expect(storage.getSignedUrl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'workspaces/ws-1/businesses/biz-1/uploads/intent-generated/test.pdf',
+      }),
     )
   })
 
@@ -344,7 +372,7 @@ describe('createSignedUploadIntent', () => {
     expect(result.ok).toBe(true)
     expect(storage.getSignedUrl).toHaveBeenCalledWith({
       bucket: 'uploads',
-      path: 'ws-1/biz-1/1000000-test.pdf',
+      path: 'workspaces/ws-1/businesses/biz-1/uploads/intent-1/test.pdf',
       expiresIn: 600,
     })
   })

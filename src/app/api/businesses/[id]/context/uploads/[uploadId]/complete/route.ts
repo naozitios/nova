@@ -10,6 +10,7 @@ import {
 } from '../../../../../_shared'
 import { completeUploadIntent } from '@/core/business-context/service/upload.service'
 import { getSupabaseServiceClient } from '@/infrastructure/business-context/supabase-client'
+import { validateUploadContent } from '@/infrastructure/business-context/content-signature'
 import { Container } from '@/di/container'
 
 async function resolveWorkspaceFromBusiness(
@@ -61,14 +62,7 @@ export async function POST(
       buffer: Buffer,
       declaredMimeType: string,
       fileName: string,
-    ) => {
-      const { createHash } = await import('node:crypto')
-      const contentHash = createHash('sha256').update(buffer).digest('hex')
-      return {
-        ok: true as const,
-        data: { contentHash, detectedMimeType: declaredMimeType },
-      }
-    }
+    ) => validateUploadContent(buffer, declaredMimeType, fileName)
 
     const result = await completeUploadIntent(
       uploadRepo,
@@ -99,6 +93,8 @@ export async function POST(
         STORAGE_PATH_MISMATCH: 409,
         CHECKSUM_MISMATCH: 409,
         SIZE_MISMATCH: 400,
+        MIME_MISMATCH: 400,
+        UNSUPPORTED_FILE: 400,
         MALWARE_DETECTED: 400,
         SCAN_FAILED: 503,
       }
@@ -110,6 +106,7 @@ export async function POST(
     return jsonResponse({
       upload: {
         id: intent.id,
+        source_type: intent.sourceType,
         document_class: intent.documentClass,
         classification_source: intent.classificationSource,
         upload_url: null,

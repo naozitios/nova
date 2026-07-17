@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { ClassificationProposal, ClassificationProposalConfig } from '../upload-classification-proposal'
 import { acceptClassificationProposal } from '../upload-classification-proposal'
 import type { UploadRepositoryPort } from '../repository/upload.port'
@@ -32,6 +33,7 @@ export interface UploadIntentWithSignedUrl {
 export interface UploadServiceConfig extends ClassificationProposalConfig {
   storageBucket: string
   intentTtlMs?: number
+  generateIntentId?: () => string
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -39,10 +41,10 @@ export interface UploadServiceConfig extends ClassificationProposalConfig {
 function deriveStoragePath(
   workspaceId: string,
   businessId: string,
+  intentId: string,
   normalizedFilename: string,
-  now: number,
 ): string {
-  return `${workspaceId}/${businessId}/${now}-${normalizedFilename}`
+  return `workspaces/${workspaceId}/businesses/${businessId}/uploads/${intentId}/${normalizedFilename}`
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────
@@ -64,15 +66,17 @@ export async function createSignedUploadIntent(
     return { ok: false, error: (verification as { ok: false; error: ServiceError }).error }
   }
 
+  const intentId = (config.generateIntentId ?? randomUUID)()
   const storagePath = deriveStoragePath(
     params.workspaceId,
     params.businessId,
+    intentId,
     params.proposal.normalizedFilename,
-    now,
   )
 
   const intentTtlMs = config.intentTtlMs ?? 3_600_000
   const intentResult = await repo.createUploadIntent({
+    id: intentId,
     workspaceId: params.workspaceId,
     businessId: params.businessId,
     sourceId: params.sourceId ?? null,
@@ -96,7 +100,6 @@ export async function createSignedUploadIntent(
     return { ok: false, error: (intentResult as { ok: false; error: ServiceError }).error }
   }
 
-  const intentId = intentResult.data.id
   const expiresIn = Math.floor(intentTtlMs / 1000)
   const signedUrlResult = await storage.getSignedUrl({
     bucket: config.storageBucket,

@@ -14,12 +14,13 @@ export class UploadRepository implements UploadRepositoryPort {
   constructor(private db: SupabaseClient) {}
 
   async createUploadIntent(
-    data: Omit<UploadIntent, 'id' | 'createdAt'>,
+    data: Omit<UploadIntent, 'createdAt'>,
   ): Promise<import('@/core/business-context/types').ServiceResult<UploadIntent>> {
     const now = new Date().toISOString()
     const { data: row, error } = await this.db
       .from('context_upload_intents')
       .insert({
+        id: data.id,
         workspace_id: data.workspaceId,
         business_id: data.businessId,
         source_id: data.sourceId,

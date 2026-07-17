@@ -142,6 +142,7 @@ describe('POST /complete — route handler', () => {
       data: {
         intent: {
           id: 'intent-1',
+          sourceType: 'upload',
           documentClass: 'brand_deck',
           classificationSource: 'system_proposed',
           status: 'completed',
@@ -179,6 +180,9 @@ describe('POST /complete — route handler', () => {
     )
 
     expect(res.status).toBe(202)
+    expect(await res.clone().json()).toEqual(
+      expect.objectContaining({ upload: expect.objectContaining({ source_type: 'upload' }) }),
+    )
     expect(mockCompleteUploadIntent).toHaveBeenCalledWith(
       mockUploadRepo,
       mockBcRepo,
@@ -357,5 +361,25 @@ describe('POST /complete — route handler', () => {
 
     const callArgs = mockCompleteUploadIntent.mock.calls[0]
     expect(callArgs[5]).toHaveProperty('checksumSha256', undefined)
+  })
+
+  it('passes a validator that rejects MIME signature mismatch', async () => {
+    mockRequireAuthz.mockResolvedValue({ ok: true })
+    mockParseJsonBody.mockResolvedValue({ ok: true, data: { storage_path: 'uploads/test.pdf' } })
+    mockValidateWithSchema.mockReturnValue({ ok: true, data: { storage_path: 'uploads/test.pdf' } })
+    mockCompleteUploadIntent.mockResolvedValue({
+      ok: false,
+      error: { code: 'MIME_MISMATCH', message: 'Declared MIME type does not match uploaded content' },
+    })
+    const { POST } = await import(
+      '../../../src/app/api/businesses/[id]/context/uploads/[uploadId]/complete/route'
+    )
+
+    await POST(makeRequest({ storage_path: 'uploads/test.pdf' }), makeParams())
+    const validator = mockCompleteUploadIntent.mock.calls[0][4]
+    const result = await validator(Buffer.from('%PDF-1.4 content'), 'text/plain', 'deck.pdf')
+
+    expect(result.ok).toBe(false)
+    expect(result.error.code).toBe('MIME_MISMATCH')
   })
 })

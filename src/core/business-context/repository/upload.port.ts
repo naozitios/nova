@@ -17,7 +17,7 @@ export interface UploadIntentFilter {
 
 export interface UploadRepositoryPort {
   createUploadIntent(
-    data: Omit<UploadIntent, 'id' | 'createdAt'>,
+    data: Omit<UploadIntent, 'createdAt'>,
   ): Promise<ServiceResult<UploadIntent>>
 
   getUploadIntent(

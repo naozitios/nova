@@ -1,14 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
-import { POST } from '../../../../src/app/api/businesses/[id]/context/uploads/classification-proposals/route'
+import { POST } from '../../../src/app/api/businesses/[id]/context/uploads/classification-proposals/route'
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
 const mockCreateProposal = vi.fn()
 const mockEncodeProposalToken = vi.fn()
+const mockProposeDocumentClass = vi.fn()
 vi.mock('@/core/business-context/upload-classification-proposal', () => ({
   createClassificationProposal: (...args: unknown[]) => mockCreateProposal(...args),
   encodeProposalToken: (...args: unknown[]) => mockEncodeProposalToken(...args),
+  proposeDocumentClass: (...args: unknown[]) => mockProposeDocumentClass(...args),
 }))
 
 const mockGetSupabaseServiceClient = vi.fn()
@@ -43,7 +45,7 @@ const VALID_BODY = { source_name: 'test', file_name: 'doc.pdf', mime_type: 'appl
 const RAW_PROPOSAL = {
   proposalId: 'prop-1',
   signature: 'sig-abc123',
-  documentClass: 'other' as const,
+  documentClass: 'brand_deck' as const,
   expiresAt: 1700000000000,
   workspaceId: 'ws-1',
   businessId: 'biz-1',
@@ -57,7 +59,7 @@ const ENCODED_TOKEN = Buffer.from(JSON.stringify(RAW_PROPOSAL)).toString('base64
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeRequest(body?: unknown): NextRequest {
-  const init: RequestInit = { method: 'POST' }
+  const init: ConstructorParameters<typeof NextRequest>[1] = { method: 'POST' }
   if (body !== undefined) init.body = JSON.stringify(body)
   return new NextRequest(
     'http://localhost/api/businesses/biz-1/context/uploads/classification-proposals',
@@ -94,6 +96,7 @@ function setupEditorAuth() {
   )
   mockCreateProposal.mockReturnValue(RAW_PROPOSAL)
   mockEncodeProposalToken.mockReturnValue(ENCODED_TOKEN)
+  mockProposeDocumentClass.mockReturnValue('brand_deck')
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -134,7 +137,7 @@ describe('POST /classification-proposals', () => {
     expect(res.status).toBe(200)
     expect(body).toEqual({
       proposal_token: ENCODED_TOKEN,
-      document_class: 'other',
+      document_class: 'brand_deck',
       expires_at: new Date(1700000000000).toISOString(),
     })
   })
@@ -245,9 +248,14 @@ describe('POST /classification-proposals', () => {
         businessId: 'biz-1',
         filename: 'doc.pdf',
         mimeType: 'application/pdf',
-        documentClass: 'other',
+        documentClass: 'brand_deck',
       }),
       expect.objectContaining({ signingSecret: 'my-secret-key', ttlMs: 300_000 }),
     )
+    expect(mockProposeDocumentClass).toHaveBeenCalledWith({
+      sourceName: 'test',
+      fileName: 'doc.pdf',
+      mimeType: 'application/pdf',
+    })
   })
 })

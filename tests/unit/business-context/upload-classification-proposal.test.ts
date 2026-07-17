@@ -4,6 +4,7 @@ import {
   acceptClassificationProposal,
   encodeProposalToken,
   decodeProposalToken,
+  proposeDocumentClass,
   type ClassificationProposalInput,
   type ClassificationProposalConfig,
   type ClassificationProposalRejection,
@@ -47,6 +48,19 @@ describe('createClassificationProposal', () => {
   it('normalizes filename (lowercase, trimmed)', () => {
     const proposal = createClassificationProposal(input({ filename: '  Report.DOCX  ' }), config)
     expect(proposal.normalizedFilename).toBe('report.docx')
+  })
+})
+
+describe('proposeDocumentClass', () => {
+  it.each([
+    ['brand guidelines.pdf', 'application/pdf', 'Brand kit', 'brand_deck'],
+    ['product-spec.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'Catalog', 'product_document'],
+    ['market-research.pdf', 'application/pdf', 'Survey', 'research_document'],
+    ['campaign-brief.pdf', 'application/pdf', 'Launch brief', 'campaign_brief'],
+    ['homepage.html', 'text/html', 'Website export', 'website_content'],
+    ['notes.pdf', 'application/pdf', 'General notes', 'other'],
+  ] as const)('classifies %s as %s', (fileName, mimeType, sourceName, expected) => {
+    expect(proposeDocumentClass({ fileName, mimeType, sourceName })).toBe(expected)
   })
 })
 
