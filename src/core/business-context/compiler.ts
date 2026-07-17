@@ -4,10 +4,9 @@ import type {
   ContextConflict,
   JsonValue,
   ServiceResult,
-  VerificationStatus,
+  SourceDocument,
 } from './types'
 import { REQUIRED_PROFILE_SECTIONS } from './types'
-import { runFactGates, hasBlockingFailures } from './quality-gates'
 
 // ─── Validation result ──────────────────────────────────────────────────────
 
@@ -161,6 +160,20 @@ function setNestedValue(
   current[parts[parts.length - 1]] = value
 }
 
+function buildMetaProvenance(documents: SourceDocument[]): JsonValue | null {
+  const meta = documents
+    .filter((doc) => doc.metadata.metaAdAccountId)
+    .map((doc) => ({
+      sourceDocumentId: doc.id,
+      metaAdAccountId: doc.metadata.metaAdAccountId,
+      syncRunId: doc.metadata.syncRunId ?? null,
+      dataWindow: doc.metadata.dataWindow ?? null,
+      freshness: doc.metadata.freshness ?? null,
+    }))
+
+  return meta.length > 0 ? { meta } : null
+}
+
 // ─── Draft compilation ──────────────────────────────────────────────────────
 
 export interface CompiledDraft {
@@ -231,6 +244,13 @@ export async function compileDraftFromFacts(
     } else {
       unresolvedFields.push(section)
     }
+  }
+
+  if ('listSourceDocuments' in repo && typeof repo.listSourceDocuments === 'function') {
+    const documentsResult = await repo.listSourceDocuments({ workspaceId, businessId })
+    if (!documentsResult.ok) return documentsResult
+    const provenance = buildMetaProvenance(documentsResult.data.items)
+    if (provenance) profile._provenance = provenance
   }
 
   return { ok: true, data: { profile, unresolvedFields, warnings } }
