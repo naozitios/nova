@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { RepositoryPort } from '../repository.port'
 import type { SourceAdapterPort } from '../source-adapter.port'
-import type { CollectedSource, CollectedDocument } from '../source-adapter.port'
+import type { CollectedSource } from '../source-adapter.port'
 import type { ExtractionPort, ExtractedFact } from '../extraction.port'
 import type {
   PersistFactReconciliationConflict,
@@ -25,7 +25,7 @@ import {
   buildJobInput,
   serializeError,
 } from './pipeline-executor'
-import { runDocumentGates, runFactGates, hasBlockingFailures } from '../quality-gates'
+import { runDocumentGates, runFactGates } from '../quality-gates'
 import type { DocumentQualityInput } from '../quality-gates'
 import { resolveFacts } from '../resolver'
 
@@ -434,6 +434,19 @@ export class SourceProcessingService {
           const matching = existingFacts.filter(
             (ef) => ef.factKey.toLowerCase().trim() === factKey,
           )
+
+          if (source.sourceType === 'meta') {
+            const activeDifferent = matching.filter((ef) =>
+              ef.verificationStatus !== 'superseded' &&
+              ef.verificationStatus !== 'rejected' &&
+              newFacts.some((nf) => JSON.stringify(nf.value) !== JSON.stringify(ef.value))
+            )
+            if (activeDifferent.length > 0) {
+              conflictFactKeys.add(factKey)
+              toConflicts.push({ factKey, factIds: activeDifferent.map((f) => f.id) })
+              continue
+            }
+          }
 
           const resolution = resolveFacts(matching, newFacts)
 
