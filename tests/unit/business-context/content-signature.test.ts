@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectContentType,
+  validateUploadContent,
   type ContentSignature,
   type ContentType,
 } from "@/infrastructure/business-context/content-signature";
@@ -170,5 +171,47 @@ describe("detectContentType", () => {
   it("maps legacy_office to application/msword mime", () => {
     const result = detectContentType(ole2Buffer);
     expect(result.mimeType).toBe("application/msword");
+  });
+});
+
+describe("validateUploadContent", () => {
+  it("returns detected MIME and SHA-256 for matching content", () => {
+    const result = validateUploadContent(pdfBuffer, "application/pdf", "deck.pdf");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.detectedMimeType).toBe("application/pdf");
+      expect(result.data.contentHash).toMatch(/^[a-f0-9]{64}$/);
+    }
+  });
+
+  it("accepts case-insensitive declared MIME", () => {
+    const result = validateUploadContent(pdfBuffer, "Application/PDF", "deck.pdf");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.detectedMimeType).toBe("application/pdf");
+    }
+  });
+
+  it("accepts legacy DOC with matching declared MIME", () => {
+    const result = validateUploadContent(ole2Buffer, "application/msword", "file.doc");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.detectedMimeType).toBe("application/msword");
+    }
+  });
+
+  it("rejects declared MIME that disagrees with content signature", () => {
+    const result = validateUploadContent(pdfBuffer, "text/plain", "deck.pdf");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("MIME_MISMATCH");
+  });
+
+  it("rejects executable content", () => {
+    const result = validateUploadContent(elfBuffer, "application/octet-stream", "payload.bin");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("UNSUPPORTED_FILE");
   });
 });

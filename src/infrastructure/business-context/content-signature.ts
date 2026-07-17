@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import type { ServiceResult } from "@/core/business-context/types";
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export const ContentType = {
@@ -257,5 +260,32 @@ export function detectContentType(
     confidence: "none",
     extension: "",
     mimeType: CONTENT_TYPE_MIME.unknown,
+  };
+}
+
+export function validateUploadContent(
+  buffer: Buffer,
+  declaredMimeType: string,
+  fileName: string,
+): ServiceResult<{ contentHash: string; detectedMimeType: string }> {
+  const signature = detectContentType(buffer, fileName);
+  if (signature.contentType === "executable" || signature.contentType === "unknown") {
+    return {
+      ok: false,
+      error: { code: "UNSUPPORTED_FILE", message: "Uploaded content type is not supported" },
+    };
+  }
+  if (signature.mimeType !== declaredMimeType.toLowerCase()) {
+    return {
+      ok: false,
+      error: { code: "MIME_MISMATCH", message: "Declared MIME type does not match uploaded content" },
+    };
+  }
+  return {
+    ok: true,
+    data: {
+      contentHash: createHash("sha256").update(buffer).digest("hex"),
+      detectedMimeType: signature.mimeType,
+    },
   };
 }
