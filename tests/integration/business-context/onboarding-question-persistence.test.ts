@@ -15,7 +15,6 @@ import { submitAnswers } from "@/core/business-context/service/onboarding.servic
 //   4. Workspace isolation — cross-workspace get returns null
 //
 // Uses service-role client to seed workspace + business (FK targets).
-// No production code edits unless RED reveals a defect.
 // ---------------------------------------------------------------------------
 
 const SUPABASE_URL =
@@ -351,10 +350,9 @@ describe.skipIf(!SUPABASE_SERVICE_KEY)(
     });
 
     it("submitAnswers twice for same factKey supersedes prior fact instead of duplicating", async () => {
-      // RED: submitAnswers currently creates a new context_fact per call
-      // without superseding the prior active fact for the same key.
-      // This test asserts the expected invariant (one active, one superseded)
-      // and MUST fail until Step 3 implements atomic supersession.
+      // Regression: submitAnswers must supersede the prior active fact for
+      // the same key rather than creating a duplicate. Atomic
+      // persistFactReconciliation ensures one active fact and one superseded.
       if (!supabase) return;
       const repo = new SupabaseRepository(supabase);
 

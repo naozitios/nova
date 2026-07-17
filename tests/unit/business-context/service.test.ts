@@ -557,7 +557,10 @@ describe("submitAnswers", () => {
       listQualityGateResults: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
       createContextSource: createContextSourceSpy,
       createOnboardingQuestion: vi.fn().mockResolvedValue({ ok: true, data: { id: "q-1" } }),
-      createContextFact: vi.fn().mockResolvedValue({ ok: true, data: {} as ContextFact }),
+      persistFactReconciliation: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { created_fact_ids: [], conflict_ids: [] },
+      }),
     });
 
     // First batch — no existing source → creates one
