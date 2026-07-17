@@ -1,72 +1,72 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { Container } from '@/di/container';
-import { MetaApiAdapter } from '@/infrastructure/meta/meta-api.adapter';
-import { MetaMapper } from '@/infrastructure/meta/meta-mapper';
+import { NextRequest } from 'next/server'
+import { z } from 'zod'
+import {
+  withIdempotency,
+  requireAuthz,
+  errorResponse,
+  createdResponse,
+} from '@/app/api/businesses/_shared'
+import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository'
 
-export async function POST(request: NextRequest) {
-  const accessToken = request.cookies.get('meta_access_token')?.value;
-  const body = await request.json().catch(() => ({}));
-  const accountId = body.accountId || request.cookies.get('meta_ad_account_id')?.value;
+const SyncStartSchema = z.object({
+  workspace_id: z.string().uuid(),
+  business_id: z.string().uuid(),
+  mode: z.enum(['initial_backfill', 'manual_refresh']),
+})
 
-  if (!accessToken || !accountId) {
-    return NextResponse.json({ error: { code: 'AUTH_ERROR', message: 'Meta not connected. Please connect your Meta account.' } }, { status: 401 });
-  }
-
-  try {
-    const metaAdapter = new MetaApiAdapter();
-    const mapper = new MetaMapper();
-    const campaignService = Container.getCampaignService();
-    await Container.getCampaignSeed().ensure();
-
-    const metaCampaigns = await metaAdapter.getCampaigns(accountId, accessToken);
-    const existing = await campaignService.list();
-    const existingIds = new Set(existing.map(e => e.id));
-
-    let imported = 0;
-    let updated = 0;
-    const drifts: Array<{ campaignId: string; campaignName: string; drifts: unknown[] }> = [];
-
-    for (const metaCampaign of metaCampaigns) {
-      const config = mapper.toCampaignConfig(metaCampaign);
-      const localId = `meta-${metaCampaign.id}`;
-
-      if (existingIds.has(localId)) {
-        const entry = await campaignService.get(localId);
-        if (entry) {
-          const driftReport = await campaignService.checkDrift(localId, config);
-          if (driftReport?.hasDrift) {
-            drifts.push({ campaignId: localId, campaignName: config.name, drifts: driftReport.drifts });
-          }
-        }
-        updated++;
-      } else {
-        await campaignService.create({
-          name: config.name,
-          platform: ['meta'],
-          objective: config.objective,
-          totalBudget: config.totalBudget.toString(),
-          startDate: config.startDate,
-          endDate: config.endDate,
-          countries: config.adSets[0]?.targeting.countries?.join(', ') || '',
-          ageMin: (config.adSets[0]?.targeting.ageRange?.[0] || 18).toString(),
-          ageMax: (config.adSets[0]?.targeting.ageRange?.[1] || 65).toString(),
-          languages: config.adSets[0]?.targeting.languages?.join(', ') || '',
-          headline: config.adSets[0]?.creatives[0]?.headline || '',
-          bodyText: config.adSets[0]?.creatives[0]?.bodyText || '',
-          destinationUrl: config.adSets[0]?.creatives[0]?.destinationUrl || '',
-          mediaUrl: config.adSets[0]?.creatives[0]?.mediaUrl || '',
-        }, 'meta-sync');
-        imported++;
-      }
+// POST /api/meta/sync — start a sync run
+export async function POST(req: NextRequest) {
+  return withIdempotency(req, async () => {
+    const body = await req.clone().json().catch(() => null)
+    if (!body) {
+      return errorResponse(400, 'INVALID_BODY', 'Request body must be valid JSON')
     }
 
-    return NextResponse.json({
-      imported,
-      updated,
-      drifts,
-      total: metaCampaigns.length,
-    });
-  } catch (error) {
-    return NextResponse.json({ error: { code: 'META_API_ERROR', message: error instanceof Error ? error.message : 'Sync failed' } }, { status: 502 });
-  }
+    const validation = SyncStartSchema.safeParse(body)
+    if (!validation.success) {
+      return errorResponse(400, 'VALIDATION_ERROR', 'Invalid request data', validation.error.flatten().fieldErrors)
+    }
+
+    const { workspace_id: workspaceId, business_id: businessId, mode } = validation.data
+
+    const authz = await requireAuthz(req, workspaceId, 'editor')
+    if (!authz.ok) return authz.response
+
+    const repo = new SupabaseMetaRepository()
+
+    // Find selected ad account for this business
+    const accountsResult = await repo.listAdAccounts(workspaceId)
+    if (!accountsResult.ok) {
+      return errorResponse(500, accountsResult.error.code, accountsResult.error.message)
+    }
+
+    const selected = accountsResult.data.find(
+      (a) => a.businessId === businessId && a.isSelected,
+    )
+    if (!selected) {
+      return errorResponse(409, 'NO_SELECTED_META_ACCOUNT', 'No selected Meta ad account for this business')
+    }
+
+    const idempotencyKey = req.headers.get('idempotency-key') ?? crypto.randomUUID()
+    const runResult = await repo.createSyncRun({
+      workspaceId,
+      metaAdAccountId: selected.id,
+      mode,
+      idempotencyKey,
+    })
+
+    if (!runResult.ok) {
+      return errorResponse(500, runResult.error.code, runResult.error.message)
+    }
+
+    const run = runResult.data
+    return createdResponse({
+      run: {
+        id: run.id,
+        status: run.status,
+        mode: run.mode,
+        meta_ad_account_id: run.metaAdAccountId,
+      },
+    })
+  }, { operation: 'meta_sync_start' as const })
 }

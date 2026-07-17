@@ -85,6 +85,17 @@ function mapAdAccount(row: Row): MetaAdAccountSummary {
   }
 }
 
+function mapSyncRun(row: Row): MetaSyncRunRecord {
+  return {
+    id: String(row.id),
+    workspaceId: String(row.workspace_id),
+    metaAdAccountId: String(row.meta_ad_account_id),
+    mode: String(row.mode),
+    status: String(row.status),
+    idempotencyKey: row.idempotency_key ? String(row.idempotency_key) : null,
+  }
+}
+
 export class SupabaseMetaRepository implements MetaRepositoryPort {
   constructor(private readonly db: SupabaseClient = getSupabaseServiceClient()) {}
 
@@ -276,14 +287,50 @@ export class SupabaseMetaRepository implements MetaRepositoryPort {
       .single()
 
     if (error) return err('CREATE_SYNC_RUN_FAILED', error.message)
-    return ok({
-      id: String(data.id),
-      workspaceId: String(data.workspace_id),
-      metaAdAccountId: String(data.meta_ad_account_id),
-      mode: String(data.mode),
-      status: String(data.status),
-      idempotencyKey: data.idempotency_key ? String(data.idempotency_key) : null,
-    })
+    return ok(mapSyncRun(data as Row))
+  }
+
+  async getSyncRun(workspaceId: string, runId: string): Promise<ServiceResult<MetaSyncRunRecord | null>> {
+    const { data, error } = await this.db
+      .from('meta_sync_runs')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .eq('id', runId)
+      .maybeSingle()
+
+    if (error) return err('READ_SYNC_RUN_FAILED', error.message)
+    return ok(data ? mapSyncRun(data as Row) : null)
+  }
+
+  async scheduleSyncRetry(workspaceId: string, runId: string): Promise<ServiceResult<MetaSyncRunRecord>> {
+    const { data: existing, error: readErr } = await this.db
+      .from('meta_sync_runs')
+      .select('id, attempt_count')
+      .eq('workspace_id', workspaceId)
+      .eq('id', runId)
+      .single()
+
+    if (readErr || !existing) return err('SYNC_RUN_NOT_FOUND', 'Sync run not found')
+
+    const updatePayload: Row = {
+      status: 'retry_scheduled',
+      locked_by: null,
+      locked_at: null,
+    }
+    if (existing.attempt_count != null) {
+      updatePayload.attempt_count = (existing.attempt_count as number) + 1
+    }
+
+    const { data, error } = await this.db
+      .from('meta_sync_runs')
+      .update(updatePayload)
+      .eq('workspace_id', workspaceId)
+      .eq('id', runId)
+      .select('*')
+      .single()
+
+    if (error) return err('SCHEDULE_SYNC_RETRY_FAILED', error.message)
+    return ok(mapSyncRun(data as Row))
   }
 
   async advanceCheckpoint(input: AdvanceCheckpointInput): Promise<ServiceResult<MetaSyncCheckpointRecord>> {

@@ -121,6 +121,8 @@ export interface MetaRepositoryPort {
   listAdAccounts(workspaceId: string, connectionId?: string): Promise<ServiceResult<MetaAdAccountSummary[]>>
   selectAdAccount(input: SelectAdAccountInput): Promise<ServiceResult<MetaAdAccountSummary>>
   createSyncRun(input: CreateSyncRunInput): Promise<ServiceResult<MetaSyncRunRecord>>
+  getSyncRun(workspaceId: string, runId: string): Promise<ServiceResult<MetaSyncRunRecord | null>>
+  scheduleSyncRetry(workspaceId: string, runId: string): Promise<ServiceResult<MetaSyncRunRecord>>
   advanceCheckpoint(input: AdvanceCheckpointInput): Promise<ServiceResult<MetaSyncCheckpointRecord>>
   upsertCampaigns(input: UpsertCampaignsInput): Promise<ServiceResult<unknown>>
   upsertAds(input: UpsertAdsInput): Promise<ServiceResult<unknown>>

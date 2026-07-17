@@ -51,6 +51,8 @@ export const IdempotencyOperation = {
   META_OAUTH_CALLBACK: 'meta_oauth_callback',
   META_START_CONNECTION: 'meta_start_connection',
   META_ACCOUNT_SELECT: 'meta_account_select',
+  META_SYNC_START: 'meta_sync_start',
+  META_SYNC_RETRY: 'meta_sync_retry',
   CREATE_BUSINESS: 'create_business',
   START_ONBOARDING: 'start_onboarding',
   QUEUE_SCAN: 'queue_scan',
