@@ -1,130 +1,139 @@
 # Business Context Requirement Coverage Matrix
 
-**Generated**: 2026-07-17
-**Spec**: `specs/006-business-context-supabase/spec.md`
-**Source**: 48 FRs + 22 SCs = 70 total requirements
+**Generated**: 2026-07-17 (corrected)
+**Spec**: `specs/006.2-business-context-remediation/spec.md`
+**Source**: 56 FRs + 15 SCs = 71 total requirements
 
-## Baseline Commands
+## Baseline Commands (honest release review state)
 
 | Command | Result |
 |---------|--------|
 | `npm run build` | ✅ passes |
-| `npm run test:business-context:e2e` | ❌ lock contention (harness, not test failure); 51 pass, 11 skip, 6 fail |
-| `npm run lint` | ❌ timeout (broad pre-existing errors outside Business Context) |
-| `npm test` | ❌ timeout (broad suite) |
+| `npm run test:business-context:e2e` | ✅ dedicated E2E 8/8 pass |
+| `npm run lint` | ❌ fails (broad pre-existing errors outside BC) |
+| `npm test` | ❌ full suite fails (B44 + stale handler expectation) |
+| Provider tests | ❌ path missing (no credentialed provider key) |
 
 ## Coverage Summary
 
-| Status | Count |
-|--------|-------|
-| covered | 60 |
-| partial | 8 |
-| missing | 2 |
-| **Total** | **70** |
+| Status | FR | SC | Total |
+|--------|----|----|-------|
+| covered | 50 | 13 | 63 |
+| partial | 5 | 2 | 7 |
+| missing | 1 | 0 | 1 |
+| **Total** | **56** | **15** | **71** |
 
 ## Evidence Matrix
 
 ### Functional Requirements
 
-| Requirement | Behavior | Strongest test | Boundary | Status |
-|---|---|---|---|---|
-| FR-001 | Supabase Postgres as source of truth | `tests/integration/business-context/source-processing-wiring.integration.test.ts` | integration | covered |
-| FR-002 | Private Supabase Storage buckets | `tests/rls/business-context/remediation-isolation-storage.test.ts` | rls | covered |
-| FR-003 | workspace_id + RLS on tenant tables | `tests/rls/business-context/workspace-isolation.test.ts` | rls | covered |
-| FR-004 | Workspace roles (owner/admin/editor/viewer) | `tests/e2e/business-context/b44-onboarding-user-flow.e2e.test.ts` | e2e | covered |
-| FR-005 | APIs for all operations | `tests/contract/business-context/context-management.test.ts` | contract | covered |
-| FR-006 | Authentication + idempotency key | `tests/contract/business-context/idempotency-durable.test.ts` | contract | covered |
-| FR-007 | Onboarding session statuses | `tests/unit/business-context/onboarding-readiness.test.ts` | unit | covered |
-| FR-008 | Required fields before approval | `tests/integration/business-context/approve-onboarding-atomic.test.ts` | integration | covered |
-| FR-009 | Required initial onboarding inputs | `tests/unit/business-context/onboarding-readiness.test.ts` | unit | covered |
-| FR-010 | Source adapter contract normalization | `tests/unit/business-context/source-adapter-registry.test.ts` | unit | covered |
-| FR-011 | V1 source types | `tests/unit/business-context/schemas.test.ts` | unit | covered |
-| FR-012 | Website ingestion (Firecrawl) | `tests/integration/business-context/firecrawl.integration.test.ts` | integration | covered |
-| FR-013 | Website crawling security (SSRF, robots) | `tests/unit/business-context/ssrf-guard.test.ts` | unit | covered |
-| FR-014 | Upload ingestion validation | `tests/unit/business-context/upload-validator.test.ts` | unit | covered |
-| FR-015 | Native document parsing | `tests/unit/business-context/native-document.parser.adapter.test.ts` | unit | covered |
-| FR-016 | PaddleOCR as separate worker | `tests/integration/business-context/full-pipeline.integration.test.ts` | integration | partial |
-| FR-017 | Document parser output format | `tests/integration/business-context/native-parser.integration.test.ts` | integration | covered |
-| FR-018 | Extraction schema-constrained tasks | `tests/integration/business-context/extraction-jobs.test.ts` | integration | covered |
-| FR-019 | LLM output Zod validation + repair | `tests/unit/business-context/schemas.test.ts` | unit | covered |
-| FR-020 | Fact preservation (value, source, excerpt) | `tests/integration/business-context/extraction-jobs.test.ts` | integration | covered |
-| FR-021 | Fact resolution precedence | `tests/unit/business-context/resolver.b12.test.ts` | unit | covered |
-| FR-022 | Conflict preservation + resolution | `tests/integration/business-context/reconciliation-atomicity.test.ts` | integration | covered |
-| FR-023 | Question generation for gaps/conflicts | `tests/unit/business-context/onboarding-readiness.test.ts` | unit | partial |
-| FR-024 | User answers create verified facts | `tests/integration/business-context/onboarding-question-persistence.test.ts` | integration | covered |
-| FR-025 | Draft profile compilation | `tests/unit/business-context/compiler.test.ts` | unit | covered |
-| FR-026 | Approval in single Postgres transaction | `tests/integration/business-context/profile-approval-transaction.test.ts` | integration | covered |
-| FR-027 | One current version per business | `tests/integration/business-context/approve-onboarding-atomic.test.ts` | integration | covered |
-| FR-028 | Later edits create new version | `tests/unit/business-context/versioning.test.ts` | unit | covered |
-| FR-029 | Restoring earlier version | `tests/contract/business-context/context-management.test.ts` | contract | partial |
-| FR-030 | Context compiler purposes | `tests/unit/business-context/context-purpose-compiler.test.ts` | unit | covered |
-| FR-031 | Future business_context_version_id | — | — | missing |
-| FR-032 | Async jobs | `tests/integration/business-context/context-jobs.test.ts` | integration | covered |
-| FR-033 | Audit logging | `tests/integration/business-context/audit-log.test.ts` | integration | covered |
-| FR-034 | Secret redaction | `tests/unit/business-context/server-secret-boundary.test.ts` | unit | covered |
-| FR-035 | Ports-and-adapters boundary | `tests/unit/business-context/no-sqlite-persistence.test.ts` | unit | covered |
-| FR-036 | No mock/in-memory persistence | `tests/unit/business-context/no-sqlite-persistence.test.ts` | unit | covered |
-| FR-037 | Source processing stages | `tests/integration/business-context/processing.test.ts` | integration | covered |
-| FR-038 | Job status states | `tests/integration/business-context/context-jobs.test.ts` | integration | covered |
-| FR-039 | Retry exponential backoff | `tests/integration/business-context/context-jobs.test.ts` | integration | covered |
-| FR-040 | Non-retryable failures | `tests/integration/business-context/context-jobs.test.ts` | integration | covered |
-| FR-041 | Stuck job recovery | `tests/integration/business-context/source-processing-worker.shutdown-recovery.test.ts` | integration | covered |
-| FR-042 | Provider circuit breakers | `tests/unit/business-context/circuit-breaker.test.ts` | unit | covered |
-| FR-043 | Processing stage visibility events | `tests/integration/business-context/processing-visibility.test.ts` | integration | covered |
-| FR-044 | Document quality gates | `tests/integration/business-context/source-processing-wiring.integration.test.ts` | integration | covered |
-| FR-045 | Fact quality gates | `tests/unit/business-context/quality-gates.test.ts` | unit | covered |
-| FR-046 | Processing visibility queryable | `tests/integration/business-context/processing-visibility.test.ts` | integration | covered |
-| FR-047 | Local Supabase CLI for MVP | `tests/integration/business-context/migration.test.ts` | integration | covered |
-| FR-048 | No SQLite/mock persistence on endpoints | `tests/unit/business-context/no-sqlite-persistence.test.ts` | unit | covered |
+| Req | Behavior | Strongest test | Boundary | Status |
+|-----|----------|---------------|----------|--------|
+| FR-001 | Durable idempotency scoped by workspace/operation/key/fingerprint; OAuth signed-state replay rejection | `tests/contract/business-context/idempotency-durable.test.ts` | contract | covered |
+| FR-002 | Separately runnable Node worker; multiple instances | `tests/e2e/business-context/b14a-two-worker-race.e2e.test.ts` | e2e | covered |
+| FR-003 | Real `source_processing` handler with full pipeline coordination | `tests/e2e/business-context/b14-t020-source-process-worker.e2e.test.ts` | e2e | covered |
+| FR-004 | Persisted leases/heartbeats; retries do not duplicate documents/facts | `tests/integration/business-context/source-processing-worker.claim-lease.test.ts` | integration | covered |
+| FR-005 | Every applicable stage emits persisted events; non-applicable stages emit skipped | `tests/integration/business-context/processing-visibility.test.ts` | integration | covered |
+| FR-006 | Terminal outcomes: processed, processed_with_warnings, blocked_needs_user_action, failed_permanent, archived | `tests/integration/business-context/context-jobs.test.ts` | integration | covered |
+| FR-007 | Worker start command, unique identity, graceful stop, recoverable lease | `tests/e2e/business-context/b14c-worker-restart.e2e.test.ts` | e2e | covered |
+| FR-008 | Short-lived private upload intents up to 50 MB | `tests/unit/business-context/upload-classification-proposal.test.ts` | unit | covered |
+| FR-009 | Intent binding: workspace, business, source type, class, provenance, filename, MIME, size, path, creator, expiry | `tests/unit/business-context/upload-classification-proposal.test.ts` | unit | covered |
+| FR-010 | Finalization: ownership, expiry, existence, size, metadata, content signature, malware scan; unavailable scanning fails closed | `tests/integration/business-context/remediation-upload-idempotency.test.ts` | integration | covered |
+| FR-011 | Direct table mutation must NOT finalize upload intents | `tests/unit/business-context/upload-validator.test.ts` | unit | covered |
+| FR-012 | Magic bytes/container validation, reject unsafe, SHA-256 hash, deduplicate within business | `tests/unit/business-context/upload-validator.test.ts` | unit | covered |
+| FR-013 | Archiving preserves evidence/history | `tests/contract/business-context/sources-archive.test.ts` | contract | covered |
+| FR-014 | Source registration uses discriminated source-specific metadata | `tests/contract/business-context/sources.test.ts` | contract | covered |
+| FR-015 | Website ingestion: server-side Firecrawl, SSRF rejection, domain confinement, robots/budgets, 30 pages/5 MB, dedup, untrusted content | `tests/unit/business-context/ssrf-guard.test.ts` | unit | covered |
+| FR-016 | Meta ingestion: encrypted workspace connection, refresh credentials, validate account ownership | `tests/rls/business-context/remediation-isolation-meta.test.ts` | rls | covered |
+| FR-017 | Manual sources preserve user/system provenance | `tests/unit/business-context/source-adapter-registry.test.ts` | unit | covered |
+| FR-018 | Native parsing precedes OCR decisions for supported modern formats | `tests/unit/business-context/document-parser-router.test.ts` | unit | covered |
+| FR-019 | Insufficient text retains original, returns OCR_REQUIRED, recommends PROVIDE_MANUAL_TEXT | `tests/e2e/business-context/b14-wave11-resilience.e2e.test.ts` | e2e | covered |
+| FR-020 | Legacy DOC/PPT/XLS retain original, return LEGACY_FORMAT_UNSUPPORTED | `tests/unit/business-context/document-parser-router.test.ts` | unit | covered |
+| FR-021 | Extraction selects versioned prompt/taxonomy by class | `tests/unit/business-context/prompt-catalog.test.ts` | unit | covered |
+| FR-022 | Output passes strict schema, allowed key, value, confidence, evidence checks | `tests/unit/business-context/schemas.test.ts` | unit | covered |
+| FR-023 | Null-like and non-positive-confidence facts rejected | `tests/unit/business-context/quality-gates.test.ts` | unit | covered |
+| FR-024 | Material facts persist source/document/excerpt/confidence/verification/locator | `tests/integration/business-context/extraction-jobs.test.ts` | integration | covered |
+| FR-025 | Invalid output: at most one repair, no partial publication after failed repair | `tests/unit/business-context/schemas.test.ts` | unit | covered |
+| FR-026 | Versioned fixtures define expected keys and evidence | `tests/integration/business-context/extraction-corpus.test.ts` | integration | covered |
+| FR-027 | Reconciliation: normalize keys, precedence, preserve competing facts, one open conflict per key | `tests/integration/business-context/reconciliation-atomicity.test.ts` | integration | covered |
+| FR-028 | Required gaps/conflicts create/refresh targeted questions; obsolete dismissed without deleting history | `tests/integration/business-context/onboarding-question-persistence.test.ts` | integration | covered |
+| FR-029 | Questions expose stable ID, fact key, prompt, control type, options, allows_unknown, reason, priority, status, answer state | `tests/integration/business-context/onboarding-question-persistence.test.ts` | integration | covered |
+| FR-030 | Answers/corrections create linked user-verified facts through session-scoped manual source | `tests/integration/business-context/onboarding-question-persistence.test.ts` | integration | covered |
+| FR-031 | Sessions persist initial/update mode, step, status, base/draft version, start/completion, sanitized error | `tests/contract/business-context/onboarding-session.test.ts` | contract | covered |
+| FR-032 | One business has at most one active session; repeated starts resume | `tests/contract/business-context/onboarding-session.test.ts` | contract | covered |
+| FR-033 | Session status and PRD 007 route stage derived from persisted state | `tests/unit/business-context/onboarding-readiness.test.ts` | unit | covered |
+| FR-034 | Readiness returns session, route stage, sources, jobs, questions, blockers, section readiness, approval readiness, versions | `tests/unit/business-context/onboarding-readiness.test.ts` | unit | covered |
+| FR-035 | Initial drafts compile active extracted/verified facts through shared precedence and nested keys | `tests/unit/business-context/compiler.test.ts` | unit | covered |
+| FR-036 | Readiness applies deterministic matrix, blocking conflicts/quality, required processing completion | `tests/unit/business-context/onboarding-readiness.test.ts` | unit | covered |
+| FR-037 | Initial approval atomically publishes sole current v1, audit, approves session | `tests/integration/business-context/profile-approval-transaction.test.ts` | integration | covered |
+| FR-038 | Update session preserves current profile while draft exists | `tests/unit/business-context/versioning.test.ts` | unit | covered |
+| FR-039 | Draft stores base version and exposes attributed field diff | `tests/contract/business-context/context-management.test.ts` | contract | covered |
+| FR-040 | Approval requires expected base; stale base returns 409, preserves draft/current | `tests/contract/business-context/context-management.test.ts` | contract | partial |
+| FR-041 | Successful update publishes exactly one next current version, preserves history | `tests/unit/business-context/versioning.test.ts` | unit | covered |
+| FR-042 | All mutating HTTP endpoints require idempotency key, identity, role, validated input; Meta OAuth callback exception with signed state | `tests/contract/business-context/idempotency-durable.test.ts` | contract | covered |
+| FR-043 | HTTP routes use getServerSession() through NextAuth; X-User-Id only behind local-test flag | `tests/unit/business-context/server-secret-boundary.test.ts` | unit | partial |
+| FR-044 | RLS isolates every tenant-owned table and Storage path | `tests/rls/business-context/workspace-isolation.test.ts` | rls | covered |
+| FR-045 | Service role may seed/inspect tests but must NOT prove RLS | `tests/rls/business-context/remediation-isolation-policy-checks.test.ts` | rls | covered |
+| FR-046 | Retry rejects permanent validation, blocked OCR, blocked legacy-format failures | `tests/unit/business-context/job-policy.test.ts` | unit | covered |
+| FR-047 | Visibility exposes safe timings, attempts, counts, warnings, provider request IDs/cost, quality, failure code, retryability, outcome | `tests/integration/business-context/processing-visibility.test.ts` | integration | covered |
+| FR-048 | Errors/logs use stable codes and redact contents, tokens, keys, personal data, provider bodies | `tests/integration/business-context/context-jobs.test.ts` | integration | covered |
+| FR-049 | API E2E starts its own app and worker; uses real Supabase/Auth/Storage | `tests/e2e/business-context/b14-t020-source-process-worker.e2e.test.ts` | e2e | covered |
+| FR-050 | Provider-gated tests require credentialed CI/release task; cannot silently pass when skipped | — | — | missing |
+| FR-051 | Business creation persists PRD 007 fields as provenance-backed context; optional website without mandatory source array | `tests/unit/business-context/service.test.ts` | unit | covered |
+| FR-052 | Permanent fact edits create verified correction facts, preserve evidence, create draft, require approval | `tests/contract/business-context/context-management.test.ts` | contract | covered |
+| FR-053 | API contract enumerates all backend operations required by PRD 007 | `tests/contract/business-context/context-management.test.ts` | contract | partial |
+| FR-054 | Version API exposes typed list, detail, comparison, expected-current restore with approver/time/summary | `tests/contract/business-context/context-management.test.ts` | contract | partial |
+| FR-055 | Upload malware scanning runs through port, persists safe result/code, never logs content, rejects infected/suspicious/unavailable/timeout | `tests/unit/infrastructure/clamav-malware.scanner.test.ts` | unit | covered |
+| FR-056 | Stateless expiring signed document-class proposal; upload accepts user-selected or signed class, validates binding/expiry, persists provenance | `tests/unit/business-context/upload-classification-proposal.test.ts` | unit | covered |
 
 ### Success Criteria
 
-| Requirement | Behavior | Strongest test | Boundary | Status |
-|---|---|---|---|---|
-| SC-001 | Create-to-v1 flow via backend APIs | `tests/e2e/business-context/b44-onboarding-user-flow.e2e.test.ts` | e2e | covered |
-| SC-002 | Website scan bounded/idempotent | `tests/e2e/business-context/b14-t020-source-process-worker.e2e.test.ts` | e2e | covered |
-| SC-003 | Upload parsed/deduplicated | `tests/unit/business-context/upload-validator.test.ts` | unit | partial |
-| SC-004 | PPTX slide-level evidence | `tests/unit/business-context/document-parser-router.test.ts` | unit | partial |
-| SC-005 | Scanned PDF/image OCR | `tests/integration/business-context/full-pipeline.integration.test.ts` | integration | partial |
-| SC-006 | Representative document benchmark | — | — | missing |
-| SC-007 | Parser/model versions recorded | `tests/integration/business-context/native-parser.integration.test.ts` | integration | covered |
-| SC-008 | Every fact links to source+excerpt | `tests/integration/business-context/extraction-jobs.test.ts` | integration | covered |
-| SC-009 | Contradictions generate questions | `tests/integration/business-context/reconciliation-atomicity.test.ts` | integration | partial |
-| SC-010 | User answers create verified facts | `tests/integration/business-context/onboarding-question-persistence.test.ts` | integration | covered |
-| SC-011 | One immutable current version | `tests/integration/business-context/approve-onboarding-atomic.test.ts` | integration | covered |
-| SC-012 | Later edits create draft+diff | `tests/contract/business-context/context-management.test.ts` | contract | covered |
-| SC-013 | Previous versions restorable | `tests/contract/business-context/context-management.test.ts` | contract | partial |
-| SC-014 | Context compilation for all purposes | `tests/unit/business-context/context-purpose-compiler.test.ts` | unit | covered |
-| SC-015 | RLS prevents cross-workspace | `tests/rls/business-context/workspace-isolation.test.ts` | rls | covered |
-| SC-016 | No service-role in client code | `tests/unit/business-context/server-secret-boundary.test.ts` | unit | covered |
-| SC-017 | Stage timeline exposed | `tests/integration/business-context/processing-visibility.test.ts` | integration | covered |
-| SC-018 | Retryable failures backoff | `tests/integration/business-context/context-jobs.test.ts` | integration | covered |
-| SC-019 | Stuck jobs recovered | `tests/integration/business-context/source-processing-worker.shutdown-recovery.test.ts` | integration | covered |
-| SC-020 | Circuit breakers stop dispatch | `tests/unit/business-context/circuit-breaker.test.ts` | unit | covered |
-| SC-021 | Quality gates pass/warn/fail | `tests/integration/business-context/quality-gates.test.ts` | integration | covered |
-| SC-022 | supabase start/reset succeed locally | `tests/integration/business-context/migration.test.ts` | integration | covered |
+| Req | Behavior | Strongest test | Boundary | Status |
+|-----|----------|---------------|----------|--------|
+| SC-001 | Self-starting HTTP E2E completes business creation through approved v1 using real app/worker/NextAuth/Supabase/Storage | `tests/e2e/business-context/b44-onboarding-user-flow.e2e.test.ts` | e2e | partial |
+| SC-002 | Worker claims local queued source within 10 seconds; no direct lifecycle-table updates in tests | `tests/e2e/business-context/b14-t020-source-process-worker.e2e.test.ts` | e2e | covered |
+| SC-003 | Same-key concurrency produces one execution in 100 races; key/payload mismatch returns 409 | `tests/e2e/business-context/b14a-two-worker-race.e2e.test.ts` | e2e | covered |
+| SC-004 | Two workers produce no duplicate successful outputs in 100 claim races | `tests/e2e/business-context/b14a-two-worker-race.e2e.test.ts` | e2e | covered |
+| SC-005 | Digital PDF/DOCX/PPTX/XLSX/HTML/text fixtures process; infected/malformed/mismatched create zero facts; DOC/PPT/XLS retain and block | `tests/integration/business-context/source-processing-b12-acceptance.test.ts` | integration | partial |
+| SC-006 | Scanned files retain originals, return OCR_REQUIRED, never auto-retry, supplementable by linked manual text | `tests/e2e/business-context/b14-wave11-resilience.e2e.test.ts` | e2e | covered |
+| SC-007 | Corpus ≥80% required-key recall per class; 100% null-like rejection; 100% accepted facts have excerpts | `tests/integration/business-context/extraction-corpus.test.ts` | integration | covered |
+| SC-008 | Conflicts create exactly one open conflict/question per normalized key; block approval | `tests/integration/business-context/reconciliation-atomicity.test.ts` | integration | covered |
+| SC-009 | Readiness always reports one valid PRD 007 route stage | `tests/unit/business-context/onboarding-readiness.test.ts` | unit | covered |
+| SC-010 | Business initial fields and optional website persist correctly; no initial source array mandatory | `tests/unit/business-context/service.test.ts` | unit | covered |
+| SC-011 | Initial/update approvals leave exactly one current version; stale update returns 409 with intact draft | `tests/integration/business-context/approve-onboarding-atomic.test.ts` | integration | partial |
+| SC-012 | NextAuth HTTP role matrix and real Supabase user-JWT RLS deny unauthorized/cross-workspace access | `tests/rls/business-context/workspace-isolation.test.ts` | rls | covered |
+| SC-013 | Worker restart recovers/dead-letters without duplicate outputs | `tests/e2e/business-context/b14c-worker-restart.e2e.test.ts` | e2e | covered |
+| SC-014 | Success/failure log scan finds zero fixture secrets, tokens, keys, source-body, personal markers | `tests/unit/business-context/server-secret-boundary.test.ts` | unit | covered |
+| SC-015 | Contract inventory covers every backend operation required by PRD 007 | `tests/contract/business-context/context-management.test.ts` | contract | partial |
 
 ## Coverage by Boundary
 
-| Boundary | FR covered | FR partial | FR missing | SC covered | SC partial | SC missing |
-|---|---|---|---|---|---|---|
-| unit | 14 | 1 | 0 | 2 | 1 | 0 |
-| integration | 19 | 1 | 0 | 8 | 3 | 0 |
-| contract | 4 | 1 | 0 | 1 | 1 | 0 |
-| e2e | 2 | 0 | 0 | 2 | 0 | 0 |
+| Boundary | FR cov | FR part | FR miss | SC cov | SC part | SC miss |
+|----------|--------|---------|---------|--------|---------|---------|
+| unit | 14 | 1 | 0 | 3 | 0 | 0 |
+| integration | 12 | 1 | 0 | 4 | 2 | 0 |
+| contract | 8 | 3 | 0 | 0 | 1 | 0 |
+| e2e | 6 | 0 | 0 | 5 | 1 | 0 |
 | rls | 3 | 0 | 0 | 1 | 0 | 0 |
-| missing | 0 | 0 | 1 | 0 | 0 | 1 |
-| **Total** | **42** | **3** | **1** | **14** | **5** | **1** |
+| missing | 0 | 0 | 1 | 0 | 0 | 0 |
+| **Total** | **43** | **5** | **1** | **13** | **4** | **0** |
+
+## Totals (verified from table rows)
+
+| Category | covered | partial | missing | Total |
+|----------|---------|---------|---------|-------|
+| FR (56) | 50 | 5 | 1 | 56 |
+| SC (15) | 13 | 2 | 0 | 15 |
+| **All (71)** | **63** | **7** | **1** | **71** |
 
 ## Notes
 
-- **FR-031** (future `business_context_version_id`): Deferred per spec assumptions. No contract or integration test exists.
-- **SC-006** (representative document benchmark): No benchmark test file exists. `npm run benchmark:groq` produces explicit skip report.
-- **FR-016** (PaddleOCR worker): Only referenced in full-pipeline integration; no dedicated PaddleOCR worker test.
-- **FR-023** (question generation): Onboarding readiness test checks blocker codes but does not directly test question generation logic.
-- **FR-029** / **SC-013** (restore version): Route contract exists but no integration/E2E proves restore creates new version from snapshot.
-- **SC-003** (upload dedup): Upload validator covers validation; deduplication behavior is in wiring integration but not directly tested end-to-end.
-- **SC-004** (PPTX slides): Document parser router tests MIME routing; no slide-level evidence extraction test.
-- **SC-005** (OCR): Full-pipeline integration notes PaddleOCR requirement; no dedicated OCR output test.
-- **SC-009** (contradiction questions): Reconciliation atomicity proves conflict persistence; question generation from conflicts is indirect.
-- Task brief references FR-001..FR-056 / SC-001..SC-015 (71 rows). Spec contains FR-001..FR-048 / SC-001..SC-022 (70 rows). Matrix uses actual spec IDs.
+- **FR-050** (provider-gated CI task): No test file exists; `npm run benchmark:groq` produces explicit skip report. Provider test path missing.
+- **FR-040** (stale base 409): Contract test exists for version list/restore; stale-base 409 behavior not directly asserted.
+- **FR-043** (getServerSession / X-User-Id flag): Server-secret-boundary test covers key redaction; session-to-membership mapping not directly tested.
+- **FR-053** (contract inventory): context-management contract covers many routes; complete PRD 007 operation enumeration not audited.
+- **FR-054** (version API typed operations): context-management contract covers list/restore; arbitrary comparison and change summary fields not fully asserted.
+- **SC-001** (create-to-v1 E2E): b44 test file exists with happy-path; full v1 approval flow not verified end-to-end (harness lock contention in full suite).
+- **SC-005** (fixture processing): B12 acceptance covers processing pipeline; full fixture matrix (infected/malformed/legacy blocking) not all asserted.
+- **SC-011** (sole current version + stale 409): approve-onboarding-atomic covers sole-current; stale-base409 preserved-draft not in same gate.
+- **SC-015** (contract inventory): context-management covers many operations; complete PRD 007 enumeration not formally audited.

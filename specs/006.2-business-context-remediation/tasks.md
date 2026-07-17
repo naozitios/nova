@@ -149,7 +149,7 @@ Statuses describe current worktree state and must be refreshed after each gate.
 - [ ] T051 | B43 | Approval SQL: validate readiness, publish sole current v1, audit, approve session atomically.
   <!-- STATUS: VERIFIED — focused Wave 7 gate passed after clean Supabase reset: six-case atomic approval RPC covers session transition, sole-current v1, audit, blockers, and duplicate rejection -->
 - [ ] T052 | B44 | E2E: creation fields/facts, optional website, no source-array, route-stage polling, typed questions, explicit unknown, manual-only rejection, qualifying approval, one provenance, nested draft, viewer denial, blocker rejection, idempotent approval, sole v1.
-  <!-- STATUS: PARTIAL — b44-onboarding-user-flow.e2e.test.ts exists with happy-path coverage; fails on harness lock contention; required scenario matrix incomplete -->
+  <!-- STATUS: PARTIAL — b44-onboarding-user-flow.e2e.test.ts exists with happy-path coverage; full v1 approval flow not verified end-to-end; harness lock contention prevents full suite pass; stale handler expectation in full suite -->
 
 ## Wave 8 — US5: Repeat Setup + Corrections (P2, needs US4)
 
@@ -233,9 +233,9 @@ Statuses describe current worktree state and must be refreshed after each gate.
 
 Real HTTP/NextAuth/Supabase/worker E2E remains required for 006.2. Browser/frontend onboarding and context-editor E2E are deferred to PRD 007.
 
-1. **B44 onboarding E2E** (PARTIAL): happy-path file exists; resolve harness lock contention, complete required scenario matrix, and stabilize B43 fixtures before end-to-end pass.
+1. **B44 onboarding E2E** (PARTIAL): happy-path file exists; full v1 approval not verified end-to-end; harness lock contention and stale handler expectation prevent full suite pass; required scenario matrix incomplete.
 2. **Next E2E harness lifecycle**: stabilize app+worker startup/shutdown coordination to eliminate flaky harness teardown in serial E2E runs.
-3. **Release gates** (B63–B66): contract-completeness audit, full parallel test suite, all six E2E suites, and lint/build quickstart validation.
+3. **Release gates** (B63–B66): contract-completeness audit, full parallel test suite, all six E2E suites, and lint/build quickstart validation. Lint fails on broad pre-existing errors. Provider test path missing.
 
 B44 and B43 are NOT completed (B44 PARTIAL, B43 PARTIAL). Release gates remain open.
 
