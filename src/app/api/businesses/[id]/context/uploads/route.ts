@@ -139,6 +139,7 @@ export async function POST(
     const intent = result.data.intent
     return createdResponse({
       id: intent.id,
+      source_type: intent.sourceType,
       document_class: intent.documentClass,
       classification_source: intent.classificationSource,
       upload_url: result.data.signedUrl,

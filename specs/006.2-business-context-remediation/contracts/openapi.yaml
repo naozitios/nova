@@ -117,7 +117,7 @@ components:
         draft_profile_version_id: { type: [string, 'null'], format: uuid }
     UploadIntent:
       type: object
-      required: [id, document_class, classification_source, upload_url, expires_at, status, malware_scan_status]
+      required: [id, source_type, document_class, classification_source, upload_url, expires_at, status, malware_scan_status]
       properties:
         id: { type: string, format: uuid }
         source_type: { type: string, enum: [upload] }

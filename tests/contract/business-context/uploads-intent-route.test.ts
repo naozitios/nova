@@ -161,6 +161,7 @@ describe('POST /api/businesses/[id]/context/uploads — route wiring', () => {
       data: {
         intent: {
           id: 'intent-1',
+          sourceType: 'upload',
           documentClass: 'brand_deck',
           classificationSource: 'user_selected',
           expiresAt: new Date(1_300_000),
@@ -217,6 +218,7 @@ describe('POST /api/businesses/[id]/context/uploads — route wiring', () => {
     expect(mockCreatedResponse).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'intent-1',
+        source_type: 'upload',
         document_class: 'brand_deck',
         upload_url: 'https://signed.example.com/upload',
         status: 'pending',

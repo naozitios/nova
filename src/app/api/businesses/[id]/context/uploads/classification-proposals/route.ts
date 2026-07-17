@@ -10,6 +10,7 @@ import {
 import {
   createClassificationProposal,
   encodeProposalToken,
+  proposeDocumentClass,
 } from '@/core/business-context/upload-classification-proposal'
 import { getSupabaseServiceClient } from '@/infrastructure/business-context/supabase-client'
 
@@ -64,7 +65,11 @@ export async function POST(
       businessId,
       filename: validation.data.file_name,
       mimeType: validation.data.mime_type,
-      documentClass: 'other',
+      documentClass: proposeDocumentClass({
+        sourceName: validation.data.source_name,
+        fileName: validation.data.file_name,
+        mimeType: validation.data.mime_type,
+      }),
     },
     {
       signingSecret,
