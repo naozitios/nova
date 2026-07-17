@@ -12,6 +12,7 @@ import { createSignedUploadIntent } from '@/core/business-context/service/upload
 import {
   createClassificationProposal,
   decodeProposalToken,
+  type ClassificationProposal,
 } from '@/core/business-context/upload-classification-proposal'
 import { getSupabaseServiceClient } from '@/infrastructure/business-context/supabase-client'
 import { Container } from '@/di/container'
@@ -75,38 +76,41 @@ export async function POST(
     }
 
     const proposalConfig = { signingSecret, ttlMs: 300_000 }
-    const usesProposal = 'classification_proposal_token' in validation.data
-    const proposalResult = usesProposal
-      ? decodeProposalToken(
-          validation.data.classification_proposal_token,
-          proposalConfig,
-          { workspaceId: wsResult.workspaceId, businessId },
-        )
-      : { ok: true as const, data: createClassificationProposal(
-          {
-            workspaceId: wsResult.workspaceId,
-            businessId,
-            filename: validation.data.file_name,
-            mimeType: validation.data.mime_type,
-            documentClass: validation.data.document_class,
-          },
-          proposalConfig,
-        ) }
-
-    if (!proposalResult.ok) {
-      return errorResponse(400, proposalResult.error.code, proposalResult.error.message)
-    }
-    const proposal = proposalResult.data
-    if (
-      usesProposal &&
-      (proposal.normalizedFilename !== validation.data.file_name.trim().toLowerCase() ||
-        proposal.mimeType !== validation.data.mime_type)
-    ) {
-      return errorResponse(
-        400,
-        'PROPOSAL_INPUT_MISMATCH',
-        'Proposal does not match upload file metadata',
+    let proposal: ClassificationProposal
+    let classificationSource: 'user_selected' | 'system_proposed'
+    if ('classification_proposal_token' in validation.data) {
+      const proposalResult = decodeProposalToken(
+        validation.data.classification_proposal_token,
+        proposalConfig,
+        { workspaceId: wsResult.workspaceId, businessId },
       )
+      if (!proposalResult.ok) {
+        return errorResponse(400, proposalResult.error.code, proposalResult.error.message)
+      }
+      proposal = proposalResult.data
+      classificationSource = 'system_proposed'
+      if (
+        proposal.normalizedFilename !== validation.data.file_name.trim().toLowerCase() ||
+        proposal.mimeType !== validation.data.mime_type
+      ) {
+        return errorResponse(
+          400,
+          'PROPOSAL_INPUT_MISMATCH',
+          'Proposal does not match upload file metadata',
+        )
+      }
+    } else {
+      proposal = createClassificationProposal(
+        {
+          workspaceId: wsResult.workspaceId,
+          businessId,
+          filename: validation.data.file_name,
+          mimeType: validation.data.mime_type,
+          documentClass: validation.data.document_class,
+        },
+        proposalConfig,
+      )
+      classificationSource = 'user_selected'
     }
 
     const repo = Container.getUploadRepository()
@@ -120,7 +124,7 @@ export async function POST(
       sourceType: validation.data.source_type,
       sourceName: validation.data.source_name,
       createdBy: authz.ctx.userId,
-      classificationSource: usesProposal ? 'system_proposed' : 'user_selected',
+      classificationSource,
     }, {
       signingSecret,
       ttlMs: 300_000,

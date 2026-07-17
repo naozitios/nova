@@ -436,6 +436,28 @@ describe('POST /api/businesses/[id]/context/uploads — route wiring', () => {
     if (orig !== undefined) process.env.UPLOAD_SIGNING_SECRET = orig
   })
 
+  it('returns 400 when createSignedUploadIntent fails with PROPOSAL_FORGED via document_class', async () => {
+    mockCreateSignedUploadIntent.mockResolvedValue({
+      ok: false,
+      error: { code: 'PROPOSAL_FORGED', message: 'Invalid proposal signature' },
+    })
+
+    const { POST } = await import(
+      '../../../src/app/api/businesses/[id]/context/uploads/route'
+    )
+    const req = makePostRequest(validBody(), { userId: 'user-1', idempotencyKey: 'idem-forged-doc' })
+    const res = await POST(req, { params: Promise.resolve({ id: 'biz-1' }) })
+
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error.code).toBe('PROPOSAL_FORGED')
+    expect(mockErrorResponse).toHaveBeenCalledWith(
+      400,
+      'PROPOSAL_FORGED',
+      'Invalid proposal signature',
+    )
+  })
+
   it('uses Container.getUploadRepository() and Container.getUploadStorage()', async () => {
     const { POST } = await import(
       '../../../src/app/api/businesses/[id]/context/uploads/route'
