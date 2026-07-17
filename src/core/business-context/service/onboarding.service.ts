@@ -88,7 +88,7 @@ export async function createBusiness(
       lockedBy: null,
       lockedAt: null,
       heartbeatAt: null,
-      stageTimeoutSeconds: null,
+      stageTimeoutSeconds: 30,
       startedAt: null,
       completedAt: null,
     })
