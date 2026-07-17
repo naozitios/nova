@@ -16,7 +16,6 @@ export class UploadRepository implements UploadRepositoryPort {
   async createUploadIntent(
     data: Omit<UploadIntent, 'createdAt'>,
   ): Promise<import('@/core/business-context/types').ServiceResult<UploadIntent>> {
-    const now = new Date().toISOString()
     const { data: row, error } = await this.db
       .from('context_upload_intents')
       .insert({
