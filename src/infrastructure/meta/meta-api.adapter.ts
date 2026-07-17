@@ -200,4 +200,47 @@ export class MetaApiAdapter implements MetaClientPort {
       { method: 'DELETE' }
     );
   }
+
+  /** Fetches a paginated resource and returns data with optional next page cursor. */
+  private async fetchPage<T>(path: string, accessToken: string, after?: string): Promise<{ data: T[]; nextPageUrl: string | null }> {
+    const url = after ? `${path}&after=${after}` : path;
+    const raw = await this.fetch<{ data: T[]; paging?: { next?: string } }>(url, accessToken);
+    return { data: raw.data, nextPageUrl: raw.paging?.next ?? null };
+  }
+
+  /** Fetches a page of campaigns for a given ad account. */
+  async getCampaignsPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
+    return this.fetchPage<Record<string, string>>(
+      `${accountId}/campaigns?fields=id,name,objective,status,buying_type,daily_budget,lifetime_budget,start_time,stop_time,created_time,updated_time,bid_strategy&limit=100`,
+      accessToken,
+      after,
+    );
+  }
+
+  /** Fetches a page of ad sets for a given ad account. */
+  async getAdSetsPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
+    return this.fetchPage<Record<string, string>>(
+      `${accountId}/adsets?fields=id,name,status,campaign_id,targeting,daily_budget,lifetime_budget,bid_strategy&limit=100`,
+      accessToken,
+      after,
+    );
+  }
+
+  /** Fetches a page of ads for a given ad account. */
+  async getAdsPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
+    return this.fetchPage<Record<string, string>>(
+      `${accountId}/ads?fields=id,name,status,adset_id,campaign_id,creative&limit=100`,
+      accessToken,
+      after,
+    );
+  }
+
+  /** Fetches a page of creatives for a given ad account. */
+  async getCreativesPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
+    return this.fetchPage<Record<string, string>>(
+      `${accountId}/adcreatives?fields=id,name,title,body,image_hash,image_url,video_id,link_url,call_to_action_type,object_type&limit=100`,
+      accessToken,
+      after,
+    );
+  }
 }
