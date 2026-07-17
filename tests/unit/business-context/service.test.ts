@@ -684,29 +684,73 @@ describe("submitAnswers", () => {
 });
 
 describe("compileOnboardingDraft", () => {
-  it("returns profile built from answered questions", async () => {
+  it("returns profile built from active facts, not question answers", async () => {
     const session = makeSession("biz-1", OnboardingStatus.AWAITING_ANSWERS);
+    const facts: ContextFact[] = [
+      {
+        id: "f-1",
+        workspaceId: "ws-1",
+        businessId: "biz-1",
+        factKey: "business.name",
+        value: "Verified Name",
+        sourceId: "src-1",
+        sourceDocumentId: null,
+        sourceExcerpt: null,
+        evidenceLocator: null,
+        confidence: 1.0,
+        verificationStatus: "user_verified",
+        supersedesFactId: null,
+        validFrom: new Date(),
+        validTo: null,
+        createdBy: "user-1",
+        createdAt: new Date(),
+      },
+      {
+        id: "f-2",
+        workspaceId: "ws-1",
+        businessId: "biz-1",
+        factKey: "offers.primary",
+        value: "Verified Offer",
+        sourceId: "src-2",
+        sourceDocumentId: null,
+        sourceExcerpt: null,
+        evidenceLocator: null,
+        confidence: 1.0,
+        verificationStatus: "user_verified",
+        supersedesFactId: null,
+        validFrom: new Date(),
+        validTo: null,
+        createdBy: "user-1",
+        createdAt: new Date(),
+      },
+    ];
     const repo = createFakeRepository({
       listOnboardingSessions: vi.fn().mockResolvedValue({
         ok: true,
         data: { items: [session], total: 1 },
       }),
+      listContextFacts: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { items: facts, total: facts.length },
+      }),
       listOnboardingQuestions: vi.fn().mockResolvedValue({
         ok: true,
         data: {
           items: [
-            { id: "q-1", factKey: "business.name", status: "answered", answer: "Acme" },
-            { id: "q-2", factKey: "offers.primary", status: "answered", answer: "Widget" },
-            { id: "q-3", factKey: "brand.tone", status: "open", answer: null },
+            { id: "q-1", factKey: "business.name", status: "answered", answer: "Old Draft Name" },
+            { id: "q-2", factKey: "offers.primary", status: "answered", answer: "Stale Widget" },
           ],
-          total: 3,
+          total: 2,
         },
       }),
     });
     const r = await compileOnboardingDraft(repo, "biz-1", "ws-1");
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect((r.data as Record<string, unknown>)["business.name"]).toBe("Acme");
+      expect(r.data).toEqual({
+        business: { name: "Verified Name" },
+        offers: { primary: "Verified Offer" },
+      });
     }
   });
 

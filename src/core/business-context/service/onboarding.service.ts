@@ -16,6 +16,7 @@ import {
 } from '../types'
 import type { OnboardingReadinessResult } from '../onboarding-readiness'
 import { computeOnboardingReadiness } from '../onboarding-readiness'
+import { compileDraftFromFacts } from '../compiler'
 
 export interface CreateBusinessInput {
   workspaceId: string
@@ -353,20 +354,10 @@ export async function compileOnboardingDraft(
     return { ok: false, error: { code: 'NO_SESSION', message: 'No onboarding session found' } }
   }
 
-  const questionsResult = await repo.listOnboardingQuestions({
-    workspaceId,
-    sessionId: sessionResult.data.id,
-  })
-  if (!questionsResult.ok) return questionsResult
+  const draftResult = await compileDraftFromFacts(repo, businessId, workspaceId)
+  if (!draftResult.ok) return draftResult
 
-  const profile: Record<string, JsonValue> = {}
-  for (const q of questionsResult.data.items) {
-    if (q.status === 'answered' && q.answer !== null) {
-      profile[q.factKey] = q.answer
-    }
-  }
-
-  return { ok: true, data: profile }
+  return { ok: true, data: draftResult.data.profile }
 }
 
 export async function getReadiness(
