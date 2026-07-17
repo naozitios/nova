@@ -240,22 +240,32 @@ export async function submitAnswers(
     return { ok: true, data: undefined }
   }
 
-  // Create session-bound user-answer provenance source
-  const provenanceResult = await repo.createContextSource({
-    workspaceId,
-    businessId,
-    sourceType: SourceType.USER_ANSWER,
-    sourceName: 'User answer provenance',
-    externalReference: null,
-    status: 'registered',
-    currentStage: null,
-    terminalOutcome: null,
-    metadata: { sessionId: session.id },
-    collectedAt: new Date(),
-  })
-  if (!provenanceResult.ok) return provenanceResult
+  // Find or create session-bound user-answer provenance source
+  const sourcesResult = await repo.listContextSources({ workspaceId, businessId })
+  if (!sourcesResult.ok) return sourcesResult
 
-  const provenanceSourceId = provenanceResult.data.id
+  let provenanceSourceId: string
+  const existing = sourcesResult.data.items.find(
+    (s) => s.sourceType === SourceType.USER_ANSWER && s.metadata?.sessionId === session.id,
+  )
+  if (existing) {
+    provenanceSourceId = existing.id
+  } else {
+    const provenanceResult = await repo.createContextSource({
+      workspaceId,
+      businessId,
+      sourceType: SourceType.USER_ANSWER,
+      sourceName: 'User answer provenance',
+      externalReference: null,
+      status: 'registered',
+      currentStage: null,
+      terminalOutcome: null,
+      metadata: { sessionId: session.id },
+      collectedAt: new Date(),
+    })
+    if (!provenanceResult.ok) return provenanceResult
+    provenanceSourceId = provenanceResult.data.id
+  }
 
   for (const item of input.answers) {
     const questionResult = await repo.createOnboardingQuestion({
@@ -295,9 +305,19 @@ export async function submitAnswers(
     if (!factResult.ok) return factResult
   }
 
+  const readiness = await getReadiness(repo, businessId, workspaceId)
+  if (!readiness.ok) return readiness
+
+  const nextStatus = readiness.data?.approvalReady
+    ? OnboardingStatus.READY_FOR_APPROVAL
+    : OnboardingStatus.AWAITING_ANSWERS
+  const currentStep = readiness.data?.approvalReady
+    ? 'approval'
+    : readiness.data?.routeStage ?? 'questions'
+
   const sessionUpdate = await repo.updateOnboardingSession(workspaceId, session.id, {
-    status: OnboardingStatus.READY_FOR_APPROVAL,
-    currentStep: 'approval',
+    status: nextStatus,
+    currentStep,
   })
   if (!sessionUpdate.ok) return sessionUpdate
 

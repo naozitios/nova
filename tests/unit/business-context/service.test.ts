@@ -320,6 +320,13 @@ describe("submitAnswers", () => {
         ok: true,
         data: { items: [makeSession("biz-1")], total: 1 },
       }),
+      listContextSources: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextFacts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextConflicts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextJobs: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listOnboardingQuestions: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      getCurrentProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: null }),
+      listQualityGateResults: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
       createOnboardingQuestion: createQ,
       createContextSource: vi.fn().mockResolvedValue({
         ok: true,
@@ -337,9 +344,10 @@ describe("submitAnswers", () => {
   });
 
   it("creates a session first when none exists", async () => {
+    const createdSession = makeSession("biz-1");
     const createSessionSpy = vi.fn().mockResolvedValue({
       ok: true,
-      data: makeSession("biz-1"),
+      data: createdSession,
     });
     const repo = createFakeRepository({
       getBusiness: vi.fn().mockResolvedValue({ ok: true, data: makeBusiness() }),
@@ -353,6 +361,13 @@ describe("submitAnswers", () => {
         ok: true,
         data: { id: "src-prov-def" } as ContextSource,
       }),
+      listContextSources: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextFacts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextConflicts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextJobs: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listOnboardingQuestions: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      getCurrentProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: null }),
+      listQualityGateResults: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
     });
     const r = await submitAnswers(repo, "biz-1", "ws-1", "user-1", {
       answers: [{ factKey: "business.name", answer: "Acme" }],
@@ -373,6 +388,13 @@ describe("submitAnswers", () => {
         ok: true,
         data: { items: [makeSession("biz-1")], total: 1 },
       }),
+      listContextSources: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextFacts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextConflicts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextJobs: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listOnboardingQuestions: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      getCurrentProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: null }),
+      listQualityGateResults: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
       createOnboardingQuestion: createQ,
       createContextSource: createSourceSpy,
       createContextFact: createFactSpy,
@@ -421,6 +443,7 @@ describe("submitAnswers", () => {
         ok: true,
         data: { items: [makeSession("biz-1")], total: 1 },
       }),
+      listContextSources: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
       createContextSource: vi.fn().mockResolvedValue({
         ok: false,
         error: { code: "DB_ERROR", message: "source insert failed" },
@@ -439,6 +462,7 @@ describe("submitAnswers", () => {
         ok: true,
         data: { items: [makeSession("biz-1")], total: 1 },
       }),
+      listContextSources: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
       createContextSource: vi.fn().mockResolvedValue({
         ok: true,
         data: { id: "src-prov-qfail" } as ContextSource,
@@ -473,6 +497,7 @@ describe("submitAnswers", () => {
         ok: true,
         data: { items: [makeSession("biz-1")], total: 1 },
       }),
+      listContextSources: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
       createContextSource: vi.fn().mockResolvedValue({ ok: true, data: sourceResult }),
       createContextFact: vi.fn().mockResolvedValue({
         ok: false,
@@ -486,11 +511,67 @@ describe("submitAnswers", () => {
     if (!r.ok) expect(r.error.code).toBe("DB_ERROR");
   });
 
-  it("updates session to READY_FOR_APPROVAL after successful answer submission", async () => {
+  it("reuses existing session-scoped user_answer source across two answer batches", async () => {
+    const existingSource: ContextSource = {
+      id: "src-prov-existing",
+      workspaceId: "ws-1",
+      businessId: "biz-1",
+      sourceType: "user_answer",
+      sourceName: "User answer provenance",
+      externalReference: null,
+      status: "registered",
+      currentStage: null,
+      terminalOutcome: null,
+      metadata: { sessionId: "sess-1" },
+      collectedAt: new Date(),
+    };
+    const createContextSourceSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { id: "src-prov-new" } as ContextSource,
+    });
+    const emptySources = { ok: true, data: { items: [], total: 0 } } as const;
+    const listContextSourcesSpy = vi.fn()
+      .mockResolvedValueOnce(emptySources)  // batch1 source lookup
+      .mockResolvedValueOnce(emptySources)  // batch1 readiness
+      .mockResolvedValueOnce({ ok: true, data: { items: [existingSource], total: 1 } }) // batch2 source lookup (found)
+      .mockResolvedValueOnce(emptySources); // batch2 readiness
+    const repo = createFakeRepository({
+      listOnboardingSessions: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { items: [makeSession("biz-1")], total: 1 },
+      }),
+      listContextSources: listContextSourcesSpy,
+      listContextFacts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextConflicts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextJobs: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listOnboardingQuestions: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      getCurrentProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: null }),
+      listQualityGateResults: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      createContextSource: createContextSourceSpy,
+      createOnboardingQuestion: vi.fn().mockResolvedValue({ ok: true, data: { id: "q-1" } }),
+      createContextFact: vi.fn().mockResolvedValue({ ok: true, data: {} as ContextFact }),
+    });
+
+    // First batch — no existing source → creates one
+    const r1 = await submitAnswers(repo, "biz-1", "ws-1", "user-1", {
+      answers: [{ factKey: "business.name", answer: "Acme" }],
+    });
+    expect(r1.ok).toBe(true);
+    expect(createContextSourceSpy).toHaveBeenCalledTimes(1);
+
+    // Second batch — existing source found → reuses, no new create
+    const r2 = await submitAnswers(repo, "biz-1", "ws-1", "user-1", {
+      answers: [{ factKey: "offers.primary", answer: { name: "Widget" } }],
+    });
+    expect(r2.ok).toBe(true);
+    expect(createContextSourceSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("sets AWAITING_ANSWERS when readiness has blockers after answer submission", async () => {
     const existingSession = makeSession("biz-1");
     const updateOnboardingSessionSpy = vi.fn().mockResolvedValue({
       ok: true,
-      data: { ...existingSession, status: OnboardingStatus.READY_FOR_APPROVAL, currentStep: "approval" },
+      data: { ...existingSession, status: OnboardingStatus.AWAITING_ANSWERS, currentStep: "questions" },
     });
     const repo = createFakeRepository({
       listOnboardingSessions: vi.fn().mockResolvedValue({
@@ -504,6 +585,62 @@ describe("submitAnswers", () => {
       createOnboardingQuestion: vi.fn().mockResolvedValue({ ok: true, data: { id: "q-1" } }),
       createContextFact: vi.fn().mockResolvedValue({ ok: true, data: {} as ContextFact }),
       updateOnboardingSession: updateOnboardingSessionSpy,
+      // readiness returns blockers → not approval-ready
+      listContextSources: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextFacts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextConflicts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextJobs: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listOnboardingQuestions: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      getCurrentProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: null }),
+      listQualityGateResults: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+    });
+    const r = await submitAnswers(repo, "biz-1", "ws-1", "user-1", {
+      answers: [{ factKey: "business.name", answer: "Acme" }],
+    });
+    expect(r.ok).toBe(true);
+    expect(updateOnboardingSessionSpy).toHaveBeenCalledWith(
+      "ws-1",
+      existingSession.id,
+      expect.objectContaining({ status: OnboardingStatus.AWAITING_ANSWERS }),
+    );
+  });
+
+  it("updates session to READY_FOR_APPROVAL when readiness is approval-ready", async () => {
+    const existingSession = makeSession("biz-1");
+    const updateOnboardingSessionSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { ...existingSession, status: OnboardingStatus.READY_FOR_APPROVAL, currentStep: "approval" },
+    });
+    // Build facts that satisfy all required keys so readiness is approval-ready
+    const allRequiredFacts = [
+      { factKey: "business.name", value: "Acme", verificationStatus: "user_verified" as const, confidence: 1 },
+      { factKey: "market.primary", value: "US", verificationStatus: "user_verified" as const, confidence: 1 },
+      { factKey: "advertising.primary_objective", value: "conv", verificationStatus: "user_verified" as const, confidence: 1 },
+      { factKey: "business.primary_outcome", value: "rev", verificationStatus: "user_verified" as const, confidence: 1 },
+      { factKey: "economics.monthly_meta_budget", value: 10000, verificationStatus: "user_verified" as const, confidence: 1 },
+    ].map((f) => ({ ...f, id: "f-1", workspaceId: "ws-1", businessId: "biz-1", sourceId: "src-1", sourceDocumentId: null, sourceExcerpt: null, evidenceLocator: null, supersedesFactId: null, validFrom: new Date(), validTo: null, createdBy: "user-1" }) as ContextFact);
+    const repo = createFakeRepository({
+      listOnboardingSessions: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { items: [existingSession], total: 1 },
+      }),
+      createContextSource: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { id: "src-prov-1" } as ContextSource,
+      }),
+      createOnboardingQuestion: vi.fn().mockResolvedValue({ ok: true, data: { id: "q-1" } }),
+      createContextFact: vi.fn().mockResolvedValue({ ok: true, data: {} as ContextFact }),
+      updateOnboardingSession: updateOnboardingSessionSpy,
+      listContextSources: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { items: [{ id: "src-w", workspaceId: "ws-1", businessId: "biz-1", sourceType: "website", sourceName: "Site", externalReference: null, status: "processed", currentStage: null, terminalOutcome: null, metadata: {}, collectedAt: new Date() } as ContextSource], total: 1 },
+      }),
+      listContextFacts: vi.fn().mockResolvedValue({ ok: true, data: { items: allRequiredFacts, total: allRequiredFacts.length } }),
+      listContextConflicts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextJobs: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listOnboardingQuestions: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      getCurrentProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: null }),
+      listQualityGateResults: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
     });
     const r = await submitAnswers(repo, "biz-1", "ws-1", "user-1", {
       answers: [{ factKey: "business.name", answer: "Acme" }],
