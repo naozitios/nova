@@ -147,7 +147,7 @@ Statuses describe current worktree state and must be refreshed after each gate.
 - [ ] T050 | B42 | Onboarding routes: DTOs, durable idempotency, roles, canonical 409 blockers, Container.
   <!-- STATUS: PARTIAL — roles, durable idempotency, and Container wiring exist; duplicate-session 409 and complete route-contract proof remain -->
 - [x] T051 | B43 | Approval SQL: validate readiness, publish sole current v1, audit, approve session atomically.
-  <!-- STATUS: VERIFIED — policy divergence fixed (2026-07-17): replaced in ('user_verified','verified') with = 'user_verified' in 3 SQL guards; 4 comments updated; clean supabase reset passed; 4 test suites run: 11 passed, 13 failed (all pre-existing mock/schema issues unrelated to approval SQL). Commit: 2393552e -->
+  <!-- STATUS: VERIFIED — clean Supabase reset plus approve-onboarding atomic/profile-version gate passed 12/12; v3 RPC rechecks readiness from active user-verified facts before atomic version/session/audit writes -->
 - [ ] T052 | B44 | E2E: creation fields/facts, optional website, no source-array, route-stage polling, typed questions, explicit unknown, manual-only rejection, qualifying approval, one provenance, nested draft, viewer denial, blocker rejection, idempotent approval, sole v1.
   <!-- STATUS: PARTIAL — b44-onboarding-user-flow.e2e.test.ts exists with happy-path coverage; full v1 approval flow not verified end-to-end; harness lock contention prevents full suite pass; stale handler expectation in full suite -->
 
