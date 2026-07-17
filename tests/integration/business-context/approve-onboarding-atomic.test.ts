@@ -53,18 +53,28 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (!supabase) return;
+  // FK-safe order: children first, then parents
   await supabase.from("context_audit_log").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("business_profile_versions").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("context_conflicts").delete().eq("workspace_id", WS).eq("business_id", BIZ);
+  await supabase.from("context_quality_gate_results").delete().eq("workspace_id", WS).eq("business_id", BIZ);
+  await supabase.from("context_jobs").delete().eq("workspace_id", WS).eq("business_id", BIZ);
+  await supabase.from("context_facts").delete().eq("workspace_id", WS).eq("business_id", BIZ);
+  await supabase.from("context_sources").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("onboarding_questions").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("onboarding_sessions").delete().eq("workspace_id", WS).eq("business_id", BIZ);
 });
 
 beforeEach(async () => {
   if (!supabase) return;
+  // FK-safe order: children first, then parents
   await supabase.from("context_audit_log").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("business_profile_versions").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("context_conflicts").delete().eq("workspace_id", WS).eq("business_id", BIZ);
+  await supabase.from("context_quality_gate_results").delete().eq("workspace_id", WS).eq("business_id", BIZ);
+  await supabase.from("context_jobs").delete().eq("workspace_id", WS).eq("business_id", BIZ);
+  await supabase.from("context_facts").delete().eq("workspace_id", WS).eq("business_id", BIZ);
+  await supabase.from("context_sources").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("onboarding_questions").delete().eq("workspace_id", WS).eq("business_id", BIZ);
   await supabase.from("onboarding_sessions").delete().eq("workspace_id", WS).eq("business_id", BIZ);
 });
@@ -117,6 +127,83 @@ async function countCurrentVersions(): Promise<number> {
     .eq("status", "current");
   if (error) throw new Error(`countCurrentVersions: ${error.message}`);
   return count ?? 0;
+}
+
+async function countAuditEvents(): Promise<number> {
+  const { count, error } = await supabase
+    .from("context_audit_log")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", WS)
+    .eq("business_id", BIZ);
+  if (error) throw new Error(`countAuditEvents: ${error.message}`);
+  return count ?? 0;
+}
+
+async function seedSource(
+  overrides: {
+    sourceType?: string; sourceName?: string; status?: string;
+    terminalOutcome?: string | null; currentStage?: string | null;
+  } = {},
+): Promise<string> {
+  const { data, error } = await supabase
+    .from("context_sources")
+    .insert({
+      workspace_id: WS,
+      business_id: BIZ,
+      source_type: overrides.sourceType ?? "website",
+      source_name: overrides.sourceName ?? "example.com",
+      status: overrides.status ?? "processed",
+      terminal_outcome: overrides.terminalOutcome ?? "processed",
+      current_stage: overrides.currentStage ?? null,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`seedSource: ${error.message}`);
+  return data.id;
+}
+
+async function seedFact(
+  sourceId: string,
+  overrides: {
+    factKey?: string; value?: unknown; confidence?: number;
+    verificationStatus?: string; validTo?: string | null;
+  } = {},
+): Promise<string> {
+  const { data, error } = await supabase
+    .from("context_facts")
+    .insert({
+      workspace_id: WS,
+      business_id: BIZ,
+      source_id: sourceId,
+      fact_key: overrides.factKey ?? "business.name",
+      value: overrides.value ?? "Acme",
+      confidence: overrides.confidence ?? 0.9,
+      verification_status: overrides.verificationStatus ?? "user_verified",
+      valid_to: overrides.validTo ?? null,
+      created_by: "system",
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`seedFact: ${error.message}`);
+  return data.id;
+}
+
+async function seedQualityGate(overrides: {
+  gateName?: string; gateScope?: string; status?: string;
+  reason?: string; sourceId?: string | null;
+} = {}): Promise<void> {
+  const { error } = await supabase
+    .from("context_quality_gate_results")
+    .insert({
+      workspace_id: WS,
+      business_id: BIZ,
+      gate_name: overrides.gateName ?? "min_word_count",
+      gate_scope: overrides.gateScope ?? "document",
+      status: overrides.status ?? "failed_blocking",
+      reason: overrides.reason ?? "Too few words",
+      source_id: overrides.sourceId ?? null,
+    });
+  if (error) throw new Error(`seedQualityGate: ${error.message}`);
 }
 
 async function listAuditEvents(): Promise<Array<{ event_type: string; entity_type: string; entity_id: string }>> {
@@ -322,6 +409,159 @@ describe.skipIf(!SUPABASE_KEY)(
 
       // Still exactly one current version
       expect(await countCurrentVersions()).toBe(1);
+    });
+
+    // ─── Readiness enforcement cases (Task 5 RED phase) ─────────────────
+    // These seed valid session + complete questions (so SQL's section/conflict
+    // checks pass), but add conditions that readiness blockers should reject.
+    // The v2 RPC does NOT enforce readiness → these will PASS (RED).
+
+    it("rejects when no evidence source exists — EVIDENCE_SOURCE_REQUIRED", async () => {
+      const sessionId = await seedSession("ready_for_approval");
+      await seedAnsweredQuestions(sessionId);
+      // No context_sources seeded → readiness should block
+
+      const { data, error } = await supabase.rpc("approve_onboarding_v1", {
+        p_workspace_id: WS,
+        p_business_id: BIZ,
+        p_approver_id: ACTOR,
+      });
+
+      expect(error).toBeNull();
+      // v2 RPC has no evidence-source check — this will wrongly succeed (RED)
+      expect(data.ok).toBe(true, "RED: v2 RPC allowed approval with no evidence source");
+
+      // Must not create version or approve session when readiness is enforced
+      expect(await countCurrentVersions()).toBe(0);
+      const { data: session } = await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single();
+      expect(session?.status).toBe("ready_for_approval");
+      expect(await countAuditEvents()).toBe(0);
+    });
+
+    it("rejects when evidence source is not yet processed — SOURCE_NOT_PROCESSED", async () => {
+      const sessionId = await seedSession("ready_for_approval");
+      await seedAnsweredQuestions(sessionId);
+      // Source in 'registered' (non-terminal) state
+      await seedSource({ status: "registered", terminalOutcome: null, currentStage: "registered" });
+
+      const { data, error } = await supabase.rpc("approve_onboarding_v1", {
+        p_workspace_id: WS,
+        p_business_id: BIZ,
+        p_approver_id: ACTOR,
+      });
+
+      expect(error).toBeNull();
+      // v2 RPC does not check source processing status — this will wrongly succeed (RED)
+      expect(data.ok).toBe(true, "RED: v2 RPC allowed approval with unprocessed source");
+
+      expect(await countCurrentVersions()).toBe(0);
+      const { data: session } = await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single();
+      expect(session?.status).toBe("ready_for_approval");
+      expect(await countAuditEvents()).toBe(0);
+    });
+
+    it("rejects when required fact is not user-verified — MISSING_REQUIRED_FACT", async () => {
+      const sessionId = await seedSession("ready_for_approval");
+      await seedAnsweredQuestions(sessionId);
+      // Seed a source + fact with 'extracted' status (not user_verified)
+      const sourceId = await seedSource();
+      await seedFact(sourceId, {
+        factKey: "business.name",
+        value: "Acme Corp",
+        verificationStatus: "extracted",
+      });
+
+      const { data, error } = await supabase.rpc("approve_onboarding_v1", {
+        p_workspace_id: WS,
+        p_business_id: BIZ,
+        p_approver_id: ACTOR,
+      });
+
+      expect(error).toBeNull();
+      // v2 RPC compiles profile from questions only — fact verification is unchecked (RED)
+      expect(data.ok).toBe(true, "RED: v2 RPC allowed approval with non-user-verified fact");
+
+      expect(await countCurrentVersions()).toBe(0);
+      const { data: session } = await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single();
+      expect(session?.status).toBe("ready_for_approval");
+      expect(await countAuditEvents()).toBe(0);
+    });
+
+    it("rejects when disallowed key is null — REQUIRED_KEY_UNKNOWN", async () => {
+      const sessionId = await seedSession("ready_for_approval");
+      await seedAnsweredQuestions(sessionId);
+      // Seed a source + fact for business.name with null value
+      const sourceId = await seedSource();
+      await seedFact(sourceId, {
+        factKey: "business.name",
+        value: null,
+        verificationStatus: "user_verified",
+      });
+
+      const { data, error } = await supabase.rpc("approve_onboarding_v1", {
+        p_workspace_id: WS,
+        p_business_id: BIZ,
+        p_approver_id: ACTOR,
+      });
+
+      expect(error).toBeNull();
+      // v2 RPC does not check fact values against disallowed keys (RED)
+      expect(data.ok).toBe(true, "RED: v2 RPC allowed approval with null disallowed key");
+
+      expect(await countCurrentVersions()).toBe(0);
+      const { data: session } = await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single();
+      expect(session?.status).toBe("ready_for_approval");
+      expect(await countAuditEvents()).toBe(0);
+    });
+
+    it("rejects when blocking quality gate exists — QUALITY_GATE_BLOCKING", async () => {
+      const sessionId = await seedSession("ready_for_approval");
+      await seedAnsweredQuestions(sessionId);
+      // Seed a source so evidence-source check passes
+      const sourceId = await seedSource();
+      // Seed a blocking quality gate result
+      await seedQualityGate({
+        gateName: "min_word_count",
+        gateScope: "document",
+        status: "failed_blocking",
+        reason: "Document has too few words for reliable extraction",
+        sourceId,
+      });
+
+      const { data, error } = await supabase.rpc("approve_onboarding_v1", {
+        p_workspace_id: WS,
+        p_business_id: BIZ,
+        p_approver_id: ACTOR,
+      });
+
+      expect(error).toBeNull();
+      // v2 RPC does not check quality gate results (RED)
+      expect(data.ok).toBe(true, "RED: v2 RPC allowed approval with blocking quality gate");
+
+      expect(await countCurrentVersions()).toBe(0);
+      const { data: session } = await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single();
+      expect(session?.status).toBe("ready_for_approval");
+      expect(await countAuditEvents()).toBe(0);
     });
   },
 );
