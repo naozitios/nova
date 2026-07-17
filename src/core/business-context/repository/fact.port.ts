@@ -29,6 +29,11 @@ export interface PersistFactReconciliationCreate {
   evidenceLocator: JsonValue | null
   confidence: number
   supersedesFactId?: string | null
+  sourceDocumentId?: string | null
+  verificationStatus?: string
+  validFrom?: string
+  validTo?: string | null
+  createdBy?: string
 }
 
 export interface PersistFactReconciliationSupersede {

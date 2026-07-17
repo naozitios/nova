@@ -285,24 +285,42 @@ export async function submitAnswers(
     })
     if (!questionResult.ok) return questionResult
 
-    // Create user-verified fact linked to provenance source
-    const factResult = await repo.createContextFact({
+    // Load active same-key facts to supersede
+    const activeFactsResult = await repo.listContextFacts({
       workspaceId,
       businessId,
       factKey: item.factKey,
-      value: item.answer,
-      sourceId: provenanceSourceId,
-      sourceDocumentId: null,
-      sourceExcerpt: null,
-      evidenceLocator: null,
-      confidence: 1.0,
-      verificationStatus: VerificationStatus.USER_VERIFIED,
-      supersedesFactId: null,
-      validFrom: new Date(),
-      validTo: null,
-      createdBy: userId,
+      active: true,
     })
-    if (!factResult.ok) return factResult
+    if (!activeFactsResult.ok) return activeFactsResult
+
+    const activeFacts = activeFactsResult.data.items
+    const supersessions = activeFacts.map((f) => ({ oldFactId: f.id }))
+
+    // Atomic supersession + creation via reconciliation RPC
+    const now = new Date().toISOString()
+    const reconcResult = await repo.persistFactReconciliation(
+      workspaceId,
+      businessId,
+      supersessions,
+      [
+        {
+          factKey: item.factKey,
+          value: item.answer,
+          sourceId: provenanceSourceId,
+          sourceExcerpt: null,
+          evidenceLocator: null,
+          confidence: 1.0,
+          supersedesFactId: activeFacts[0]?.id ?? null,
+          sourceDocumentId: null,
+          verificationStatus: VerificationStatus.USER_VERIFIED,
+          validFrom: now,
+          validTo: null,
+          createdBy: userId,
+        },
+      ],
+    )
+    if (!reconcResult.ok) return reconcResult
   }
 
   const readiness = await getReadiness(repo, businessId, workspaceId)

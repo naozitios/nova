@@ -381,7 +381,10 @@ describe("submitAnswers", () => {
       ok: true,
       data: { id: "src-prov-ans-1" } as ContextSource,
     });
-    const createFactSpy = vi.fn().mockResolvedValue({ ok: true, data: {} as ContextFact });
+    const reconcileSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { created_fact_ids: ["f1", "f2"], conflict_ids: [] },
+    });
     const createQ = vi.fn().mockResolvedValue({ ok: true, data: { id: "q-1" } });
     const repo = createFakeRepository({
       listOnboardingSessions: vi.fn().mockResolvedValue({
@@ -397,7 +400,7 @@ describe("submitAnswers", () => {
       listQualityGateResults: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
       createOnboardingQuestion: createQ,
       createContextSource: createSourceSpy,
-      createContextFact: createFactSpy,
+      persistFactReconciliation: reconcileSpy,
     });
     const r = await submitAnswers(repo, "biz-1", "ws-1", "user-1", {
       answers: [
@@ -416,23 +419,27 @@ describe("submitAnswers", () => {
       }),
     );
 
-    // Two user-verified facts
-    expect(createFactSpy).toHaveBeenCalledTimes(2);
-    const factCalls = createFactSpy.mock.calls.map((c) => c[0]);
-    expect(factCalls).toEqual(
+    // Two atomic reconciliation calls (one per answer)
+    expect(reconcileSpy).toHaveBeenCalledTimes(2);
+    const reconcCalls = reconcileSpy.mock.calls.map((c) => c[3]);
+    expect(reconcCalls).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          factKey: "business.name",
-          value: "Acme",
-          sourceId: "src-prov-ans-1",
-          verificationStatus: VerificationStatus.USER_VERIFIED,
-        }),
-        expect.objectContaining({
-          factKey: "offers.primary",
-          value: { name: "Widget" },
-          sourceId: "src-prov-ans-1",
-          verificationStatus: VerificationStatus.USER_VERIFIED,
-        }),
+        expect.arrayContaining([
+          expect.objectContaining({
+            factKey: "business.name",
+            value: "Acme",
+            sourceId: "src-prov-ans-1",
+            verificationStatus: VerificationStatus.USER_VERIFIED,
+          }),
+        ]),
+        expect.arrayContaining([
+          expect.objectContaining({
+            factKey: "offers.primary",
+            value: { name: "Widget" },
+            sourceId: "src-prov-ans-1",
+            verificationStatus: VerificationStatus.USER_VERIFIED,
+          }),
+        ]),
       ]),
     );
   });
@@ -499,7 +506,8 @@ describe("submitAnswers", () => {
       }),
       listContextSources: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
       createContextSource: vi.fn().mockResolvedValue({ ok: true, data: sourceResult }),
-      createContextFact: vi.fn().mockResolvedValue({
+      listContextFacts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      persistFactReconciliation: vi.fn().mockResolvedValue({
         ok: false,
         error: { code: "DB_ERROR", message: "fact insert failed" },
       }),
