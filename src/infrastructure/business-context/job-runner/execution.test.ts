@@ -33,7 +33,7 @@ const job: ContextJob = {
 }
 
 describe('executeJob', () => {
-  it('maps user-action terminal source outcomes to succeeded job status', async () => {
+  it('maps user-action terminal source outcomes to failed permanent job status', async () => {
     const updateContextJob = vi.fn().mockResolvedValue({ ok: true, data: job })
     const appendStageEvent = vi.fn().mockResolvedValue({ ok: true, data: {} })
 
@@ -51,7 +51,7 @@ describe('executeJob', () => {
     expect(updateContextJob).toHaveBeenCalledWith(
       'workspace-1',
       'job-1',
-      expect.objectContaining({ status: 'succeeded' }),
+      expect.objectContaining({ status: 'failed_permanent' }),
     )
   })
 })
