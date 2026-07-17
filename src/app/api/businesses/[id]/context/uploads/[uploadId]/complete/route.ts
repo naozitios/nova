@@ -7,13 +7,10 @@ import {
   errorResponse,
   parseJsonBody,
   validateWithSchema,
-} from '../../../_shared'
+} from '../../../../../_shared'
 import { completeUploadIntent } from '@/core/business-context/service/upload.service'
 import { getSupabaseServiceClient } from '@/infrastructure/business-context/supabase-client'
-import { UploadRepository } from '@/infrastructure/business-context/repository/upload.repository'
-import { SupabaseUploadStorage } from '@/infrastructure/business-context/supabase-upload.storage'
-import { SupabaseRepository } from '@/infrastructure/business-context/supabase.repository'
-import { ClamavMalwareScanner } from '@/infrastructure/business-context/clamav-malware.scanner'
+import { Container } from '@/di/container'
 
 async function resolveWorkspaceFromBusiness(
   businessId: string,
@@ -55,11 +52,10 @@ export async function POST(
     const validation = validateWithSchema(CompleteUploadSchema, bodyResult.data)
     if (!validation.ok) return validation.response
 
-    const client = getSupabaseServiceClient()
-    const uploadRepo = new UploadRepository(client)
-    const bcRepo = new SupabaseRepository(client)
-    const storage = new SupabaseUploadStorage()
-    const scanner = new ClamavMalwareScanner()
+    const uploadRepo = Container.getUploadRepository()
+    const bcRepo = Container.getBusinessContextRepository()
+    const storage = Container.getUploadStorage()
+    const scanner = Container.getMalwareScanner()
 
     const validator = async (
       buffer: Buffer,
@@ -80,7 +76,13 @@ export async function POST(
       storage,
       scanner,
       validator,
-      { workspaceId: wsResult.workspaceId, businessId, intentId: uploadId },
+      {
+        workspaceId: wsResult.workspaceId,
+        businessId,
+        intentId: uploadId,
+        storagePath: validation.data.storage_path,
+        checksumSha256: validation.data.checksum_sha256,
+      },
       {
         storageBucket: process.env.UPLOAD_STORAGE_BUCKET ?? 'uploads',
         sourceProcessingStageTimeoutSeconds: 30,
@@ -90,9 +92,12 @@ export async function POST(
     if (!result.ok) {
       const statusMap: Record<string, number> = {
         INTENT_NOT_FOUND: 404,
+        SOURCE_NOT_FOUND: 404,
         INTENT_CROSS_BUSINESS: 403,
         INTENT_EXPIRED: 409,
         INTENT_NOT_PENDING: 409,
+        STORAGE_PATH_MISMATCH: 409,
+        CHECKSUM_MISMATCH: 409,
         SIZE_MISMATCH: 400,
         MALWARE_DETECTED: 400,
         SCAN_FAILED: 503,
