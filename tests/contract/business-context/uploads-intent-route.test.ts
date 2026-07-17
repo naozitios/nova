@@ -326,6 +326,68 @@ describe('POST /api/businesses/[id]/context/uploads — route wiring', () => {
     expect(mockCreateSignedUploadIntent).not.toHaveBeenCalled()
   })
 
+  it('returns 400 when decodeProposalToken fails with PROPOSAL_FORGED', async () => {
+    mockDecodeProposalToken.mockReturnValue({
+      ok: false,
+      error: { code: 'PROPOSAL_FORGED', message: 'Invalid proposal token' },
+    })
+    const body = {
+      source_type: 'upload',
+      source_name: 'deck.pdf',
+      classification_proposal_token: 'forged-token',
+      file_name: 'deck.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 1024,
+    }
+    const { POST } = await import(
+      '../../../src/app/api/businesses/[id]/context/uploads/route'
+    )
+
+    const response = await POST(
+      makePostRequest(body, { userId: 'user-1', idempotencyKey: 'idem-forged' }),
+      { params: Promise.resolve({ id: 'biz-1' }) },
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockErrorResponse).toHaveBeenCalledWith(
+      400,
+      'PROPOSAL_FORGED',
+      'Invalid proposal token',
+    )
+    expect(mockCreateSignedUploadIntent).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 when decodeProposalToken fails with PROPOSAL_EXPIRED', async () => {
+    mockDecodeProposalToken.mockReturnValue({
+      ok: false,
+      error: { code: 'PROPOSAL_EXPIRED', message: 'Proposal has expired' },
+    })
+    const body = {
+      source_type: 'upload',
+      source_name: 'deck.pdf',
+      classification_proposal_token: 'expired-token',
+      file_name: 'deck.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 1024,
+    }
+    const { POST } = await import(
+      '../../../src/app/api/businesses/[id]/context/uploads/route'
+    )
+
+    const response = await POST(
+      makePostRequest(body, { userId: 'user-1', idempotencyKey: 'idem-expired' }),
+      { params: Promise.resolve({ id: 'biz-1' }) },
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockErrorResponse).toHaveBeenCalledWith(
+      400,
+      'PROPOSAL_EXPIRED',
+      'Proposal has expired',
+    )
+    expect(mockCreateSignedUploadIntent).not.toHaveBeenCalled()
+  })
+
   it('returns 400 when source_type is not literal "upload"', async () => {
     mockValidateWithSchema.mockImplementation((_schema: unknown, data: Record<string, unknown>) => {
       if (data.source_type !== 'upload') {
