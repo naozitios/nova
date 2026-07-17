@@ -79,3 +79,29 @@ Test Files  2 passed (2)
 ```
 
 11 atomic approval tests + 1 profile-versions test all pass. All 5 readiness rejection cases return exact error codes with no state changes (no new version, no session approval, no audit rows).
+
+---
+
+## Task 5 — Review Fix
+
+**Date:** 2026-07-17
+**File modified:** `supabase/migrations/202607170000_approve_onboarding_v3_readiness.sql`
+
+### Changes
+
+1. **Verification policy alignment:** Replaced all `in ('user_verified', 'verified')` checks with `= 'user_verified'` to match the authoritative `VerificationStatus` enum (`extracted`, `inferred`, `user_verified`, `rejected`, `superseded`). Affected lines: 159, 178, 223. Comments at lines 149, 214 already said `user_verified` — left unchanged.
+
+2. **Loop variable rename:** `v_question` → `v_fact` (declaration + all 6 usages in the compile-profile loop). Mechanical, same file only.
+
+### Test results
+
+```
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+```
+
+All 11 atomic approval tests + 1 profile-versions test pass. No regressions.
+
+### Concerns
+
+None. The `verified` value was a dead enum member not used in practice; tightening to `= 'user_verified'` is strictly correct per the spec's "required facts user-verified" requirement.

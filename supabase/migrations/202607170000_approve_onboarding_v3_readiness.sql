@@ -3,9 +3,9 @@
 --   EVIDENCE_SOURCE_REQUIRED  — at least one terminal evidence source
 --   SOURCE_NOT_PROCESSED      — unprocessed evidence sources block
 --   QUALITY_GATE_BLOCKING     — failed_blocking quality gates block
---   MISSING_REQUIRED_FACT     — required fact keys must be user_verified/verified
+--   MISSING_REQUIRED_FACT     — required fact keys must be user_verified
 --   REQUIRED_KEY_UNKNOWN      — business.name cannot be null
--- Profile is compiled from active facts (user_verified/verified, valid_to is null),
+-- Profile is compiled from active facts (user_verified, valid_to is null),
 -- not from onboarding_questions. Preserves v2 atomic sole-current, approved session,
 -- two audits, and service_role-only execute.
 
@@ -21,7 +21,7 @@ as $$
 declare
   v_session record;
   v_profile jsonb := '{}'::jsonb;
-  v_question record;
+  v_fact record;
   v_missing_sections text[];
   v_required_sections text[] := array[
     'business', 'market', 'advertising', 'economics'
@@ -146,7 +146,7 @@ begin
   end if;
 
   -- 6. MISSING_REQUIRED_FACT + REQUIRED_KEY_UNKNOWN — compile active facts and check
-  --    Active: verification_status in ('user_verified','verified') and valid_to is null.
+  --    Active: verification_status = 'user_verified' and valid_to is null.
   --    Pick highest confidence per fact_key (matches TypeScript pickActiveFacts).
   v_blocked := false;
   foreach v_key in array v_required_fact_keys loop
@@ -156,7 +156,7 @@ begin
       where cf.workspace_id = p_workspace_id
         and cf.business_id = p_business_id
         and cf.fact_key = v_key
-        and cf.verification_status in ('user_verified', 'verified')
+        and cf.verification_status = 'user_verified'
         and cf.valid_to is null
     ) then
       return jsonb_build_object(
@@ -175,7 +175,7 @@ begin
         where cf.workspace_id = p_workspace_id
           and cf.business_id = p_business_id
           and cf.fact_key = v_key
-          and cf.verification_status in ('user_verified', 'verified')
+          and cf.verification_status = 'user_verified'
           and cf.valid_to is null
           and (cf.value is null or cf.value = 'null'::jsonb)
       ) then
@@ -211,31 +211,31 @@ begin
     );
   end if;
 
-  -- 8. Compile profile from active facts (user_verified/verified, valid_to is null)
+  -- 8. Compile profile from active facts (user_verified, valid_to is null)
   --    Dotted fact_key (e.g. 'business.name') → section='business', field='name'
   --    → profile = { "business": { "name": <value> } }
   --    Multiple fields in same section merge via jsonb || (last-write-wins per key).
-  for v_question in
+  for v_fact in
     select distinct on (cf.fact_key) cf.fact_key, cf.value
     from context_facts cf
     where cf.workspace_id = p_workspace_id
       and cf.business_id = p_business_id
-      and cf.verification_status in ('user_verified', 'verified')
+      and cf.verification_status = 'user_verified'
       and cf.valid_to is null
       and cf.value is not null
     order by cf.fact_key, cf.confidence desc
   loop
-    v_dot_pos := position('.' in v_question.fact_key);
+    v_dot_pos := position('.' in v_fact.fact_key);
     if v_dot_pos > 0 then
-      v_section := substr(v_question.fact_key, 1, v_dot_pos - 1);
-      v_field   := substr(v_question.fact_key, v_dot_pos + 1);
+      v_section := substr(v_fact.fact_key, 1, v_dot_pos - 1);
+      v_field   := substr(v_fact.fact_key, v_dot_pos + 1);
       v_profile := jsonb_set(
         v_profile,
         array[v_section],
-        COALESCE(v_profile -> v_section, '{}'::jsonb) || jsonb_build_object(v_field, v_question.value)
+        COALESCE(v_profile -> v_section, '{}'::jsonb) || jsonb_build_object(v_field, v_fact.value)
       );
     else
-      v_profile := v_profile || jsonb_build_object(v_question.fact_key, v_question.value);
+      v_profile := v_profile || jsonb_build_object(v_fact.fact_key, v_fact.value);
     end if;
   end loop;
 
