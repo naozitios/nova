@@ -22,6 +22,7 @@ import { MetaResolver } from '@/infrastructure/business-context/meta-resolver.se
 import { SourceAdapterRegistry } from '@/infrastructure/business-context/source-adapter-registry';
 import { WebsiteSourceAdapter } from '@/infrastructure/business-context/website-source.adapter';
 import { MetaSourceAdapter } from '@/infrastructure/business-context/meta/meta-adapter';
+import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository';
 import { ManualSourceAdapter } from '@/infrastructure/business-context/manual-source.adapter';
 import { NativeDocumentParserAdapter } from '@/infrastructure/business-context/native-document.parser.adapter';
 import { PaddleOcrDocumentParserAdapter } from '@/infrastructure/business-context/paddleocr-document-parser.adapter';
@@ -144,7 +145,7 @@ export function getSourceAdapterRegistry(): SourceAdapterRegistry {
     }
     _sourceAdapterRegistry = new SourceAdapterRegistry();
     _sourceAdapterRegistry.register(new WebsiteSourceAdapter({ apiKey: firecrawlKey }));
-    _sourceAdapterRegistry.register(new MetaSourceAdapter());
+    _sourceAdapterRegistry.register(new MetaSourceAdapter({ repo: new SupabaseMetaRepository(getSupabaseServiceClient()), db: getSupabaseServiceClient() }));
     _sourceAdapterRegistry.register(new ManualSourceAdapter());
 
     // Stable unsupported outcomes for stored-document types until B16 adapters land

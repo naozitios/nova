@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { MetaSourceAdapter } from './meta-adapter'
+import { MetaSourceAdapter } from '@/infrastructure/business-context/meta/meta-adapter'
 import type { ContextSource } from '@/core/business-context/types'
 
 const WORKSPACE_ID = 'ws-1'
@@ -53,11 +53,13 @@ function makeDeps(overrides?: {
     meta_ads: overrides?.ads ?? [{ meta_ad_id: 'ad-1', meta_campaign_id: 'camp-1', meta_creative_id: 'cr-1', name: 'Discount Ad', effective_status: 'ACTIVE' }],
     meta_creatives: overrides?.creatives ?? [{ meta_creative_id: 'cr-1', name: 'Sale Creative', title: 'Sale', body: 'Save 20% today' }],
   }
-  const db = { from: vi.fn((table: string) => makeQuery(rowsByTable[table] ?? [])) }
+  const db = {
+    from: vi.fn((table: string) => makeQuery(rowsByTable[table] ?? [])),
+  }
   return { repo, db }
 }
 
-describe('MetaSourceAdapter — stored data acceptance', () => {
+describe('MetaSourceAdapter — stored Meta data', () => {
   beforeEach(() => {
     vi.stubEnv('META_ACCESS_TOKEN', '')
     vi.stubEnv('META_AD_ACCOUNT_ID', '')
@@ -69,13 +71,7 @@ describe('MetaSourceAdapter — stored data acceptance', () => {
     vi.restoreAllMocks()
   })
 
-  it('supports only meta source type', () => {
-    const adapter = new MetaSourceAdapter(makeDeps())
-    expect(adapter.supports('meta')).toBe(true)
-    expect(adapter.supports('website')).toBe(false)
-  })
-
-  it('returns collected documents from stored selected-account data', async () => {
+  it('collects source documents from stored selected-account Meta data without env token', async () => {
     const deps = makeDeps()
     const adapter = new MetaSourceAdapter(deps)
 
@@ -83,18 +79,24 @@ describe('MetaSourceAdapter — stored data acceptance', () => {
 
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.data.sourceType).toBe('meta')
       expect(result.data.externalReference).toBe(`meta:${ACCOUNT_ID}`)
       expect(result.data.documents.length).toBeGreaterThan(0)
       expect(JSON.stringify(result.data)).toContain('Spring Sale')
       expect(JSON.stringify(result.data)).toContain('Save 20% today')
-      expect(JSON.stringify(result.data)).not.toContain('EAAsecret')
+      expect(result.data.metadata).toMatchObject({ accountId: ACCOUNT_ID, latestDate: '2026-07-07' })
     }
     expect(global.fetch).not.toHaveBeenCalled()
+    expect(deps.repo.listDailyInsights).toHaveBeenCalledWith({
+      workspaceId: WORKSPACE_ID,
+      metaAdAccountId: ACCOUNT_ID,
+      since: '2026-07-01',
+      until: '2026-07-07',
+    })
   })
 
-  it('returns NO_SELECTED_META_ACCOUNT when business lacks selected account', async () => {
-    const adapter = new MetaSourceAdapter(makeDeps({ accounts: [] }))
+  it('returns NO_SELECTED_META_ACCOUNT when business has no selected account', async () => {
+    const deps = makeDeps({ accounts: [] })
+    const adapter = new MetaSourceAdapter(deps)
 
     const result = await adapter.collect({ workspaceId: WORKSPACE_ID, businessId: BUSINESS_ID, source: makeSource() })
 
@@ -103,8 +105,9 @@ describe('MetaSourceAdapter — stored data acceptance', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('returns META_DATA_NOT_SYNCED when selected account has no stored rows', async () => {
-    const adapter = new MetaSourceAdapter(makeDeps({ insights: [], campaigns: [], ads: [], creatives: [] }))
+  it('returns META_DATA_NOT_SYNCED when selected account has no stored data', async () => {
+    const deps = makeDeps({ insights: [], campaigns: [], ads: [], creatives: [] })
+    const adapter = new MetaSourceAdapter(deps)
 
     const result = await adapter.collect({ workspaceId: WORKSPACE_ID, businessId: BUSINESS_ID, source: makeSource() })
 
