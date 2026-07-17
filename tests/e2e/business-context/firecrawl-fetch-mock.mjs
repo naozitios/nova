@@ -10,15 +10,15 @@ const SUCCESSFUL_FIXTURE = {
     pages: [
       {
         url: "https://example.com/",
-        markdown: "# One\nBudget test page one",
+        markdown: "# Lorem\nIpsum dolor sit amet consectetur",
         statusCode: 200,
-        title: "One",
+        title: "Lorem",
       },
       {
         url: "https://example.com/two",
-        markdown: "# Two\nBudget test page two",
+        markdown: "# Amet\nConsectetur adipiscing elit sed",
         statusCode: 200,
-        title: "Two",
+        title: "Amet",
       },
     ],
   },

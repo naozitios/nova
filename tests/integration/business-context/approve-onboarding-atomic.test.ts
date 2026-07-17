@@ -207,6 +207,25 @@ async function seedQualityGate(overrides: {
   if (error) throw new Error(`seedQualityGate: ${error.message}`);
 }
 
+async function seedContextJob(overrides: {
+  jobType?: string; status?: string;
+} = {}): Promise<void> {
+  const { error } = await supabase
+    .from("context_jobs")
+    .insert({
+      workspace_id: WS,
+      business_id: BIZ,
+      job_type: overrides.jobType ?? "source_processing",
+      status: overrides.status ?? "queued",
+      attempt_count: 0,
+      max_attempts: 4,
+      idempotency_key: `b43-job-${Date.now()}-${Math.random()}`,
+      input: {},
+      retry_policy: {},
+    });
+  if (error) throw new Error(`seedContextJob: ${error.message}`);
+}
+
 /** Seed a valid evidence source + all required verified facts so readiness checks pass. */
 async function seedReadyEvidence(): Promise<void> {
   const sourceId = await seedSource();
@@ -308,9 +327,11 @@ describe.skipIf(!SUPABASE_KEY)(
       expect(versions![1].status).toBe("current");
     });
 
-    it("rejects approval when session is not ready_for_approval", async () => {
+    it("rejects approval when session is not ready_for_approval (fallback)", async () => {
       const sessionId = await seedSession("created");
       await seedAnsweredQuestions(sessionId);
+      // Seed otherwise-ready evidence so readiness checks pass; only status blocks
+      await seedReadyEvidence();
 
       const { data, error } = await supabase.rpc("approve_onboarding_v1", {
         p_workspace_id: WS,
@@ -626,6 +647,40 @@ describe.skipIf(!SUPABASE_KEY)(
       expect(data.error.code).toBe("QUALITY_GATE_BLOCKING");
 
       // No state changes
+      expect(await countCurrentVersions()).toBe(versionsBefore);
+      const { data: session } = await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single();
+      expect(session?.status).toBe(sessionStatusBefore);
+      expect(await countAuditEvents()).toBe(auditBefore);
+    });
+
+    it("rejects when an active source-processing job exists — ACTIVE_JOB", async () => {
+      const sessionId = await seedSession("ready_for_approval");
+      await seedAnsweredQuestions(sessionId);
+      await seedReadyEvidence();
+      await seedContextJob({ jobType: "source_processing", status: "queued" });
+
+      const versionsBefore = await countCurrentVersions();
+      const sessionStatusBefore = (await supabase
+        .from("onboarding_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single())?.data?.status;
+      const auditBefore = await countAuditEvents();
+
+      const { data, error } = await supabase.rpc("approve_onboarding_v1", {
+        p_workspace_id: WS,
+        p_business_id: BIZ,
+        p_approver_id: ACTOR,
+      });
+
+      expect(error).toBeNull();
+      expect(data.ok).toBe(false);
+      expect(data.error.code).toBe("ACTIVE_JOB");
+
       expect(await countCurrentVersions()).toBe(versionsBefore);
       const { data: session } = await supabase
         .from("onboarding_sessions")

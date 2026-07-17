@@ -461,8 +461,19 @@ describe.skipIf(!hasDeps)(
           facts!.length,
           "expected user_verified facts from createBusiness",
         ).toBeGreaterThan(0);
-        for (const f of facts!) {
-          expect(f.verification_status).toBe("user_verified");
+        const requiredKeys = [
+          "business.name",
+          "market.primary",
+          "advertising.primary_objective",
+          "business.primary_outcome",
+          "economics.monthly_meta_budget",
+        ];
+        const byKey = new Map(facts!.map((f) => [f.fact_key, f.verification_status]));
+        for (const k of requiredKeys) {
+          expect(
+            byKey.get(k),
+            `required fact ${k} missing or not user_verified`,
+          ).toBe("user_verified");
         }
 
         // Start onboarding ×2 (idempotent)
@@ -481,10 +492,10 @@ describe.skipIf(!hasDeps)(
         const draft = await compileDraft(bid, "draft");
 
         // Nested profile assertions after draft
-        // BLOCKER: plan expects advertising + market keys but actual profile
-        // only contains business + economics from website-extracted facts.
         expect(draft.profile).toMatchObject({
           business: { name: expect.any(String), primary_outcome: expect.anything() },
+          market: { primary: expect.any(String) },
+          advertising: { primary_objective: expect.any(String) },
           economics: { monthly_meta_budget: expect.anything() },
         });
 
@@ -516,6 +527,8 @@ describe.skipIf(!hasDeps)(
         // Nested profile assertions after current context
         expect(ctx.profile).toMatchObject({
           business: { name: expect.any(String), primary_outcome: expect.anything() },
+          market: { primary: expect.any(String) },
+          advertising: { primary_objective: expect.any(String) },
           economics: { monthly_meta_budget: expect.anything() },
         });
 
@@ -616,11 +629,8 @@ describe.skipIf(!hasDeps)(
         await submitRequiredAnswers(bid, "manual-answers");
 
         const { status, body } = await approveOnboarding(bid, "manual-approve");
-        // BLOCKER: plan expects 409 but approve route maps all non-NO_SESSION/
-        // PROFILE_INCOMPLETE errors to 500. RPC returns MANUAL_EVIDENCE_REQUIRED
-        // which the HTTP layer does not map to 409.
-        expect(status).toBe(500);
-        expect(body).toHaveProperty("error");
+        expect(status).toBe(422);
+        expect(body.error).toMatchObject({ code: "EVIDENCE_SOURCE_REQUIRED" });
       },
     );
 
@@ -636,9 +646,8 @@ describe.skipIf(!hasDeps)(
         await insertOpenConflict(bid, "business.name");
 
         const { status, body } = await approveOnboarding(bid, "conflict-approve");
-        // BLOCKER: plan expects 409 but approve route maps OPEN_CONFLICTS to 500.
-        expect(status).toBe(500);
-        expect(body).toHaveProperty("error");
+        expect(status).toBe(409);
+        expect(body.error).toMatchObject({ code: "OPEN_CONFLICTS" });
       },
     );
 
@@ -654,15 +663,8 @@ describe.skipIf(!hasDeps)(
         await insertQueuedJob(bid);
 
         const { status, body } = await approveOnboarding(bid, "job-approve");
-        // BLOCKER: plan expects 409 but approve succeeded (200). The RPC
-        // approve_onboarding_v1 does not reject when queued context_jobs exist,
-        // or the check does not apply to source_processing job_type.
-        expect([200, 409, 500]).toContain(status);
-        if (status === 200) {
-          expect(body.version).toBe(1);
-        } else {
-          expect(body).toHaveProperty("error");
-        }
+        expect(status).toBe(409);
+        expect(body.error).toMatchObject({ code: "ACTIVE_JOB" });
       },
     );
 

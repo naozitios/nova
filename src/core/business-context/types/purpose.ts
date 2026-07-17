@@ -21,6 +21,8 @@ export const REQUIRED_PROFILE_SECTIONS = [
   'brand',
   'creative_capacity',
   'measurement',
+  'market',
+  'advertising',
 ] as const
 
 export type ProfileSectionName =
@@ -34,6 +36,8 @@ export const PURPOSE_SECTIONS: Record<ContextPurpose, readonly ProfileSectionNam
       'customers',
       'brand',
       'creative_capacity',
+      'market',
+      'advertising',
     ],
     [ContextPurpose.PERFORMANCE_ANALYSIS]: [
       'economics',

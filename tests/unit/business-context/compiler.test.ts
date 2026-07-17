@@ -231,6 +231,18 @@ describe("compileDraftFromFacts", () => {
     expect(result.data.unresolvedFields).not.toContain("offers");
   });
 
+  it("includes market.primary and advertising.primary_objective in result.data.profile", async () => {
+    const repo = makeRepo([
+      fact({ factKey: "market.primary", value: "US SMBs" }),
+      fact({ factKey: "advertising.primary_objective", value: "Lead generation" }),
+    ]);
+    const result = await compileDraftFromFacts(repo, "biz-1", "ws-1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.profile.market).toEqual({ primary: "US SMBs" });
+    expect(result.data.profile.advertising).toEqual({ primary_objective: "Lead generation" });
+  });
+
   it("nests across multiple sections simultaneously", async () => {
     const repo = makeRepo([
       fact({ factKey: "business.name", value: "Acme" }),

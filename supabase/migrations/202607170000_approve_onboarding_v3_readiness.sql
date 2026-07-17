@@ -3,6 +3,7 @@
 --   EVIDENCE_SOURCE_REQUIRED  — at least one terminal evidence source
 --   SOURCE_NOT_PROCESSED      — unprocessed evidence sources block
 --   QUALITY_GATE_BLOCKING     — failed_blocking quality gates block
+--   ACTIVE_JOB                — active processing jobs block
 --   MISSING_REQUIRED_FACT     — required fact keys must be user_verified
 --   REQUIRED_KEY_UNKNOWN      — business.name cannot be null
 -- Profile is compiled from active facts (user_verified, valid_to is null),
@@ -77,18 +78,7 @@ begin
     );
   end if;
 
-  -- 2. Require ready_for_approval status
-  if v_session.status != 'ready_for_approval' then
-    return jsonb_build_object(
-      'ok', false,
-      'error', jsonb_build_object(
-        'code', 'SESSION_NOT_READY',
-        'message', 'Session is not ready for approval (status: ' || v_session.status || ')'
-      )
-    );
-  end if;
-
-  -- 3. EVIDENCE_SOURCE_REQUIRED — at least one terminal evidence source
+  -- 2. EVIDENCE_SOURCE_REQUIRED — at least one terminal evidence source
   perform 1 from context_sources cs
   where cs.workspace_id = p_workspace_id
     and cs.business_id = p_business_id
@@ -104,7 +94,7 @@ begin
     );
   end if;
 
-  -- 4. SOURCE_NOT_PROCESSED — unprocessed evidence sources block
+  -- 3. SOURCE_NOT_PROCESSED — unprocessed evidence sources block
   select cs.id into v_entity_id
   from context_sources cs
   where cs.workspace_id = p_workspace_id
@@ -123,7 +113,7 @@ begin
     );
   end if;
 
-  -- 5. QUALITY_GATE_BLOCKING — failed_blocking quality gates block
+  -- 4. QUALITY_GATE_BLOCKING — failed_blocking quality gates block
   perform 1 from context_quality_gate_results qg
   where qg.workspace_id = p_workspace_id
     and qg.business_id = p_business_id
@@ -145,7 +135,26 @@ begin
     );
   end if;
 
-  -- 6. MISSING_REQUIRED_FACT + REQUIRED_KEY_UNKNOWN — compile active facts and check
+  -- 4b. ACTIVE_JOB — queued/running processing must finish before approval
+  select cj.id into v_entity_id
+  from context_jobs cj
+  where cj.workspace_id = p_workspace_id
+    and cj.business_id = p_business_id
+    and cj.job_type = 'source_processing'
+    and cj.status in ('queued', 'scheduled', 'running', 'retry_waiting')
+  limit 1;
+  if found then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'ACTIVE_JOB',
+        'message', 'Source processing must finish before approval.',
+        'entityId', v_entity_id
+      )
+    );
+  end if;
+
+  -- 5. MISSING_REQUIRED_FACT + REQUIRED_KEY_UNKNOWN — compile active facts and check
   --    Active: verification_status = 'user_verified' and valid_to is null.
   --    Pick highest confidence per fact_key (matches TypeScript pickActiveFacts).
   v_blocked := false;
@@ -190,7 +199,7 @@ begin
     end if;
   end loop;
 
-  -- 7. OPEN_CONFLICTS — unresolved conflicts block
+  -- 6. OPEN_CONFLICTS — unresolved conflicts block
   select count(*) into v_open_conflict_count
   from context_conflicts
   where workspace_id = p_workspace_id
@@ -211,7 +220,18 @@ begin
     );
   end if;
 
-  -- 8. Compile profile from active facts (user_verified, valid_to is null)
+  -- 8. Require ready_for_approval status (fallback when no specific blocker applies)
+  if v_session.status != 'ready_for_approval' then
+    return jsonb_build_object(
+      'ok', false,
+      'error', jsonb_build_object(
+        'code', 'SESSION_NOT_READY',
+        'message', 'Session is not ready for approval (status: ' || v_session.status || ')'
+      )
+    );
+  end if;
+
+  -- 9. Compile profile from active facts (user_verified, valid_to is null)
   --    Dotted fact_key (e.g. 'business.name') → section='business', field='name'
   --    → profile = { "business": { "name": <value> } }
   --    Multiple fields in same section merge via jsonb || (last-write-wins per key).

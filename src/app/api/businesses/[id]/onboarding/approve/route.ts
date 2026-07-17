@@ -9,6 +9,19 @@ import { approveV1 } from '@/core/business-context/service'
 import { getSupabaseServiceClient } from '@/infrastructure/business-context/supabase-client'
 import { SupabaseRepository } from '@/infrastructure/business-context/supabase.repository'
 
+const APPROVAL_ERROR_STATUS: Record<string, number> = {
+  NO_SESSION: 404,
+  SESSION_NOT_READY: 409,
+  EVIDENCE_SOURCE_REQUIRED: 422,
+  SOURCE_NOT_PROCESSED: 409,
+  QUALITY_GATE_BLOCKING: 409,
+  ACTIVE_JOB: 409,
+  MISSING_REQUIRED_FACT: 422,
+  REQUIRED_KEY_UNKNOWN: 422,
+  OPEN_CONFLICTS: 409,
+  PROFILE_INCOMPLETE: 422,
+}
+
 async function resolveWorkspaceFromBusiness(
   businessId: string,
 ): Promise<{ workspaceId: string } | { error: Response }> {
@@ -49,10 +62,7 @@ export async function POST(
       authz.ctx.userId,
     )
     if (!result.ok) {
-      const status =
-        result.error.code === 'NO_SESSION' ? 404
-        : result.error.code === 'PROFILE_INCOMPLETE' ? 422
-        : 500
+      const status = APPROVAL_ERROR_STATUS[result.error.code] ?? 500
       return errorResponse(status, result.error.code, result.error.message, result.error.details)
     }
 

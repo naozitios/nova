@@ -690,6 +690,76 @@ describe("submitAnswers", () => {
     );
   });
 
+  it("resolves open conflict for answered factKey using newly created fact id", async () => {
+    const openConflict = {
+      id: "conflict-1",
+      workspaceId: "ws-1",
+      businessId: "biz-1",
+      factKey: "business.name",
+      factIds: ["old-fact-1", "old-fact-2"],
+      status: "open" as const,
+      resolutionFactId: null,
+      resolutionNote: null,
+      resolvedBy: null,
+      createdAt: new Date(),
+      resolvedAt: null,
+    };
+
+    const resolveConflictSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { ...openConflict, status: "resolved" as const },
+    });
+    const listConflictsSpy = vi.fn()
+      .mockResolvedValueOnce({ ok: true, data: { items: [openConflict], total: 1 } }) // conflict lookup by factKey
+      .mockResolvedValueOnce({ ok: true, data: { items: [], total: 0 } }); // readiness lookup
+
+    const updateSessionSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      data: makeSession("biz-1"),
+    });
+    const repo = createFakeRepository({
+      listOnboardingSessions: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { items: [makeSession("biz-1")], total: 1 },
+      }),
+      listContextSources: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      createContextSource: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { id: "src-prov-1" } as ContextSource,
+      }),
+      listContextFacts: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listContextConflicts: listConflictsSpy,
+      persistFactReconciliation: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { created_fact_ids: ["new-fact-1"], conflict_ids: [] },
+      }),
+      resolveContextConflict: resolveConflictSpy,
+      createOnboardingQuestion: vi.fn().mockResolvedValue({ ok: true, data: { id: "q-1" } }),
+      listContextJobs: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      listOnboardingQuestions: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      getCurrentProfileVersion: vi.fn().mockResolvedValue({ ok: true, data: null }),
+      listQualityGateResults: vi.fn().mockResolvedValue({ ok: true, data: { items: [], total: 0 } }),
+      updateOnboardingSession: updateSessionSpy,
+    });
+
+    const r = await submitAnswers(repo, "biz-1", "ws-1", "user-1", {
+      answers: [{ factKey: "business.name", answer: "Acme" }],
+    });
+    expect(r.ok).toBe(true);
+
+    // resolveContextConflict called with conflict id and newly created fact id
+    expect(resolveConflictSpy).toHaveBeenCalledWith(
+      "ws-1",
+      "conflict-1",
+      "new-fact-1",
+      "user-1",
+    );
+
+    // resolveContextConflict called before readiness/session update
+    expect(resolveConflictSpy.mock.invocationCallOrder[0])
+      .toBeLessThan(updateSessionSpy.mock.invocationCallOrder[0]);
+  });
+
   it("does not advance session when no answers are submitted", async () => {
     const updateOnboardingSessionSpy = vi.fn();
     const repo = createFakeRepository({

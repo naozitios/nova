@@ -322,6 +322,27 @@ export async function submitAnswers(
       ],
     )
     if (!reconcResult.ok) return reconcResult
+
+    // Resolve open conflicts for this factKey using the newly created fact
+    const createdFactId = reconcResult.data?.created_fact_ids?.[0]
+    if (createdFactId) {
+      const conflictsResult = await repo.listContextConflicts({
+        workspaceId,
+        businessId,
+        factKey: item.factKey,
+        status: 'open',
+      })
+      if (!conflictsResult.ok) return conflictsResult
+      for (const conflict of conflictsResult.data.items) {
+        const resolveResult = await repo.resolveContextConflict(
+          workspaceId,
+          conflict.id,
+          createdFactId,
+          userId,
+        )
+        if (!resolveResult.ok) return resolveResult
+      }
+    }
   }
 
   const readiness = await getReadiness(repo, businessId, workspaceId)
