@@ -64,7 +64,7 @@ export default function OnboardingPage() {
 
   const mockUpload = () => {
     setState((s) => {
-      if (s.sources.some((src) => src.sourceName === 'Brand voice notes.pdf')) return s;
+      if (s.sources.some((src) => src.id === 'src_brand_voice')) return s;
 
       const uploadSource: MockSource = {
         id: 'src_brand_voice',

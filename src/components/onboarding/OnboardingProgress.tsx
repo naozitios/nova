@@ -27,7 +27,7 @@ export function OnboardingProgress({ currentIndex, skippedStepKeys = [], blocked
         {ONBOARDING_STEPS.map((step, index) => {
           const complete = index < currentIndex;
           const current = index === currentIndex;
-          const skipped = skippedStepKeys.includes(step.key);
+          const skipped = skippedStepKeys.includes(step.key) && !current;
           const blocked = blockedStepKeys.includes(step.key);
 
           return (

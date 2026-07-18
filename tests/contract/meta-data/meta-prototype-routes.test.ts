@@ -16,7 +16,7 @@ const ROUTE_AUTH = "src/app/api/meta/auth/route.ts";
 const ROUTE_ACCOUNTS = "src/app/api/meta/accounts/route.ts";
 const ROUTE_CALLBACK = "src/app/api/meta/callback/route.ts";
 const ROUTE_APPLY = "src/app/api/meta/apply/[campaignId]/route.ts";
-const ROUTE_SYNC = "src/app/api/meta/sync/[campaignId]/route.ts";
+const ROUTE_SYNC = "src/app/api/meta/sync/[runId]/route.ts";
 
 // ─── /api/meta/auth — deprecated, must not set meta_oauth_state cookie ─────
 
@@ -102,7 +102,7 @@ describe("meta apply route — deprecated prototype guard", () => {
   });
 });
 
-// ─── /api/meta/sync/[campaignId] — deprecated, no cookie reads or MetaApiAdapter
+// ─── /api/meta/sync/[runId] — deprecated, no cookie reads or MetaApiAdapter
 
 describe("meta sync route — deprecated prototype guard", () => {
   const source = () => readFileSource(ROUTE_SYNC);
