@@ -40,6 +40,10 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  if (pathname?.startsWith('/onboarding')) {
+    return null;
+  }
+
   const handleLogin = (email: string) => {
     login({ id: '1', name: 'Demo User', email, company: 'Demo Agency' });
     setShowSignIn(false);
