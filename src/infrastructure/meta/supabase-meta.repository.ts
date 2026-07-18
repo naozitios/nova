@@ -15,14 +15,23 @@ import type {
   MetaRepositoryPort,
   MetaSyncCheckpointRecord,
   MetaSyncRunRecord,
+  QuarantineRecordsInput,
   SelectAdAccountInput,
   UpsertAdAccountsInput,
+  UpsertAdSetsInput,
   UpsertAdsInput,
   UpsertCampaignsInput,
   UpsertConnectionInput,
+  UpsertCreativesInput,
   UpsertDailyInsightsInput,
 } from '@/core/meta-data/repository.port'
 import { getSupabaseServiceClient } from '@/infrastructure/business-context/supabase-client'
+import { MetaConnectionRepository } from '@/infrastructure/meta/repositories/connection.repository'
+import { MetaHierarchyRepository } from '@/infrastructure/meta/repositories/hierarchy.repository'
+import { MetaInsightsRepository } from '@/infrastructure/meta/repositories/insights.repository'
+import { MetaSyncRepository } from '@/infrastructure/meta/repositories/sync.repository'
+
+export { mapSyncRun } from '@/infrastructure/meta/repositories/sync.repository'
 
 type Row = Record<string, unknown>
 
@@ -30,632 +39,122 @@ function ok<T>(data: T): ServiceResult<T> {
   return { ok: true, data }
 }
 
-function err<T>(code: string, message: string, details?: Record<string, JsonValue>): ServiceResult<T> {
-  return { ok: false, error: { code, message, details } }
-}
-
-function toDate(value: unknown): Date {
-  return new Date(String(value))
-}
-
-function mapOAuthState(row: Row): MetaOAuthStateRecord {
-  return {
-    id: String(row.id),
-    workspaceId: String(row.workspace_id),
-    createdBy: String(row.created_by),
-    nonceHash: String(row.state_nonce_hash),
-    returnPath: String(row.return_path),
-    expiresAt: toDate(row.expires_at),
-    consumedAt: row.consumed_at ? toDate(row.consumed_at) : null,
-    providerCodeHash: row.provider_code_hash ? String(row.provider_code_hash) : null,
-    createdAt: toDate(row.created_at),
-  }
-}
-
-function mapConnectionStatus(row: Row): MetaConnectionStatusView {
-  return {
-    id: String(row.id),
-    workspaceId: String(row.workspace_id),
-    connectedBy: String(row.connected_by),
-    metaUserId: String(row.meta_user_id),
-    status: row.status as MetaConnectionStatusView['status'],
-    grantedScopes: Array.isArray(row.granted_scopes) ? row.granted_scopes.map(String) : [],
-    tokenExpiresAt: row.token_expires_at ? toDate(row.token_expires_at) : null,
-    selectedAdAccountId: row.selected_ad_account_id ? String(row.selected_ad_account_id) : null,
-    selectedBusinessId: row.selected_business_id ? String(row.selected_business_id) : null,
-    lastVerifiedAt: row.last_verified_at ? toDate(row.last_verified_at) : null,
-    reconnectReason: row.reconnect_reason ? String(row.reconnect_reason) : null,
-    createdAt: toDate(row.created_at),
-    updatedAt: toDate(row.updated_at),
-  }
-}
-
-function mapConnection(row: Row): MetaConnectionRecord {
-  return {
-    ...mapConnectionStatus(row),
-    encryptedAccessToken: String(row.encrypted_access_token),
-  }
-}
-
-function mapAdAccount(row: Row): MetaAdAccountSummary {
-  return {
-    id: String(row.meta_account_id),
-    accountId: String(row.account_id),
-    name: String(row.name),
-    currency: row.currency ? String(row.currency) : null,
-    timezoneName: row.timezone_name ? String(row.timezone_name) : null,
-    businessId: row.business_id ? String(row.business_id) : null,
-    businessName: row.meta_business_name ? String(row.meta_business_name) : null,
-    isSelected: Boolean(row.is_selected),
-  }
-}
-
-function mapSyncRun(row: Row): MetaSyncRunRecord {
-  return {
-    id: String(row.id),
-    workspaceId: String(row.workspace_id),
-    metaAdAccountId: String(row.meta_ad_account_id),
-    mode: String(row.mode),
-    status: String(row.status),
-    idempotencyKey: row.idempotency_key ? String(row.idempotency_key) : null,
-  }
-}
-
-function toNumberOrNull(value: unknown): number | null {
-  if (value === null || value === undefined) return null
-  const str = String(value).trim()
-  if (str === '') return null
-  const n = Number(str)
-  return Number.isFinite(n) ? n : null
-}
-
-function toBigIntOrNull(value: unknown): number | null {
-  if (value === null || value === undefined) return null
-  const str = String(value).trim()
-  if (str === '') return null
-  const n = Number(str)
-  return Number.isFinite(n) ? Math.round(n) : null
-}
-
-function mapDailyInsightRow(row: Row): MetaDailyInsightRecord {
-  return {
-    id: String(row.id),
-    workspaceId: String(row.workspace_id),
-    metaAdAccountId: String(row.meta_ad_account_id),
-    metaCampaignId: row.meta_campaign_id ? String(row.meta_campaign_id) : null,
-    metaAdSetId: row.meta_ad_set_id ? String(row.meta_ad_set_id) : null,
-    metaAdId: String(row.meta_ad_id),
-    dateStart: String(row.date_start),
-    dateStop: String(row.date_stop),
-    spend: toNumberOrNull(row.spend),
-    impressions: toBigIntOrNull(row.impressions),
-    reach: toBigIntOrNull(row.reach),
-    frequency: toNumberOrNull(row.frequency),
-    clicks: toBigIntOrNull(row.clicks),
-    linkClicks: toBigIntOrNull(row.link_clicks),
-    landingPageViews: toBigIntOrNull(row.landing_page_views),
-    actions: Array.isArray(row.actions) ? row.actions : [],
-    actionValues: Array.isArray(row.action_values) ? row.action_values : [],
-    attributionSetting: String(row.attribution_setting ?? 'default'),
-    currency: row.currency ? String(row.currency) : null,
-    accountTimezone: row.account_timezone ? String(row.account_timezone) : null,
-    dataCompletenessState: String(row.data_completeness_state ?? 'complete'),
-    metaSyncRunId: row.meta_sync_run_id ? String(row.meta_sync_run_id) : null,
-    apiVersion: String(row.api_version),
-    createdAt: toDate(row.created_at),
-    updatedAt: toDate(row.updated_at),
-  }
-}
-
 export class SupabaseMetaRepository implements MetaRepositoryPort {
   constructor(private readonly db: SupabaseClient = getSupabaseServiceClient()) {}
+  private readonly connectionRepo = new MetaConnectionRepository(this.db)
+  private readonly syncRepo = new MetaSyncRepository(this.db)
+  private readonly hierarchyRepo = new MetaHierarchyRepository(this.db, (rows) => this.insertQuarantinedRecords(rows))
+  private readonly insightsRepo = new MetaInsightsRepository(this.db, (rows) => this.insertQuarantinedRecords(rows))
+
+  private async insertQuarantinedRecords(rows: Row[]): Promise<ServiceResult<void>> {
+    return this.syncRepo.insertQuarantinedRecords(rows)
+  }
+
+  // --- connectionRepo delegates ---
 
   async createOAuthState(input: CreateOAuthStateInput): Promise<ServiceResult<MetaOAuthStateRecord>> {
-    const { data, error } = await this.db
-      .from('meta_oauth_states')
-      .insert({
-        workspace_id: input.workspaceId,
-        created_by: input.createdBy,
-        state_nonce_hash: input.nonceHash,
-        return_path: input.returnPath,
-        expires_at: input.expiresAt.toISOString(),
-      })
-      .select('*')
-      .single()
-
-    if (error) return err('CREATE_OAUTH_STATE_FAILED', error.message)
-    return ok(mapOAuthState(data as Row))
+    return this.connectionRepo.createOAuthState(input)
   }
 
   async consumeOAuthState(input: ConsumeOAuthStateInput): Promise<ServiceResult<MetaOAuthStateRecord>> {
-    const replay = await this.db
-      .from('meta_oauth_states')
-      .select('id')
-      .eq('provider_code_hash', input.providerCodeHash)
-      .limit(1)
-    if (replay.error) return err('READ_FAILED', replay.error.message)
-    if ((replay.data ?? []).length > 0) return err('CODE_REPLAYED', 'Meta OAuth provider code was already used')
-
-    const current = await this.db
-      .from('meta_oauth_states')
-      .select('*')
-      .eq('id', input.stateId)
-      .eq('state_nonce_hash', input.nonceHash)
-      .single()
-    if (current.error || !current.data) return err('OAUTH_CALLBACK_REPLAYED', 'Meta OAuth state was not found')
-
-    const state = mapOAuthState(current.data as Row)
-    if (state.consumedAt || state.expiresAt <= input.now) {
-      return err('OAUTH_CALLBACK_REPLAYED', 'Meta OAuth state was already consumed or expired')
-    }
-
-    const { data, error } = await this.db
-      .from('meta_oauth_states')
-      .update({ consumed_at: input.now.toISOString(), provider_code_hash: input.providerCodeHash })
-      .eq('id', input.stateId)
-      .is('consumed_at', null)
-      .select('*')
-      .single()
-
-    if (error || !data) return err('OAUTH_CALLBACK_REPLAYED', error?.message ?? 'Meta OAuth state was already consumed')
-    return ok(mapOAuthState(data as Row))
+    return this.connectionRepo.consumeOAuthState(input)
   }
 
   async upsertConnection(input: UpsertConnectionInput): Promise<ServiceResult<MetaConnectionRecord>> {
-    const existing = await this.db
-      .from('meta_connections')
-      .select('id')
-      .eq('workspace_id', input.workspaceId)
-      .eq('meta_user_id', input.metaUserId)
-      .in('status', ['pending', 'connected', 'degraded', 'reconnect_required'])
-      .maybeSingle()
-    if (existing.error) return err('READ_CONNECTION_FAILED', existing.error.message)
-
-    const payload = {
-      workspace_id: input.workspaceId,
-      connected_by: input.connectedBy,
-      meta_user_id: input.metaUserId,
-      encrypted_access_token: input.encryptedAccessToken,
-      granted_scopes: input.grantedScopes,
-      token_expires_at: input.tokenExpiresAt?.toISOString() ?? null,
-      status: 'connected',
-      last_verified_at: new Date().toISOString(),
-      reconnect_reason: null,
-      updated_at: new Date().toISOString(),
-    }
-
-    const query = existing.data
-      ? this.db.from('meta_connections').update(payload).eq('id', String(existing.data.id))
-      : this.db.from('meta_connections').insert(payload)
-
-    const { data, error } = await query.select('*').single()
-
-    if (error) return err('UPSERT_CONNECTION_FAILED', error.message)
-    return ok(mapConnection(data as Row))
+    return this.connectionRepo.upsertConnection(input)
   }
 
   async getConnectionWithToken(workspaceId: string): Promise<ServiceResult<MetaConnectionRecord | null>> {
-    const { data, error } = await this.db
-      .from('meta_connections')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-      .in('status', ['connected', 'degraded'])
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (error) return err('READ_CONNECTION_FAILED', error.message)
-    return ok(data ? mapConnection(data as Row) : null)
+    return this.connectionRepo.getConnectionWithToken(workspaceId)
   }
 
   async getStatus(workspaceId: string): Promise<ServiceResult<MetaConnectionStatusView[]>> {
-    const { data, error } = await this.db
-      .from('meta_connections')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-      .order('updated_at', { ascending: false })
+    return this.connectionRepo.getStatus(workspaceId)
+  }
 
-    if (error) return err('READ_STATUS_FAILED', error.message)
-    return ok((data ?? []).map((row) => mapConnectionStatus(row as Row)))
+  async disconnectConnection(workspaceId: string): Promise<ServiceResult<MetaConnectionRecord | null>> {
+    return this.connectionRepo.disconnectConnection(workspaceId)
   }
 
   async upsertAdAccounts(input: UpsertAdAccountsInput): Promise<ServiceResult<MetaAdAccountSummary[]>> {
-    if (input.accounts.length === 0) return ok([])
-    const rows = input.accounts.map((account) => ({
-      workspace_id: input.workspaceId,
-      connection_id: input.connectionId,
-      business_id: account.businessId,
-      meta_account_id: account.id,
-      account_id: account.accountId,
-      name: account.name,
-      currency: account.currency,
-      timezone_name: account.timezoneName,
-      meta_business_id: account.businessId,
-      meta_business_name: account.businessName,
-      raw_metadata: account.rawMetadata,
-      updated_at: new Date().toISOString(),
-    }))
-    const { data, error } = await this.db
-      .from('meta_ad_accounts')
-      .upsert(rows, { onConflict: 'workspace_id,connection_id,meta_account_id' })
-      .select('*')
-
-    if (error) return err('UPSERT_AD_ACCOUNTS_FAILED', error.message)
-    return ok((data ?? []).map((row) => mapAdAccount(row as Row)))
+    return this.connectionRepo.upsertAdAccounts(input)
   }
 
   async listAdAccounts(workspaceId: string, connectionId?: string): Promise<ServiceResult<MetaAdAccountSummary[]>> {
-    let query = this.db
-      .from('meta_ad_accounts')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-      .order('name', { ascending: true })
-    if (connectionId) query = query.eq('connection_id', connectionId)
-    const { data, error } = await query
-    if (error) return err('LIST_AD_ACCOUNTS_FAILED', error.message)
-    return ok((data ?? []).map((row) => mapAdAccount(row as Row)))
+    return this.connectionRepo.listAdAccounts(workspaceId, connectionId)
   }
 
   async selectAdAccount(input: SelectAdAccountInput): Promise<ServiceResult<MetaAdAccountSummary>> {
-    const existing = await this.db
-      .from('meta_ad_accounts')
-      .select('connection_id')
-      .eq('workspace_id', input.workspaceId)
-      .eq('meta_account_id', input.metaAccountId)
-      .maybeSingle()
-    if (existing.error) return err('READ_AD_ACCOUNT_FAILED', existing.error.message)
-    if (!existing.data) return err('AD_ACCOUNT_NOT_FOUND', 'Meta ad account is not available for this workspace')
-
-    await this.db
-      .from('meta_ad_accounts')
-      .update({ is_selected: false, business_id: null, updated_at: new Date().toISOString() })
-      .eq('workspace_id', input.workspaceId)
-      .eq('business_id', input.businessId)
-
-    const { data, error } = await this.db
-      .from('meta_ad_accounts')
-      .update({ is_selected: true, business_id: input.businessId, updated_at: new Date().toISOString() })
-      .eq('workspace_id', input.workspaceId)
-      .eq('meta_account_id', input.metaAccountId)
-      .select('*')
-      .single()
-
-    if (error) return err('SELECT_AD_ACCOUNT_FAILED', error.message)
-    return ok(mapAdAccount(data as Row))
+    return this.connectionRepo.selectAdAccount(input)
   }
 
-  async createSyncRun(input: CreateSyncRunInput): Promise<ServiceResult<MetaSyncRunRecord>> {
-    const { data, error } = await this.db
-      .from('meta_sync_runs')
-      .insert({
-        workspace_id: input.workspaceId,
-        meta_ad_account_id: input.metaAdAccountId,
-        mode: input.mode,
-        status: 'queued',
-        idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
-      })
-      .select('*')
-      .single()
+  // --- syncRepo delegates ---
 
-    if (error) return err('CREATE_SYNC_RUN_FAILED', error.message)
-    return ok(mapSyncRun(data as Row))
+  async createSyncRun(input: CreateSyncRunInput): Promise<ServiceResult<MetaSyncRunRecord>> {
+    return this.syncRepo.createSyncRun(input)
   }
 
   async getSyncRun(workspaceId: string, runId: string): Promise<ServiceResult<MetaSyncRunRecord | null>> {
-    const { data, error } = await this.db
-      .from('meta_sync_runs')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-      .eq('id', runId)
-      .maybeSingle()
-
-    if (error) return err('READ_SYNC_RUN_FAILED', error.message)
-    return ok(data ? mapSyncRun(data as Row) : null)
+    return this.syncRepo.getSyncRun(workspaceId, runId)
   }
 
   async scheduleSyncRetry(workspaceId: string, runId: string): Promise<ServiceResult<MetaSyncRunRecord>> {
-    const { data: existing, error: readErr } = await this.db
-      .from('meta_sync_runs')
-      .select('id, attempt_count')
-      .eq('workspace_id', workspaceId)
-      .eq('id', runId)
-      .single()
-
-    if (readErr || !existing) return err('SYNC_RUN_NOT_FOUND', 'Sync run not found')
-
-    const updatePayload: Row = {
-      status: 'retry_scheduled',
-      locked_by: null,
-      locked_at: null,
-    }
-    if (existing.attempt_count != null) {
-      updatePayload.attempt_count = (existing.attempt_count as number) + 1
-    }
-
-    const { data, error } = await this.db
-      .from('meta_sync_runs')
-      .update(updatePayload)
-      .eq('workspace_id', workspaceId)
-      .eq('id', runId)
-      .select('*')
-      .single()
-
-    if (error) return err('SCHEDULE_SYNC_RETRY_FAILED', error.message)
-    return ok(mapSyncRun(data as Row))
+    return this.syncRepo.scheduleSyncRetry(workspaceId, runId)
   }
 
   async advanceCheckpoint(input: AdvanceCheckpointInput): Promise<ServiceResult<MetaSyncCheckpointRecord>> {
-    const { data, error } = await this.db
-      .from('meta_sync_checkpoints')
-      .upsert(
-        {
-          workspace_id: input.workspaceId,
-          run_id: input.runId,
-          partition_key: input.partitionKey,
-        status: input.status,
-        cursor: input.cursor != null ? String(input.cursor) : null,
-        },
-        { onConflict: 'run_id,partition_key' },
-      )
-      .select('*')
-      .single()
-
-    if (error) return err('ADVANCE_CHECKPOINT_FAILED', error.message)
-    return ok({
-      id: String(data.id),
-      workspaceId: String(data.workspace_id),
-      runId: String(data.run_id),
-      partitionKey: String(data.partition_key),
-      status: String(data.status),
-      cursor: data.cursor as JsonValue | null,
-    })
+    return this.syncRepo.advanceCheckpoint(input)
   }
 
-  async upsertDailyInsights(input: UpsertDailyInsightsInput): Promise<ServiceResult<unknown>> {
-    if (input.insights.length === 0) return ok(null)
-
-    // Validate runId exists in meta_sync_runs; nullify if not (test-friendly)
-    let validRunId: string | null = input.runId
-    const { data: runRow } = await this.db
-      .from('meta_sync_runs')
-      .select('id')
-      .eq('id', input.runId)
-      .maybeSingle()
-    if (!runRow) validRunId = null
-
-    const validRows: Row[] = []
-    const quarantinePayloads: Array<{ insight: Record<string, unknown>; validationErrors: string }> = []
-
-    for (const insight of input.insights) {
-      if (!insight.dateStart || !insight.dateStop) {
-        const missingFields: string[] = []
-        if (!insight.dateStart) missingFields.push('Missing date_start')
-        if (!insight.dateStop) missingFields.push('Missing date_stop')
-        quarantinePayloads.push({
-          insight: insight as Record<string, unknown>,
-          validationErrors: missingFields.join(', '),
-        })
-        continue
-      }
-
-      validRows.push({
-        workspace_id: input.workspaceId,
-        meta_ad_account_id: input.metaAdAccountId,
-        meta_campaign_id: insight.metaCampaignId ?? null,
-        meta_ad_set_id: insight.metaAdSetId ?? null,
-        meta_ad_id: insight.metaAdId ?? '',
-        date_start: insight.dateStart,
-        date_stop: insight.dateStop,
-        spend: toNumberOrNull(insight.spend),
-        impressions: toBigIntOrNull(insight.impressions),
-        reach: toBigIntOrNull(insight.reach),
-        frequency: toNumberOrNull(insight.frequency),
-        clicks: toBigIntOrNull(insight.clicks),
-        link_clicks: toBigIntOrNull(insight.linkClicks),
-        landing_page_views: toBigIntOrNull(insight.landingPageViews),
-        actions: Array.isArray(insight.actions) ? insight.actions : [],
-        action_values: Array.isArray(insight.actionValues) ? insight.actionValues : [],
-        attribution_setting: insight.attributionSetting ?? 'default',
-        currency: input.currency,
-        account_timezone: input.accountTimezone,
-        data_completeness_state: insight.dataCompletenessState ?? 'complete',
-        meta_sync_run_id: validRunId,
-        api_version: input.apiVersion,
-        raw_metadata_json: insight,
-        updated_at: new Date().toISOString(),
-      })
-    }
-
-    if (validRows.length > 0) {
-      const { error } = await this.db
-        .from('meta_insights_daily')
-        .upsert(validRows, {
-          onConflict: 'workspace_id,meta_ad_account_id,meta_ad_id,date_start,date_stop,attribution_setting,api_version',
-        })
-      if (error) return err('UPSERT_DAILY_INSIGHTS_FAILED', error.message)
-    }
-
-    if (quarantinePayloads.length > 0) {
-      const qRows = quarantinePayloads.map((q) => ({
-        workspace_id: input.workspaceId,
-        source_table: 'meta_insights_daily',
-        provider_id: q.insight.metaAdId ? String(q.insight.metaAdId) : String(q.insight.id ?? ''),
-        redacted_payload: q.insight as JsonValue,
-        validation_errors: [q.validationErrors] as JsonValue,
-      }))
-      const { error } = await this.db.from('meta_quarantined_records').insert(qRows)
-      if (error) return err('QUARANTINE_DAILY_INSIGHTS_FAILED', error.message)
-    }
-
-    return ok(null)
+  async claimSyncRun(runId: string, workerId: string, leaseMs: number): Promise<ServiceResult<MetaSyncRunRecord | null>> {
+    return this.syncRepo.claimSyncRun(runId, workerId, leaseMs)
   }
 
-  async getDataFreshness(input: DataFreshnessInput): Promise<ServiceResult<DataFreshnessResult>> {
-    const baseQuery = this.db
-      .from('meta_insights_daily')
-      .select('date_start')
-      .eq('workspace_id', input.workspaceId)
-      .eq('meta_ad_account_id', input.metaAdAccountId)
-
-    let query = baseQuery.order('date_start', { ascending: false })
-    if (input.since) query = query.gte('date_start', input.since)
-    if (input.until) query = query.lte('date_start', input.until)
-
-    const { data, error } = await query
-    if (error) return err('READ_DATA_FRESHNESS_FAILED', error.message)
-
-    const dates = (data ?? [])
-      .map((r: Row) => String(r.date_start))
-      .filter(Boolean)
-
-    if (dates.length === 0) {
-      return ok({ latestDate: null, missingWindowCount: 0, gapCount: 0 })
-    }
-
-    const uniqueDates = [...new Set(dates)].sort()
-
-    // If no range specified, just return latest date with zero gaps
-    if (!input.since || !input.until) {
-      return ok({
-        latestDate: uniqueDates[uniqueDates.length - 1],
-        missingWindowCount: 0,
-        gapCount: 0,
-      })
-    }
-
-    const dateSet = new Set(uniqueDates)
-    let missingWindowCount = 0
-    let gapCount = 0
-    let inGap = false
-
-    // Iterate through the range from since to until (inclusive)
-    const start = new Date(input.since + 'T00:00:00Z')
-    const end = new Date(input.until + 'T00:00:00Z')
-    const current = new Date(start)
-
-    while (current <= end) {
-      const dateStr = current.toISOString().slice(0, 10)
-      if (dateSet.has(dateStr)) {
-        inGap = false
-      } else {
-        missingWindowCount++
-        if (!inGap) {
-          gapCount++
-          inGap = true
-        }
-      }
-      current.setDate(current.getDate() + 1)
-    }
-
-    return ok({
-      latestDate: uniqueDates[uniqueDates.length - 1],
-      missingWindowCount,
-      gapCount,
-    })
+  async listRunnableSyncRuns(limit: number): Promise<ServiceResult<MetaSyncRunRecord[]>> {
+    return this.syncRepo.listRunnableSyncRuns(limit)
   }
 
-  async listDailyInsights(input: ListDailyInsightsInput): Promise<ServiceResult<MetaDailyInsightRecord[]>> {
-    const { data, error } = await this.db
-      .from('meta_insights_daily')
-      .select('*')
-      .eq('workspace_id', input.workspaceId)
-      .eq('meta_ad_account_id', input.metaAdAccountId)
-      .gte('date_start', input.since)
-      .lte('date_start', input.until)
-      .order('date_start', { ascending: true })
-
-    if (error) return err('LIST_DAILY_INSIGHTS_FAILED', error.message)
-    return ok((data ?? []).map((row) => mapDailyInsightRow(row as Row)))
+  async setSyncRunStatus(runId: string, status: 'completed' | 'failed', errorMessage?: string): Promise<ServiceResult<MetaSyncRunRecord>> {
+    return this.syncRepo.setSyncRunStatus(runId, status, errorMessage)
   }
+
+  async getCompletedCheckpointKeys(runId: string): Promise<ServiceResult<string[]>> {
+    return this.syncRepo.getCompletedCheckpointKeys(runId)
+  }
+
+  async quarantineRecords(input: QuarantineRecordsInput): Promise<ServiceResult<{ quarantined: number }>> {
+    return this.syncRepo.quarantineRecords(input)
+  }
+
+  // --- hierarchyRepo delegates ---
 
   async upsertCampaigns(input: UpsertCampaignsInput): Promise<ServiceResult<unknown>> {
-    if (input.campaigns.length === 0) return ok(null)
-    const now = new Date().toISOString()
-    const rows = input.campaigns.map((c) => ({
-      workspace_id: input.workspaceId,
-      meta_ad_account_id: input.metaAdAccountId,
-      meta_campaign_id: String(c.id),
-      name: String(c.name ?? ''),
-      objective: c.objective ? String(c.objective) : null,
-      effective_status: c.effective_status ? String(c.effective_status) : null,
-      configured_status: c.configured_status ? String(c.configured_status) : null,
-      buying_type: c.buying_type ? String(c.buying_type) : null,
-      start_time: c.start_time ? String(c.start_time) : null,
-      stop_time: c.stop_time ? String(c.stop_time) : null,
-      provider_created_time: c.created_time ? String(c.created_time) : null,
-      provider_updated_time: c.updated_time ? String(c.updated_time) : null,
-      raw_metadata_json: c,
-      meta_sync_run_id: input.runId,
-      last_seen_at: now,
-      updated_at: now,
-    }))
-    const { error } = await this.db
-      .from('meta_campaigns')
-      .upsert(rows, { onConflict: 'workspace_id,meta_ad_account_id,meta_campaign_id' })
-    if (error) return err('UPSERT_CAMPAIGNS_FAILED', error.message)
-    return ok(null)
+    return this.hierarchyRepo.upsertCampaigns(input)
+  }
+
+  async upsertAdSets(input: UpsertAdSetsInput): Promise<ServiceResult<{ upserted: number; quarantined: number }>> {
+    return this.hierarchyRepo.upsertAdSets(input)
   }
 
   async upsertAds(input: UpsertAdsInput): Promise<ServiceResult<unknown>> {
-    if (input.ads.length === 0) return ok(null)
-    const now = new Date().toISOString()
-    const validAds: Row[] = []
-    const quarantinePayloads: Array<{ ad: Record<string, unknown>; validationErrors: string }> = []
+    return this.hierarchyRepo.upsertAds(input)
+  }
 
-    for (const ad of input.ads) {
-      const adsetMetaId = ad.adset_id ? String(ad.adset_id) : null
-      if (!adsetMetaId) {
-        quarantinePayloads.push({ ad, validationErrors: 'Missing adset_id' })
-        continue
-      }
-      const { data: adset } = await this.db
-        .from('meta_ad_sets')
-        .select('id')
-        .eq('workspace_id', input.workspaceId)
-        .eq('meta_ad_account_id', input.metaAdAccountId)
-        .eq('meta_ad_set_id', adsetMetaId)
-        .maybeSingle()
-      if (!adset) {
-        quarantinePayloads.push({ ad, validationErrors: `Parent meta_ad_set not found: ${adsetMetaId}` })
-        continue
-      }
-      validAds.push({
-        workspace_id: input.workspaceId,
-        meta_ad_account_id: input.metaAdAccountId,
-        meta_ad_id: String(ad.id),
-        meta_campaign_id: ad.campaign_id ? String(ad.campaign_id) : null,
-        meta_ad_set_id: adsetMetaId,
-        name: ad.name ? String(ad.name) : null,
-        effective_status: ad.effective_status ? String(ad.effective_status) : null,
-        configured_status: ad.configured_status ? String(ad.configured_status) : null,
-        provider_created_time: ad.created_time ? String(ad.created_time) : null,
-        provider_updated_time: ad.updated_time ? String(ad.updated_time) : null,
-        raw_metadata_json: ad,
-        meta_sync_run_id: input.runId,
-        last_seen_at: now,
-        updated_at: now,
-      })
-    }
+  async upsertCreatives(input: UpsertCreativesInput): Promise<ServiceResult<{ upserted: number; quarantined: number }>> {
+    return this.hierarchyRepo.upsertCreatives(input)
+  }
 
-    if (validAds.length > 0) {
-      const { error } = await this.db
-        .from('meta_ads')
-        .upsert(validAds, { onConflict: 'workspace_id,meta_ad_account_id,meta_ad_id' })
-      if (error) return err('UPSERT_ADS_FAILED', error.message)
-    }
+  // --- insightsRepo delegates ---
 
-    if (quarantinePayloads.length > 0) {
-      const qRows = quarantinePayloads.map((q) => ({
-        workspace_id: input.workspaceId,
-        source_table: 'meta_ads',
-        provider_id: String(q.ad.id),
-        redacted_payload: q.ad as JsonValue,
-        validation_errors: [q.validationErrors] as JsonValue,
-      }))
-      const { error } = await this.db.from('meta_quarantined_records').insert(qRows)
-      if (error) return err('QUARANTINE_ADS_FAILED', error.message)
-    }
+  async upsertDailyInsights(input: UpsertDailyInsightsInput): Promise<ServiceResult<unknown>> {
+    return this.insightsRepo.upsertDailyInsights(input)
+  }
 
-    return ok(null)
+  async getDataFreshness(input: DataFreshnessInput): Promise<ServiceResult<DataFreshnessResult>> {
+    return this.insightsRepo.getDataFreshness(input)
+  }
+
+  async listDailyInsights(input: ListDailyInsightsInput): Promise<ServiceResult<MetaDailyInsightRecord[]>> {
+    return this.insightsRepo.listDailyInsights(input)
   }
 }

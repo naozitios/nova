@@ -63,6 +63,7 @@ function defaultDeps() {
       calls.push(`checkpoint:${input.partitionKey}:${input.status}`)
       return ok({} as MetaSyncCheckpointRecord)
     }),
+    listAdAccounts: vi.fn().mockResolvedValue(ok([{ id: ACCOUNT_ID, accountId: 'act_1', name: 'Test Account', currency: 'USD', timezoneName: 'UTC', businessId: null, businessName: null, isSelected: true }])),
     upsertCampaigns: vi.fn().mockResolvedValue(ok(null)),
     upsertAds: vi.fn().mockResolvedValue(ok(null)),
     upsertAdSets: vi.fn().mockResolvedValue(ok(null)),
@@ -88,7 +89,7 @@ function defaultDeps() {
 describe('runHierarchySync', () => {
   it('processes partitions in order: campaigns → ad_sets → ads → creatives', async () => {
     const d = defaultDeps()
-    await runHierarchySync({ runId: RUN_ID }, d)
+    await runHierarchySync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(d.repo.upsertCampaigns).toHaveBeenCalledOnce()
     expect(d.repo.upsertAdSets).toHaveBeenCalledOnce()
@@ -108,7 +109,7 @@ describe('runHierarchySync', () => {
     const d = defaultDeps()
     d.repo.getCompletedCheckpointKeys.mockResolvedValue(ok(['campaigns', 'ad_sets']))
 
-    const result = await runHierarchySync({ runId: RUN_ID }, d)
+    const result = await runHierarchySync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(result.ok).toBe(true)
     expect(d.repo.upsertCampaigns).not.toHaveBeenCalled()
@@ -121,7 +122,7 @@ describe('runHierarchySync', () => {
     const d = defaultDeps()
     d.api.getCampaignsPage.mockRejectedValue({ status: 429, message: 'Rate limited' })
 
-    const result = await runHierarchySync({ runId: RUN_ID }, d)
+    const result = await runHierarchySync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -141,7 +142,7 @@ describe('runHierarchySync', () => {
     // upsert quarantines internally and returns ok
     d.repo.upsertCampaigns.mockResolvedValue(ok(null))
 
-    const result = await runHierarchySync({ runId: RUN_ID }, d)
+    const result = await runHierarchySync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(result.ok).toBe(true)
     expect(d.repo.upsertCampaigns).toHaveBeenCalledOnce()
@@ -150,7 +151,7 @@ describe('runHierarchySync', () => {
 
   it('returns ok:true and advances final checkpoint on full success', async () => {
     const d = defaultDeps()
-    const result = await runHierarchySync({ runId: RUN_ID }, d)
+    const result = await runHierarchySync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(result.ok).toBe(true)
     expect(d.calls).toContain('checkpoint:campaigns:completed')
@@ -163,7 +164,7 @@ describe('runHierarchySync', () => {
     const d = defaultDeps()
     d.repo.getSyncRun.mockResolvedValue(ok(null))
 
-    const result = await runHierarchySync({ runId: RUN_ID }, d)
+    const result = await runHierarchySync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -175,7 +176,7 @@ describe('runHierarchySync', () => {
     const d = defaultDeps()
     d.repo.getConnectionWithToken.mockResolvedValue(ok(null))
 
-    const result = await runHierarchySync({ runId: RUN_ID }, d)
+    const result = await runHierarchySync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -185,32 +186,34 @@ describe('runHierarchySync', () => {
 
   it('decrypts token from connection before API calls', async () => {
     const d = defaultDeps()
-    await runHierarchySync({ runId: RUN_ID }, d)
+    await runHierarchySync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(d.tokenVault.decrypt).toHaveBeenCalledWith(ENCRYPTED)
     expect(d.api.getCampaignsPage).toHaveBeenCalledWith(
-      ACCOUNT_ID,
+      'act_1',
       'plain-token',
     )
   })
 
-  it('continues to ads/creatives when upsertAdSets is undefined', async () => {
+  it('calls upsertAdSets for ad_sets partition and upsertCreatives for creatives partition', async () => {
     const d = defaultDeps()
-    delete (d.repo as Record<string, unknown>).upsertAdSets
+    await runHierarchySync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
-    const result = await runHierarchySync({ runId: RUN_ID }, d)
-
-    expect(result.ok).toBe(true)
-    expect(d.api.getAdSetsPage).toHaveBeenCalledOnce()
-    expect(d.repo.upsertAds).toHaveBeenCalledOnce()
+    expect(d.repo.upsertAdSets).toHaveBeenCalledOnce()
+    expect(d.repo.upsertAdSets).toHaveBeenCalledWith(
+      expect.objectContaining({ adSets: expect.any(Array) }),
+    )
     expect(d.repo.upsertCreatives).toHaveBeenCalledOnce()
+    expect(d.repo.upsertCreatives).toHaveBeenCalledWith(
+      expect.objectContaining({ creatives: expect.any(Array) }),
+    )
   })
 
   it('stops and returns error when upsertCampaigns fails', async () => {
     const d = defaultDeps()
     d.repo.upsertCampaigns.mockResolvedValue(fail('DB_ERROR', 'connection lost'))
 
-    const result = await runHierarchySync({ runId: RUN_ID }, d)
+    const result = await runHierarchySync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -222,5 +225,21 @@ describe('runHierarchySync', () => {
     )
     // subsequent partitions not processed
     expect(d.api.getAdsPage).not.toHaveBeenCalled()
+  })
+
+  it('returns AD_ACCOUNT_NOT_FOUND when listAdAccounts has no matching id', async () => {
+    const d = defaultDeps()
+    d.repo.listAdAccounts.mockResolvedValue(ok([{ id: 'other-account', accountId: 'act_999', name: 'Other', currency: 'USD', timezoneName: 'UTC', businessId: null, businessName: null, isSelected: false }]))
+
+    const result = await runHierarchySync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('AD_ACCOUNT_NOT_FOUND')
+    }
+    expect(d.api.getCampaignsPage).not.toHaveBeenCalled()
+    expect(d.api.getAdSetsPage).not.toHaveBeenCalled()
+    expect(d.api.getAdsPage).not.toHaveBeenCalled()
+    expect(d.api.getCreativesPage).not.toHaveBeenCalled()
   })
 })

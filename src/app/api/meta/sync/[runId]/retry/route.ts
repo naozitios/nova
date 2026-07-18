@@ -1,3 +1,4 @@
+import { Container } from '@/di/container';
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import {
@@ -6,7 +7,6 @@ import {
   errorResponse,
   jsonResponse,
 } from '@/app/api/businesses/_shared'
-import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository'
 
 const RetrySchema = z.object({
   workspace_id: z.string().uuid(),
@@ -35,7 +35,7 @@ export async function POST(
     const authz = await requireAuthz(req, workspaceId, 'editor')
     if (!authz.ok) return authz.response
 
-    const repo = new SupabaseMetaRepository()
+    const repo = Container.getMetaRepository()
     const result = await repo.scheduleSyncRetry(workspaceId, runId)
 
     if (!result.ok) {

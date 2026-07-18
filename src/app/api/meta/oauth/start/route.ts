@@ -1,12 +1,12 @@
+import { Container } from '@/di/container';
 import { NextRequest } from 'next/server'
 import { randomBytes, createHash } from 'node:crypto'
 import { requireAuthz, errorResponse, createdResponse } from '@/app/api/businesses/_shared'
-import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository'
 import { MetaOAuthAdapter } from '@/infrastructure/meta/meta-oauth.adapter'
 import { encodeMetaOAuthState } from '@/core/meta-data/oauth-state'
 
 const adapter = new MetaOAuthAdapter()
-const repo = new SupabaseMetaRepository()
+const repo = Container.getMetaRepository()
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)

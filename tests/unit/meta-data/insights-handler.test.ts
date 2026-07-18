@@ -59,6 +59,7 @@ function defaultDeps() {
       calls.push(`checkpoint:${input.partitionKey}:${input.status}`)
       return ok({} as MetaSyncCheckpointRecord)
     }),
+    listAdAccounts: vi.fn().mockResolvedValue(ok([{ id: ACCOUNT_ID, accountId: 'act_1', name: 'Test Account', currency: 'USD', timezoneName: 'UTC', businessId: null, businessName: null, isSelected: true }])),
     upsertDailyInsights: vi.fn().mockResolvedValue(ok(null)),
     scheduleSyncRetry: vi.fn().mockResolvedValue(ok(mkRun({ status: 'retry_scheduled' }))),
   }
@@ -84,7 +85,7 @@ function defaultDeps() {
 describe('runInsightsSync', () => {
   it('initial_backfill creates/processes 90 complete single-day partitions', async () => {
     const d = defaultDeps()
-    const result = await runInsightsSync({ runId: RUN_ID }, d)
+    const result = await runInsightsSync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(result.ok).toBe(true)
     expect(d.api.getDailyAdInsightsPage).toHaveBeenCalledTimes(90)
@@ -92,7 +93,7 @@ describe('runInsightsSync', () => {
     // first window: 90 days before today (2026-07-17) = 2026-04-18
     expect(d.api.getDailyAdInsightsPage).toHaveBeenNthCalledWith(
       1,
-      ACCOUNT_ID,
+      'act_1',
       expect.objectContaining({ since: '2026-04-18', until: '2026-04-18' }),
       'plain-token',
     )
@@ -100,7 +101,7 @@ describe('runInsightsSync', () => {
     // last window: yesterday = 2026-07-16
     expect(d.api.getDailyAdInsightsPage).toHaveBeenNthCalledWith(
       90,
-      ACCOUNT_ID,
+      'act_1',
       expect.objectContaining({ since: '2026-07-16', until: '2026-07-16' }),
       'plain-token',
     )
@@ -114,21 +115,21 @@ describe('runInsightsSync', () => {
     const d = defaultDeps()
     d.repo.getCompletedCheckpointKeys.mockResolvedValue(ok(['insights:2026-07-15']))
 
-    const result = await runInsightsSync({ runId: RUN_ID }, d)
+    const result = await runInsightsSync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(result.ok).toBe(true)
     expect(d.api.getDailyAdInsightsPage).toHaveBeenCalledTimes(89)
 
     // skipped 2026-07-15
     expect(d.api.getDailyAdInsightsPage).not.toHaveBeenCalledWith(
-      ACCOUNT_ID,
+      'act_1',
       expect.objectContaining({ since: '2026-07-15', until: '2026-07-15' }),
       'plain-token',
     )
 
     // still called for 2026-07-16
     expect(d.api.getDailyAdInsightsPage).toHaveBeenCalledWith(
-      ACCOUNT_ID,
+      'act_1',
       expect.objectContaining({ since: '2026-07-16', until: '2026-07-16' }),
       'plain-token',
     )
@@ -138,7 +139,7 @@ describe('runInsightsSync', () => {
     const d = defaultDeps()
     d.api.getDailyAdInsightsPage.mockRejectedValue({ status: 429, message: 'Rate limited' })
 
-    const result = await runInsightsSync({ runId: RUN_ID }, d)
+    const result = await runInsightsSync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -157,11 +158,24 @@ describe('runInsightsSync', () => {
     })
     d.repo.upsertDailyInsights.mockResolvedValue(ok(null))
 
-    const result = await runInsightsSync({ runId: RUN_ID }, d)
+    const result = await runInsightsSync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
 
     expect(result.ok).toBe(true)
     expect(d.repo.upsertDailyInsights).toHaveBeenCalled()
     // all 90 windows still processed despite quarantine
     expect(d.api.getDailyAdInsightsPage).toHaveBeenCalledTimes(90)
+  })
+
+  it('returns AD_ACCOUNT_NOT_FOUND when listAdAccounts has no matching id', async () => {
+    const d = defaultDeps()
+    d.repo.listAdAccounts.mockResolvedValue(ok([{ id: 'other-account', accountId: 'act_999', name: 'Other', currency: 'USD', timezoneName: 'UTC', businessId: null, businessName: null, isSelected: false }]))
+
+    const result = await runInsightsSync({ runId: RUN_ID, workspaceId: WORKSPACE_ID }, d)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('AD_ACCOUNT_NOT_FOUND')
+    }
+    expect(d.api.getDailyAdInsightsPage).not.toHaveBeenCalled()
   })
 })

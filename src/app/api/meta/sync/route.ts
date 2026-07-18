@@ -1,3 +1,4 @@
+import { Container } from '@/di/container';
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import {
@@ -6,7 +7,6 @@ import {
   errorResponse,
   createdResponse,
 } from '@/app/api/businesses/_shared'
-import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository'
 
 const SyncStartSchema = z.object({
   workspace_id: z.string().uuid(),
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const authz = await requireAuthz(req, workspaceId, 'editor')
     if (!authz.ok) return authz.response
 
-    const repo = new SupabaseMetaRepository()
+    const repo = Container.getMetaRepository()
 
     // Find selected ad account for this business
     const accountsResult = await repo.listAdAccounts(workspaceId)

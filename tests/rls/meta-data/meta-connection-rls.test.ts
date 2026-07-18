@@ -13,7 +13,10 @@ import {
 
 describe.skipIf(!run)('RLS — Meta connection foundation', () => {
   beforeAll(() => initServiceClient())
-  afterAll(() => cleanupUsers())
+  afterAll(async () => {
+    await getServiceClient().from('meta_connections').delete().in('workspace_id', [WORKSPACE_A, WORKSPACE_B])
+    await cleanupUsers()
+  })
 
   it('does not expose encrypted tokens to authenticated workspace members', async () => {
     await seedWorkspaces()

@@ -4,6 +4,8 @@ import { CampaignSeed } from '@/core/campaign/seed';
 import { AIService } from '@/core/ai/service';
 import { HealthService } from '@/core/optimization/health.service';
 import { ActionCenter } from '@/core/optimization/action-center';
+import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository';
+import { MetaTokenVault } from '@/infrastructure/meta/token-vault';
 import { InMemoryCampaignRepository } from '@/infrastructure/persistence/campaign/in-memory.repository';
 import { GroqAdapter } from '@/infrastructure/llm/groq.adapter';
 import { MetaOAuthAdapter } from '@/infrastructure/meta/meta-oauth.adapter';
@@ -38,6 +40,8 @@ export class Container {
   private static _groqAdapter: GroqAdapter | null = null;
   private static _metaOAuth: MetaOAuthAdapter | null = null;
   private static _metaApi: MetaApiAdapter | null = null;
+  private static _metaRepo: SupabaseMetaRepository | null = null;
+  private static _metaTokenVault: MetaTokenVault | null = null;
   private static _campaignService: CampaignService | null = null;
   private static _campaignSeed: CampaignSeed | null = null;
   private static _aiService: AIService | null = null;
@@ -107,6 +111,18 @@ export class Container {
   static getMetaApiAdapter(): MetaApiAdapter {
     if (!this._metaApi) this._metaApi = new MetaApiAdapter();
     return this._metaApi;
+  }
+
+  /** Returns a lazy-initialized SupabaseMetaRepository (PRD 008 meta-data port impl). */
+  static getMetaRepository(): SupabaseMetaRepository {
+    if (!this._metaRepo) this._metaRepo = new SupabaseMetaRepository();
+    return this._metaRepo;
+  }
+
+  /** Returns a lazy-initialized MetaTokenVault. */
+  static getMetaTokenVault(): MetaTokenVault {
+    if (!this._metaTokenVault) this._metaTokenVault = new MetaTokenVault();
+    return this._metaTokenVault;
   }
 
   /** Returns the Meta API adapter as a MetaClientPort. */
@@ -274,6 +290,8 @@ export class Container {
     this._groqAdapter = null;
     this._metaOAuth = null;
     this._metaApi = null;
+    this._metaRepo = null;
+    this._metaTokenVault = null;
     this._campaignService = null;
     this._campaignSeed = null;
     this._aiService = null;

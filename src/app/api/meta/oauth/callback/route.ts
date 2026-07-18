@@ -1,12 +1,11 @@
+import { Container } from '@/di/container';
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
-import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository'
 import { MetaOAuthAdapter } from '@/infrastructure/meta/meta-oauth.adapter'
-import { MetaTokenVault } from '@/infrastructure/meta/token-vault'
 import { decodeMetaOAuthState, hashMetaOAuthNonce } from '@/core/meta-data/oauth-state'
 import { config } from '@/infrastructure/config'
 
-const repo = new SupabaseMetaRepository()
+const repo = Container.getMetaRepository()
 const adapter = new MetaOAuthAdapter()
 
 export async function GET(req: NextRequest) {
@@ -50,7 +49,7 @@ export async function GET(req: NextRequest) {
   } catch {
     return errorRedirect('token_exchange_failed')
   }
-  const tokenVault = new MetaTokenVault()
+  const tokenVault = Container.getMetaTokenVault()
   const encryptedAccessToken = tokenVault.encrypt(tokenResult.accessToken)
   const grantedScopes = config.meta.scopes
 

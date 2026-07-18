@@ -40,9 +40,9 @@ describe("GET /api/meta/ad-accounts — list route", () => {
     expect(source).toMatch(/requireAuthz/);
   });
 
-  it("uses SupabaseMetaRepository", () => {
+  it("resolves repository via Container", () => {
     const source = readFileSource(LIST_FILE);
-    expect(source).toMatch(/SupabaseMetaRepository/);
+    expect(source).toMatch(/Container\.getMetaRepository/);
   });
 
   it("uses MetaTokenVault", () => {

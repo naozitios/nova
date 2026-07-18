@@ -10,6 +10,7 @@ import { readFileSource } from "../business-context/_idempotency-helpers";
 const START_FILE = "src/app/api/meta/oauth/start/route.ts";
 const CALLBACK_FILE = "src/app/api/meta/oauth/callback/route.ts";
 const ADAPTER_FILE = "src/infrastructure/meta/meta-oauth.adapter.ts";
+const CONNECTIONS_FILE = "src/app/api/meta/connections/route.ts";
 
 // ─── Route file existence ─────────────────────────────────────────────────
 
@@ -135,5 +136,46 @@ describe("Meta OAuth adapter — API version config", () => {
     const source = readFileSource(ADAPTER_FILE);
     expect(source).not.toMatch(/getDefaultAdAccount/);
     expect(source).not.toMatch(/limit=1/);
+  });
+});
+
+// ─── DELETE /api/meta/connections — disconnect ──────────────────────────────
+
+describe("DELETE /api/meta/connections — disconnect", () => {
+  it("exports a DELETE handler", () => {
+    const source = readFileSource(CONNECTIONS_FILE);
+    expect(source).toMatch(/export\s+(async\s+)?function\s+DELETE/);
+  });
+
+  it("requires editor or admin role via requireAuthz", () => {
+    const source = readFileSource(CONNECTIONS_FILE);
+    // The DELETE handler uses requireAuthz with editor role
+    const deleteBlock = source.slice(source.indexOf("export async function DELETE"));
+    expect(deleteBlock).toMatch(/requireAuthz/);
+    expect(deleteBlock).toMatch(/editor|admin/);
+  });
+
+  it("uses Container for repository access (no new SupabaseMetaRepository)", () => {
+    const source = readFileSource(CONNECTIONS_FILE);
+    expect(source).not.toMatch(/new\s+SupabaseMetaRepository/);
+    const deleteBlock = source.slice(source.indexOf("export async function DELETE"));
+    expect(deleteBlock).toMatch(/Container/);
+  });
+
+  it("calls disconnectConnection on the repository", () => {
+    const source = readFileSource(CONNECTIONS_FILE);
+    expect(source).toMatch(/disconnectConnection/);
+  });
+
+  it("returns 404 when no active connection found", () => {
+    const source = readFileSource(CONNECTIONS_FILE);
+    const deleteBlock = source.slice(source.indexOf("export async function DELETE"));
+    expect(deleteBlock).toMatch(/404|NOT_FOUND/);
+  });
+
+  it("does NOT return encrypted_access_token in response", () => {
+    const source = readFileSource(CONNECTIONS_FILE);
+    const deleteBlock = source.slice(source.indexOf("export async function DELETE"));
+    expect(deleteBlock).not.toMatch(/encrypted_access_token/);
   });
 });

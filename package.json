@@ -22,6 +22,7 @@
     "supabase:reset": "npx supabase db reset",
     "supabase:status": "npx supabase status",
     "worker:business-context": "tsx src/workers/business-context.ts",
+    "worker:meta-sync": "tsx src/workers/meta-sync.ts",
     "malware-scanner:start": "docker compose up -d clamav",
     "test:business-context:e2e": "vitest run tests/e2e/business-context/",
     "test:business-context:providers": "vitest run tests/integration/business-context/extraction-provider.integration.test.ts",

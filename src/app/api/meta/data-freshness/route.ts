@@ -1,8 +1,8 @@
+import { Container } from '@/di/container';
 import { NextRequest } from 'next/server'
 import { requireAuthz, errorResponse, jsonResponse } from '@/app/api/businesses/_shared'
-import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository'
 
-const repo = new SupabaseMetaRepository()
+const repo = Container.getMetaRepository()
 
 function requiredParam(url: URL, key: string): string | Response {
   const value = url.searchParams.get(key)

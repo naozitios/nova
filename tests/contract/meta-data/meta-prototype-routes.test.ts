@@ -15,6 +15,8 @@ function readFileSource(filePath: string): string {
 const ROUTE_AUTH = "src/app/api/meta/auth/route.ts";
 const ROUTE_ACCOUNTS = "src/app/api/meta/accounts/route.ts";
 const ROUTE_CALLBACK = "src/app/api/meta/callback/route.ts";
+const ROUTE_APPLY = "src/app/api/meta/apply/[campaignId]/route.ts";
+const ROUTE_SYNC = "src/app/api/meta/sync/[campaignId]/route.ts";
 
 // ─── /api/meta/auth — deprecated, must not set meta_oauth_state cookie ─────
 
@@ -71,5 +73,57 @@ describe("meta callback route — deprecated prototype guard", () => {
 
   it("redirects with meta_route_deprecated", () => {
     expect(source()).toContain("meta_route_deprecated");
+  });
+});
+
+// ─── /api/meta/apply/[campaignId] — deprecated, no cookie reads or MetaApiAdapter
+
+describe("meta apply route — deprecated prototype guard", () => {
+  const source = () => readFileSource(ROUTE_APPLY);
+
+  it("returns 410 status", () => {
+    expect(source()).toContain("410");
+  });
+
+  it("returns META_ROUTE_DEPRECATED code", () => {
+    expect(source()).toContain("META_ROUTE_DEPRECATED");
+  });
+
+  it("does not read meta_access_token cookie", () => {
+    expect(source()).not.toContain("cookies.get('meta_access_token')");
+  });
+
+  it("does not read meta_ad_account_id cookie", () => {
+    expect(source()).not.toContain("cookies.get('meta_ad_account_id')");
+  });
+
+  it("does not import MetaApiAdapter", () => {
+    expect(source()).not.toMatch(/MetaApiAdapter/);
+  });
+});
+
+// ─── /api/meta/sync/[campaignId] — deprecated, no cookie reads or MetaApiAdapter
+
+describe("meta sync route — deprecated prototype guard", () => {
+  const source = () => readFileSource(ROUTE_SYNC);
+
+  it("returns 410 status", () => {
+    expect(source()).toContain("410");
+  });
+
+  it("returns META_ROUTE_DEPRECATED code", () => {
+    expect(source()).toContain("META_ROUTE_DEPRECATED");
+  });
+
+  it("does not read meta_access_token cookie", () => {
+    expect(source()).not.toContain("cookies.get('meta_access_token')");
+  });
+
+  it("does not read meta_ad_account_id cookie", () => {
+    expect(source()).not.toContain("cookies.get('meta_ad_account_id')");
+  });
+
+  it("does not import MetaApiAdapter", () => {
+    expect(source()).not.toMatch(/MetaApiAdapter/);
   });
 });

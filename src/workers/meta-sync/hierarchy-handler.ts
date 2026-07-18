@@ -1,4 +1,5 @@
 import type { ServiceResult } from '@/core/business-context/types'
+import type { MetaAdAccountSummary } from '@/core/meta-data/entities'
 import type {
   MetaSyncRunRecord,
   MetaSyncCheckpointRecord,
@@ -15,14 +16,15 @@ interface PageResult {
 
 export interface HierarchyHandlerDeps {
   repo: {
-    getSyncRun(runId: string): Promise<ServiceResult<MetaSyncRunRecord | null>>
+    getSyncRun(workspaceId: string, runId: string): Promise<ServiceResult<MetaSyncRunRecord | null>>
     getCompletedCheckpointKeys(runId: string): Promise<ServiceResult<string[]>>
     getConnectionWithToken(workspaceId: string): Promise<ServiceResult<MetaConnectionRecord | null>>
     advanceCheckpoint(input: AdvanceCheckpointInput): Promise<ServiceResult<MetaSyncCheckpointRecord>>
     upsertCampaigns(input: { workspaceId: string; metaAdAccountId: string; runId: string; campaigns: Record<string, unknown>[] }): Promise<ServiceResult<unknown>>
     upsertAds(input: { workspaceId: string; metaAdAccountId: string; runId: string; ads: Record<string, unknown>[] }): Promise<ServiceResult<unknown>>
-    upsertAdSets?(input: { workspaceId: string; metaAdAccountId: string; runId: string; adSets: Record<string, unknown>[] }): Promise<ServiceResult<unknown>>
-    upsertCreatives?(input: { workspaceId: string; metaAdAccountId: string; runId: string; creatives: Record<string, unknown>[] }): Promise<ServiceResult<unknown>>
+    upsertAdSets(input: { workspaceId: string; metaAdAccountId: string; runId: string; adSets: Record<string, unknown>[] }): Promise<ServiceResult<unknown>>
+    upsertCreatives(input: { workspaceId: string; metaAdAccountId: string; runId: string; creatives: Record<string, unknown>[] }): Promise<ServiceResult<unknown>>
+    listAdAccounts(workspaceId: string): Promise<ServiceResult<MetaAdAccountSummary[]>>
   }
   api: {
     getCampaignsPage(accountId: string, accessToken: string, after?: string): Promise<PageResult>
@@ -36,16 +38,25 @@ export interface HierarchyHandlerDeps {
 }
 
 export async function runHierarchySync(
-  input: { runId: string },
+  input: { runId: string; workspaceId: string },
   deps: HierarchyHandlerDeps,
 ): Promise<ServiceResult<void>> {
-  const runResult = await deps.repo.getSyncRun(input.runId)
+  const runResult = await deps.repo.getSyncRun(input.workspaceId, input.runId)
   if (!runResult.ok) return runResult
   if (!runResult.data) {
     return { ok: false, error: { code: 'RUN_NOT_FOUND', message: `Sync run ${input.runId} not found` } }
   }
 
   const run = runResult.data
+
+  const accountsResult = await deps.repo.listAdAccounts(run.workspaceId)
+  if (!accountsResult.ok) return accountsResult
+  const metaAccount = accountsResult.data.find((a) => a.id === run.metaAdAccountId)
+  if (!metaAccount) {
+    return { ok: false, error: { code: 'AD_ACCOUNT_NOT_FOUND', message: 'Selected Meta ad account not found' } }
+  }
+  const metaAccountId = metaAccount.accountId
+
   const connResult = await deps.repo.getConnectionWithToken(run.workspaceId)
   if (!connResult.ok) return connResult
   if (!connResult.data) {
@@ -65,6 +76,7 @@ export async function runHierarchySync(
     const partitionResult = await processPartition(
       partition.objectType,
       run,
+      metaAccountId,
       accessToken,
       deps,
     )
@@ -95,6 +107,7 @@ export async function runHierarchySync(
 async function processPartition(
   objectType: string,
   run: MetaSyncRunRecord,
+  metaAccountId: string,
   accessToken: string,
   deps: HierarchyHandlerDeps,
 ): Promise<ServiceResult<unknown>> {
@@ -104,26 +117,20 @@ async function processPartition(
   try {
     switch (objectType) {
       case 'campaigns': {
-        const page = await api.getCampaignsPage(run.metaAdAccountId, accessToken)
+        const page = await api.getCampaignsPage(metaAccountId, accessToken)
         return await repo.upsertCampaigns({ ...ctx, campaigns: page.data })
       }
       case 'ad_sets': {
-        const page = await api.getAdSetsPage(run.metaAdAccountId, accessToken)
-        if (repo.upsertAdSets) {
-          return await repo.upsertAdSets({ ...ctx, adSets: page.data })
-        }
-        return { ok: true, data: null }
+        const page = await api.getAdSetsPage(metaAccountId, accessToken)
+        return await repo.upsertAdSets({ ...ctx, adSets: page.data })
       }
       case 'ads': {
-        const page = await api.getAdsPage(run.metaAdAccountId, accessToken)
+        const page = await api.getAdsPage(metaAccountId, accessToken)
         return await repo.upsertAds({ ...ctx, ads: page.data })
       }
       case 'creatives': {
-        const page = await api.getCreativesPage(run.metaAdAccountId, accessToken)
-        if (repo.upsertCreatives) {
-          return await repo.upsertCreatives({ ...ctx, creatives: page.data })
-        }
-        return { ok: true, data: null }
+        const page = await api.getCreativesPage(metaAccountId, accessToken)
+        return await repo.upsertCreatives({ ...ctx, creatives: page.data })
       }
       default:
         return { ok: true, data: null }

@@ -1,10 +1,8 @@
+import { Container } from '@/di/container';
 import { NextRequest } from 'next/server'
 import { requireAuthz, errorResponse, jsonResponse } from '@/app/api/businesses/_shared'
-import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository'
-import { MetaTokenVault } from '@/infrastructure/meta/token-vault'
-import { MetaApiAdapter } from '@/infrastructure/meta/meta-api.adapter'
 
-const repo = new SupabaseMetaRepository()
+const repo = Container.getMetaRepository()
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
@@ -26,10 +24,10 @@ export async function GET(req: NextRequest) {
   }
 
   const connection = connResult.data
-  const vault = new MetaTokenVault()
+  const vault = Container.getMetaTokenVault()
   const token = vault.decrypt(connection.encryptedAccessToken)
 
-  const adapter = new MetaApiAdapter()
+  const adapter = Container.getMetaApiAdapter()
   let accounts
   try {
     accounts = await adapter.listAccessibleAdAccounts(token)

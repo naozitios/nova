@@ -8,6 +8,7 @@ import {
   createdResponse,
 } from '@/app/api/businesses/_shared'
 import { Container } from '@/di/container'
+import type { MetaRepositoryPort } from '@/core/meta-data/repository.port'
 import { MetaOAuthAdapter } from '@/infrastructure/meta/meta-oauth.adapter'
 
 const StartConnectionSchema = z.object({
@@ -107,4 +108,45 @@ export async function POST(req: NextRequest) {
       expires_at: stateResult.data.expiresAt.toISOString(),
     })
   }, { operation: 'meta_start_connection' as const })
+}
+
+// ─── DELETE /api/meta/connections — disconnect ──────────────────────────────
+
+export async function DELETE(req: NextRequest) {
+  const url = new URL(req.url)
+  const workspaceId = url.searchParams.get('workspace_id')
+
+  if (!workspaceId) {
+    return errorResponse(400, 'VALIDATION_ERROR', 'workspace_id query parameter is required')
+  }
+
+  const authz = await requireAuthz(req, workspaceId, 'editor')
+  if (!authz.ok) return authz.response
+
+  const repo = Container.getMetaRepository() as MetaRepositoryPort
+  const result = await repo.disconnectConnection(workspaceId)
+
+  if (!result.ok) {
+    return errorResponse(500, result.error.code, result.error.message)
+  }
+
+  if (!result.data) {
+    return errorResponse(404, 'NOT_FOUND', 'No active Meta connection found for this workspace')
+  }
+
+  const conn = result.data
+  return jsonResponse({
+    connected: false,
+    connection: {
+      id: conn.id,
+      workspace_id: conn.workspaceId,
+      connected_by: conn.connectedBy,
+      meta_user_id: conn.metaUserId,
+      token_expires_at: conn.tokenExpiresAt?.toISOString() ?? null,
+      selected_ad_account_id: conn.selectedAdAccountId,
+      status: conn.status,
+      created_at: conn.createdAt.toISOString(),
+      updated_at: conn.updatedAt.toISOString(),
+    },
+  })
 }

@@ -1,6 +1,6 @@
+import { Container } from '@/di/container';
 import { NextRequest } from 'next/server'
 import { requireAuthz, errorResponse, notFound, jsonResponse } from '@/app/api/businesses/_shared'
-import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository'
 
 // GET /api/meta/sync-runs/[runId] — get sync run status
 export async function GET(
@@ -18,7 +18,7 @@ export async function GET(
   const authz = await requireAuthz(req, workspaceId, 'viewer')
   if (!authz.ok) return authz.response
 
-  const repo = new SupabaseMetaRepository()
+  const repo = Container.getMetaRepository()
   const result = await repo.getSyncRun(workspaceId, runId)
 
   if (!result.ok) {

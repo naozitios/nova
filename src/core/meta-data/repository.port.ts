@@ -189,12 +189,34 @@ export interface UpsertAdsInput {
   ads: Record<string, unknown>[]
 }
 
+export interface UpsertAdSetsInput {
+  workspaceId: string
+  metaAdAccountId: string
+  runId: string
+  adSets: Record<string, unknown>[]
+}
+
+export interface UpsertCreativesInput {
+  workspaceId: string
+  metaAdAccountId: string
+  runId: string
+  creatives: Record<string, unknown>[]
+}
+
+export interface QuarantineRecordsInput {
+  workspaceId: string
+  runId: string
+  objectType: string
+  records: Array<{ externalId: string | null; payload: Record<string, unknown>; reason: string }>
+}
+
 export interface MetaRepositoryPort {
   createOAuthState(input: CreateOAuthStateInput): Promise<ServiceResult<MetaOAuthStateRecord>>
   consumeOAuthState(input: ConsumeOAuthStateInput): Promise<ServiceResult<MetaOAuthStateRecord>>
   upsertConnection(input: UpsertConnectionInput): Promise<ServiceResult<MetaConnectionRecord>>
   getConnectionWithToken(workspaceId: string): Promise<ServiceResult<MetaConnectionRecord | null>>
   getStatus(workspaceId: string): Promise<ServiceResult<MetaConnectionStatusView[]>>
+  disconnectConnection(workspaceId: string): Promise<ServiceResult<MetaConnectionRecord | null>>
   upsertAdAccounts(input: UpsertAdAccountsInput): Promise<ServiceResult<MetaAdAccountSummary[]>>
   listAdAccounts(workspaceId: string, connectionId?: string): Promise<ServiceResult<MetaAdAccountSummary[]>>
   selectAdAccount(input: SelectAdAccountInput): Promise<ServiceResult<MetaAdAccountSummary>>
@@ -207,4 +229,11 @@ export interface MetaRepositoryPort {
   listDailyInsights(input: ListDailyInsightsInput): Promise<ServiceResult<MetaDailyInsightRecord[]>>
   upsertCampaigns(input: UpsertCampaignsInput): Promise<ServiceResult<unknown>>
   upsertAds(input: UpsertAdsInput): Promise<ServiceResult<unknown>>
+  upsertAdSets(input: UpsertAdSetsInput): Promise<ServiceResult<{ upserted: number; quarantined: number }>>
+  upsertCreatives(input: UpsertCreativesInput): Promise<ServiceResult<{ upserted: number; quarantined: number }>>
+  claimSyncRun(runId: string, workerId: string, leaseMs: number): Promise<ServiceResult<MetaSyncRunRecord | null>>
+  listRunnableSyncRuns(limit: number): Promise<ServiceResult<MetaSyncRunRecord[]>>
+  setSyncRunStatus(runId: string, status: 'completed' | 'failed', errorMessage?: string): Promise<ServiceResult<MetaSyncRunRecord>>
+  getCompletedCheckpointKeys(runId: string): Promise<ServiceResult<string[]>>
+  quarantineRecords(input: QuarantineRecordsInput): Promise<ServiceResult<{ quarantined: number }>>
 }

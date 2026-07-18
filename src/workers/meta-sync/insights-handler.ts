@@ -1,4 +1,5 @@
 import type { ServiceResult } from '@/core/business-context/types'
+import type { MetaAdAccountSummary } from '@/core/meta-data/entities'
 import type {
   MetaSyncRunRecord,
   MetaSyncCheckpointRecord,
@@ -15,12 +16,13 @@ interface PageResult {
 
 export interface InsightsHandlerDeps {
   repo: {
-    getSyncRun(runId: string): Promise<ServiceResult<MetaSyncRunRecord | null>>
+    getSyncRun(workspaceId: string, runId: string): Promise<ServiceResult<MetaSyncRunRecord | null>>
     getCompletedCheckpointKeys(runId: string): Promise<ServiceResult<string[]>>
     getConnectionWithToken(workspaceId: string): Promise<ServiceResult<MetaConnectionRecord | null>>
     advanceCheckpoint(input: AdvanceCheckpointInput): Promise<ServiceResult<MetaSyncCheckpointRecord>>
     upsertDailyInsights(input: UpsertDailyInsightsInput): Promise<ServiceResult<unknown>>
     scheduleSyncRetry(workspaceId: string, runId: string): Promise<ServiceResult<MetaSyncRunRecord>>
+    listAdAccounts(workspaceId: string): Promise<ServiceResult<MetaAdAccountSummary[]>>
   }
   api: {
     getDailyAdInsightsPage(
@@ -36,16 +38,25 @@ export interface InsightsHandlerDeps {
 }
 
 export async function runInsightsSync(
-  input: { runId: string },
+  input: { runId: string; workspaceId: string },
   deps: InsightsHandlerDeps,
 ): Promise<ServiceResult<void>> {
-  const runResult = await deps.repo.getSyncRun(input.runId)
+  const runResult = await deps.repo.getSyncRun(input.workspaceId, input.runId)
   if (!runResult.ok) return runResult
   if (!runResult.data) {
     return { ok: false, error: { code: 'RUN_NOT_FOUND', message: `Sync run ${input.runId} not found` } }
   }
 
   const run = runResult.data
+
+  const accountsResult = await deps.repo.listAdAccounts(run.workspaceId)
+  if (!accountsResult.ok) return accountsResult
+  const metaAccount = accountsResult.data.find((a) => a.id === run.metaAdAccountId)
+  if (!metaAccount) {
+    return { ok: false, error: { code: 'AD_ACCOUNT_NOT_FOUND', message: 'Selected Meta ad account not found' } }
+  }
+  const metaAccountId = metaAccount.accountId
+
   const connResult = await deps.repo.getConnectionWithToken(run.workspaceId)
   if (!connResult.ok) return connResult
   if (!connResult.data) {
@@ -69,7 +80,7 @@ export async function runInsightsSync(
     if (completedKeys.has(partitionKey)) continue
 
     try {
-      const page = await deps.api.getDailyAdInsightsPage(run.metaAdAccountId, window, accessToken)
+      const page = await deps.api.getDailyAdInsightsPage(metaAccountId, window, accessToken)
 
       const upsertResult = await deps.repo.upsertDailyInsights({
         workspaceId: run.workspaceId,

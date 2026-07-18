@@ -42,9 +42,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# spec-kit — selective gitignore per constitution §XIV.
-# Keep committed: .specify/memory/, .specify/templates/, .specify/scripts/, specs/.
-# Ignore: agent-environment artifacts and brainstorming scratch.
+# spec-kit — selective gitignore.
+# Keep committed: .specify/memory/, .specify/templates/, .specify/scripts/.
+# Ignore: agent-environment artifacts, specs/, and brainstorming scratch.
 # (gitignore does not support inline `#` comments; comments must be on their own line)
 
 # OpenCode CLI agent commands + any env-specific config
@@ -53,8 +53,9 @@ next-env.d.ts
 # project agent instructions (env-specific)
 AGENTS.md
 
-# Brainstorming scratch (NOT a design contract)
+# Brainstorming scratch and generated specs (NOT design contracts)
 docs/superpowers/specs/
+specs/
 
 # Local env cache for the agent-context extension
 .specify/extensions/agent-context/agent-context-config.yml
