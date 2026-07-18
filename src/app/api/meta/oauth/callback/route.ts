@@ -8,6 +8,13 @@ import { config } from '@/infrastructure/config'
 const repo = Container.getMetaRepository()
 const adapter = new MetaOAuthAdapter()
 
+function validateReturnPath(returnPath: string): boolean {
+  if (!returnPath || returnPath.startsWith('//')) return false
+  if (returnPath.startsWith('http://') || returnPath.startsWith('https://')) return false
+  if (!returnPath.startsWith('/')) return false
+  return true
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const code = url.searchParams.get('code')
@@ -43,15 +50,43 @@ export async function GET(req: NextRequest) {
     return errorRedirect(consumeResult.error.code)
   }
 
-  let tokenResult: { accessToken: string; expiresIn?: number }
+  const storedState = consumeResult.data
+  if (storedState.workspaceId !== decoded.workspaceId || storedState.createdBy !== decoded.userId) {
+    return errorRedirect('state_mismatch')
+  }
+  const safeReturnPath = validateReturnPath(decoded.returnPath) ? decoded.returnPath : '/settings'
+
+  let tokenResult: { accessToken: string; expiresIn?: number; grantedScopes?: string[] }
   try {
     tokenResult = await adapter.exchangeCode(code)
   } catch {
     return errorRedirect('token_exchange_failed')
   }
+
+  let metaUserId: string
+  try {
+    const metaUser = await adapter.fetchMetaUser(tokenResult.accessToken)
+    metaUserId = metaUser.id
+  } catch {
+    return errorRedirect('meta_user_fetch_failed')
+  }
+
   const tokenVault = Container.getMetaTokenVault()
   const encryptedAccessToken = tokenVault.encrypt(tokenResult.accessToken)
-  const grantedScopes = config.meta.scopes
+  let grantedScopes: string[]
+  if (tokenResult.grantedScopes && tokenResult.grantedScopes.length > 0) {
+    grantedScopes = tokenResult.grantedScopes
+  } else {
+    try {
+      const permissions = await adapter.fetchMetaPermissions(tokenResult.accessToken)
+      grantedScopes = permissions.filter(p => p.permission && p.status === 'granted').map(p => p.permission)
+      if (grantedScopes.length === 0) {
+        return errorRedirect('no_permissions_granted')
+      }
+    } catch {
+      return errorRedirect('permissions_fetch_failed')
+    }
+  }
 
   const tokenExpiresAt = tokenResult.expiresIn
     ? new Date(Date.now() + tokenResult.expiresIn * 1000)
@@ -60,7 +95,7 @@ export async function GET(req: NextRequest) {
   const upsertResult = await repo.upsertConnection({
     workspaceId: decoded.workspaceId,
     connectedBy: decoded.userId,
-    metaUserId: userId,
+    metaUserId: metaUserId,
     encryptedAccessToken,
     grantedScopes,
     tokenExpiresAt,
@@ -70,5 +105,5 @@ export async function GET(req: NextRequest) {
     return errorRedirect('connection_failed')
   }
 
-  return NextResponse.redirect(new URL(returnPath, url.origin), { status: 303 })
+  return NextResponse.redirect(new URL(safeReturnPath, url.origin), { status: 303 })
 }

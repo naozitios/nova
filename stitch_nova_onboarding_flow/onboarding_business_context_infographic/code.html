@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NOVA - Review Business Context</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&family=Geist+Sans:wght@100..900&display=swap');
+        
+        body {
+            font-family: 'Geist Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(225, 191, 184, 0.3);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e5e7eb; /* Changed to gray from pink */
+            border-radius: 10px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+    </style>
+<!-- Tailwind Theme Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-fixed": "#1f1b17",
+                      "surface-bright": "#ffffff", /* Changed to white */
+                      "ai-purple": "#A855F7",
+                      "surface-container-highest": "#e5e7eb", /* Changed to gray */
+                      "tertiary-container": "#008096",
+                      "secondary": "#645d58",
+                      "secondary-fixed": "#eae1da",
+                      "primary": "#aa3016",
+                      "surface-tint": "#ad3218",
+                      "on-tertiary-fixed-variant": "#004e5c",
+                      "background": "#fafaf9", /* Light stone bg */
+                      "on-primary-fixed-variant": "#8b1a01",
+                      "error-container": "#ffdad6",
+                      "error-red": "#EF4444",
+                      "inverse-surface": "#3c2d2a",
+                      "success-green": "#22C55E",
+                      "on-error": "#ffffff",
+                      "tertiary": "#006577",
+                      "on-tertiary": "#ffffff",
+                      "on-secondary-container": "#6a635e",
+                      "accent-hover": "#D14A2E",
+                      "error": "#ba1a1a",
+                      "on-tertiary-container": "#f9fdff",
+                      "on-tertiary-fixed": "#001f26",
+                      "on-background": "#251816",
+                      "surface-dim": "#f3f4f6", /* Changed to gray */
+                      "inverse-primary": "#ffb4a4",
+                      "page-bg": "#FAFAF9",
+                      "on-surface-variant": "#59413c",
+                      "warning-amber": "#F59E0B",
+                      "outline-variant": "#e5e7eb", /* Changed to gray */
+                      "on-secondary-fixed-variant": "#4b4641",
+                      "surface-variant": "#f3f4f6", /* Changed to gray */
+                      "inverse-on-surface": "#ffede9",
+                      "on-surface": "#251816",
+                      "primary-fixed": "#ffdad3",
+                      "secondary-container": "#f3f4f6", /* Changed to gray */
+                      "primary-container": "#cc482c",
+                      "surface-container-lowest": "#ffffff",
+                      "accent-soft-alt": "#FFDAB9",
+                      "on-secondary": "#ffffff",
+                      "surface-container-high": "#f9fafb", /* Changed to gray */
+                      "secondary-fixed-dim": "#cec5bf",
+                      "tertiary-fixed": "#acedff",
+                      "accent-soft": "#FEF3E2",
+                      "surface-container-low": "#f9fafb", /* Changed to gray */
+                      "tertiary-fixed-dim": "#69d5ef",
+                      "info-blue": "#3B82F6",
+                      "outline": "#d1d5db", /* Changed to gray */
+                      "surface-container": "#ffffff", /* Changed to white */
+                      "on-error-container": "#93000a",
+                      "surface": "#ffffff", /* Changed to white */
+                      "primary-fixed-dim": "#ffb4a4",
+                      "on-primary": "#ffffff",
+                      "on-primary-container": "#fffbff",
+                      "on-primary-fixed": "#3d0600"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "page-gutter-desktop": "6rem",
+                      "control-gap": "0.75rem",
+                      "page-gutter-tablet": "3rem",
+                      "section-gap": "2.5rem",
+                      "grid-gap": "1.5rem",
+                      "card-padding-focus": "2rem",
+                      "page-gutter-mobile": "1.5rem",
+                      "card-padding": "1.5rem"
+              },
+              "fontFamily": {
+                      "sans": ["Geist Sans", "sans-serif"],
+                      "headline-sm": ["Geist Sans"],
+                      "metric-display": ["Geist Sans"],
+                      "support-text": ["Geist Sans"],
+                      "headline-lg": ["Geist Sans"],
+                      "body-lg": ["Geist Sans"],
+                      "table-header": ["Geist Sans"],
+                      "headline-md": ["Geist Sans"],
+                      "code-label": ["Geist Mono"],
+                      "metadata": ["Geist Sans"],
+                      "body-default": ["Geist Sans"]
+              },
+              "fontSize": {
+                      "headline-sm": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "metric-display": ["30px", {"lineHeight": "36px", "letterSpacing": "tabular-nums", "fontWeight": "600"}],
+                      "support-text": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "headline-lg": ["30px", {"lineHeight": "36px", "fontWeight": "700"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "table-header": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "code-label": ["12px", {"lineHeight": "16px", "fontWeight": "400"}],
+                      "metadata": ["12px", {"lineHeight": "16px", "fontWeight": "400"}],
+                      "body-default": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+              }
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface min-h-screen flex flex-col font-sans">
+<!-- TopAppBar Shell -->
+<header class="bg-white fixed top-0 left-0 right-0 z-50 flex flex-col w-full px-page-gutter-mobile md:px-page-gutter-desktop py-4 transition-colors border-b border-stone-200">
+<div class="flex justify-between items-center w-full mb-4">
+<div class="flex items-center gap-4">
+<span class="text-xl font-bold text-primary">NOVA</span>
+<div class="h-6 w-px bg-stone-200"></div>
+<span class="text-lg font-semibold text-primary">Onboarding</span>
+</div>
+<div class="flex items-center gap-6">
+<button class="material-symbols-outlined text-primary text-2xl hover:bg-stone-100 transition-colors p-2 rounded-full active:scale-95">close</button>
+</div>
+</div>
+<!-- Horizontal Progress Bar -->
+<div class="w-full max-w-4xl mx-auto flex flex-col gap-2">
+<div class="flex justify-between text-xs font-semibold text-stone-600">
+<span>Objective</span>
+<span>Integration</span>
+<span>Audience</span>
+<span>Creative</span>
+<span class="text-primary">Review</span>
+</div>
+<div class="w-full bg-stone-200 h-2 rounded-full overflow-hidden flex">
+<div class="bg-primary h-full w-[100%] transition-all duration-500 rounded-full"></div>
+</div>
+</div>
+</header>
+<!-- Sidebar & Content Layout -->
+<div class="flex flex-1 pt-[120px] h-screen overflow-hidden">
+<!-- Main Canvas -->
+<main class="flex-1 overflow-y-auto bg-page-bg custom-scrollbar p-6 md:p-12">
+<div class="max-w-5xl mx-auto space-y-8 pb-32">
+<!-- Page Intro -->
+<section class="space-y-4 animate-fade-in flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+<div class="max-w-2xl">
+<h1 class="text-3xl font-bold text-on-surface mb-2">Review Business Context</h1>
+<p class="text-base text-stone-600">Our AI has synthesized your brand's identity from your provided sources. Verify the details below to ensure perfect campaign alignment.</p>
+</div>
+<!-- Profile Maturity Score -->
+<div class="bg-white rounded-2xl p-4 border border-stone-200 shadow-sm flex items-center gap-4 min-w-[240px]">
+<div class="relative w-16 h-16 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 36 36">
+<path class="text-stone-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="100, 100" stroke-width="3"></path>
+<path class="text-success-green" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="92, 100" stroke-width="3"></path>
+</svg>
+<span class="absolute text-lg font-bold text-on-surface">92<span class="text-xs">%</span></span>
+</div>
+<div>
+<h4 class="text-sm font-semibold text-on-surface">Profile Readiness</h4>
+<p class="text-xs text-stone-500">Excellent context extracted</p>
+</div>
+</div>
+</section>
+<!-- Infographic Layout Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Left Column: Summary & Audiences -->
+<div class="md:col-span-1 space-y-6">
+<!-- Business Summary Card -->
+<div class="bg-white border border-stone-200 rounded-3xl p-6 shadow-sm animate-fade-in h-full flex flex-col" style="animation-delay: 0.1s;">
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary bg-stone-50 p-2 rounded-lg">business</span>
+<h3 class="text-lg font-semibold text-on-surface">Core Identity</h3>
+</div>
+</div>
+<textarea class="w-full flex-1 min-h-[120px] text-sm text-stone-600 bg-stone-50 border-stone-200 rounded-xl focus:ring-primary focus:border-primary border p-4 outline-none resize-none leading-relaxed">NOVA AI is a leading-edge advertising operations platform designed for performance media buyers. We automate the density of manual campaign management with professional, action-oriented intelligence.</textarea>
+<div class="mt-4 flex items-center gap-2 px-3 py-1.5 bg-stone-50 rounded-lg border border-stone-100 self-start">
+<span class="material-symbols-outlined text-[14px] text-stone-500">language</span>
+<span class="text-xs text-stone-500">Source: Website homepage</span>
+</div>
+</div>
+</div>
+<!-- Middle Column: Products & Value Props -->
+<div class="md:col-span-2 space-y-6">
+<!-- Products/Services Card -->
+<div class="bg-white border border-stone-200 rounded-3xl p-6 shadow-sm animate-fade-in" style="animation-delay: 0.2s;">
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-info-blue bg-blue-50 p-2 rounded-lg">inventory_2</span>
+<h3 class="text-lg font-semibold text-on-surface">Key Offerings</h3>
+</div>
+<div class="flex items-center gap-2 px-3 py-1.5 bg-stone-50 rounded-lg border border-stone-100">
+<span class="material-symbols-outlined text-[14px] text-stone-500">description</span>
+<span class="text-xs text-stone-500">brand_guide.pdf</span>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div class="group relative flex items-center p-4 bg-stone-50 border border-stone-200 rounded-2xl hover:border-info-blue/50 transition-colors">
+<div class="flex-1">
+<p class="text-sm font-medium text-stone-800">AI Recommendations Engine</p>
+</div>
+<button class="material-symbols-outlined text-stone-300 hover:text-error-red transition-colors opacity-0 group-hover:opacity-100 absolute right-4">delete</button>
+</div>
+<div class="group relative flex items-center p-4 bg-stone-50 border border-stone-200 rounded-2xl hover:border-info-blue/50 transition-colors">
+<div class="flex-1">
+<p class="text-sm font-medium text-stone-800">Cross-Platform Dashboard</p>
+</div>
+<button class="material-symbols-outlined text-stone-300 hover:text-error-red transition-colors opacity-0 group-hover:opacity-100 absolute right-4">delete</button>
+</div>
+<button class="flex items-center justify-center gap-2 border border-dashed border-stone-300 text-stone-500 p-4 rounded-2xl hover:bg-stone-50 hover:text-stone-700 transition-colors text-sm font-medium">
+<span class="material-symbols-outlined text-[18px]">add</span> Add Offering
+                                </button>
+</div>
+</div>
+<!-- Value Propositions Card -->
+<div class="bg-white border border-stone-200 rounded-3xl p-6 shadow-sm animate-fade-in" style="animation-delay: 0.4s;">
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-warning-amber bg-amber-50 p-2 rounded-lg">stars</span>
+<h3 class="text-lg font-semibold text-on-surface">Value Propositions</h3>
+</div>
+<div class="flex items-center gap-2 px-3 py-1.5 bg-stone-50 rounded-lg border border-stone-100">
+<span class="material-symbols-outlined text-[14px] text-stone-500">language</span>
+<span class="text-xs text-stone-500">From website</span>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div class="p-5 bg-stone-50 rounded-2xl border border-stone-200 relative group hover:shadow-md transition-shadow">
+<div class="mb-2">
+<span class="material-symbols-outlined text-warning-amber mb-2">bolt</span>
+<input class="w-full text-base font-semibold border-none bg-transparent p-0 mb-1 focus:ring-0 text-stone-800" type="text" value="80% Reduction in Manual Tasks"/>
+</div>
+<textarea class="w-full text-sm text-stone-600 border-none bg-transparent p-0 focus:ring-0 resize-none h-10 leading-relaxed" rows="2">Automate boring tasks so you can focus on strategy.</textarea>
+<button class="material-symbols-outlined text-stone-300 hover:text-error-red transition-colors absolute top-4 right-4 opacity-0 group-hover:opacity-100">delete</button>
+</div>
+<div class="p-5 bg-stone-50 rounded-2xl border border-stone-200 relative group hover:shadow-md transition-shadow">
+<div class="mb-2">
+<span class="material-symbols-outlined text-warning-amber mb-2">visibility</span>
+<input class="w-full text-base font-semibold border-none bg-transparent p-0 mb-1 focus:ring-0 text-stone-800" type="text" value="Data-Driven Transparency"/>
+</div>
+<textarea class="w-full text-sm text-stone-600 border-none bg-transparent p-0 focus:ring-0 resize-none h-10 leading-relaxed" rows="2">Clear evidence for every AI-suggested optimization.</textarea>
+<button class="material-symbols-outlined text-stone-300 hover:text-error-red transition-colors absolute top-4 right-4 opacity-0 group-hover:opacity-100">delete</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Row: Audiences & Goals -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Target Audiences Card -->
+<div class="bg-white border border-stone-200 rounded-3xl p-6 shadow-sm animate-fade-in" style="animation-delay: 0.3s;">
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-ai-purple bg-purple-50 p-2 rounded-lg">groups</span>
+<h3 class="text-lg font-semibold text-on-surface">Target Audiences</h3>
+</div>
+<div class="flex items-center gap-2 px-3 py-1.5 bg-stone-50 rounded-lg border border-stone-100">
+<span class="material-symbols-outlined text-[14px] text-stone-500">table_chart</span>
+<span class="text-xs text-stone-500">analytics.csv</span>
+</div>
+</div>
+<div class="flex flex-wrap gap-3">
+<div class="flex items-center gap-2 bg-blue-50 text-blue-800 px-4 py-2.5 rounded-xl border border-blue-100 font-medium">
+<span class="text-sm">Performance Marketers</span>
+<button class="material-symbols-outlined text-[16px] hover:text-blue-900 ml-1">close</button>
+</div>
+<div class="flex items-center gap-2 bg-emerald-50 text-emerald-800 px-4 py-2.5 rounded-xl border border-emerald-100 font-medium">
+<span class="text-sm">E-commerce CMOs</span>
+<button class="material-symbols-outlined text-[16px] hover:text-emerald-900 ml-1">close</button>
+</div>
+<div class="flex items-center gap-2 bg-purple-50 text-purple-800 px-4 py-2.5 rounded-xl border border-purple-100 font-medium">
+<span class="text-sm">Agency Operations</span>
+<button class="material-symbols-outlined text-[16px] hover:text-purple-900 ml-1">close</button>
+</div>
+<button class="border border-dashed border-stone-300 text-stone-600 px-4 py-2.5 rounded-xl hover:bg-stone-50 transition-colors text-sm font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">add</span> New Segment
+                                </button>
+</div>
+</div>
+<!-- Funnel Goals Card -->
+<div class="bg-white border border-stone-200 rounded-3xl p-6 shadow-sm animate-fade-in" style="animation-delay: 0.5s;">
+<div class="flex justify-between items-start mb-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-success-green bg-green-50 p-2 rounded-lg">flag</span>
+<h3 class="text-lg font-semibold text-on-surface">Funnel Goals</h3>
+</div>
+<div class="flex items-center gap-2 px-3 py-1.5 bg-stone-50 rounded-lg border border-stone-100">
+<span class="material-symbols-outlined text-[14px] text-stone-500">tune</span>
+<span class="text-xs text-stone-500">Manual setting</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-6">
+<div class="space-y-2">
+<label class="text-xs font-medium text-stone-500 uppercase tracking-wider">Primary Conversion</label>
+<div class="relative">
+<select class="w-full text-sm text-stone-800 bg-stone-50 border-stone-200 rounded-xl focus:ring-primary focus:border-primary border h-12 px-4 appearance-none font-medium">
+<option>Sign-up Success</option>
+<option>Purchase Complete</option>
+<option>Demo Request</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-3.5 text-stone-400 pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-medium text-stone-500 uppercase tracking-wider">Target CPA</label>
+<div class="relative">
+<span class="absolute left-4 top-3.5 text-stone-500 font-medium">$</span>
+<input class="w-full text-sm text-stone-800 bg-stone-50 border-stone-200 rounded-xl focus:ring-primary focus:border-primary border h-12 pl-8 pr-4 font-medium" type="text" value="45.00"/>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Source Addition Card (Empty State Trigger) -->
+<div class="bg-white border-2 border-dashed border-stone-300 rounded-3xl p-8 flex flex-col items-center justify-center gap-4 text-center hover:border-primary hover:bg-stone-50 transition-all cursor-pointer group animate-fade-in mt-8" style="animation-delay: 0.6s;">
+<div class="w-14 h-14 bg-stone-100 rounded-full flex items-center justify-center text-stone-600 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-2xl">add_circle</span>
+</div>
+<div>
+<h4 class="text-lg font-semibold text-stone-800 group-hover:text-primary transition-colors">Add another data source</h4>
+<p class="text-sm text-stone-500 mt-1">Upload PDFs, spreadsheets, or link your social profiles</p>
+</div>
+</div>
+</div>
+<!-- Action Footer -->
+<div class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-stone-200 px-page-gutter-mobile md:px-page-gutter-desktop py-4 z-40">
+<div class="max-w-5xl mx-auto flex items-center justify-between">
+<button class="flex items-center gap-2 text-sm font-medium text-stone-600 hover:text-primary transition-all active:scale-95">
+<span class="material-symbols-outlined">arrow_back</span>
+                            Back
+                        </button>
+<div class="flex gap-4">
+<button class="hidden md:flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-100 transition-all active:scale-95">
+                                Save as Draft
+                            </button>
+<button class="bg-primary text-white px-8 py-3 rounded-full text-base font-bold hover:bg-accent-hover transition-all shadow-sm active:scale-95 flex items-center gap-2">
+                                Confirm business context
+                                <span class="material-symbols-outlined text-[20px]">check_circle</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Interactive Layer: Tooltip Mockup -->
+<div class="fixed opacity-0 pointer-events-none transition-opacity duration-200 bg-inverse-surface text-inverse-on-surface p-3 rounded-xl text-xs max-w-[200px] shadow-lg z-[60]" id="ai-tooltip">
+        This insight was derived using NOVA’s Context Extraction model from your main homepage.
+    </div>
+<script>
+        // Micro-interactions for the review flow
+        document.querySelectorAll('.material-symbols-outlined').forEach(icon => {
+            icon.addEventListener('mouseenter', (e) => {
+                if (icon.innerText === 'language' || icon.innerText === 'description' || icon.innerText === 'table_chart') {
+                    const tooltip = document.getElementById('ai-tooltip');
+                    tooltip.style.left = `${e.clientX - 100}px`;
+                    tooltip.style.top = `${e.clientY + 20}px`;
+                    tooltip.classList.remove('opacity-0');
+                }
+            });
+            icon.addEventListener('mouseleave', () => {
+                document.getElementById('ai-tooltip').classList.add('opacity-0');
+            });
+        });
+
+        // Input Focus Effects
+        const inputs = document.querySelectorAll('input, textarea, select');
+        inputs.forEach(input => {
+            input.addEventListener('focus', () => {
+                const card = input.closest('.shadow-sm');
+                if(card) card.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025)';
+            });
+            input.addEventListener('blur', () => {
+                const card = input.closest('.shadow-sm');
+                if(card) card.style.boxShadow = '';
+            });
+        });
+    </script>
+</body></html>

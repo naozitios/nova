@@ -50,3 +50,10 @@ export interface MetaClientPort {
   getInsights(accountId: string, campaignIds: string[], since: string, until: string, accessToken: string): Promise<MetaInsightSummaryDTO[]>;
   getAdCreatives(adId: string, accessToken: string): Promise<MetaCreativeSummaryDTO[]>;
 }
+
+export interface MetaWritePort {
+  createCampaign(accountId: string, input: { name: string; objective: string; status: 'ACTIVE' | 'PAUSED'; lifetimeBudget?: number; dailyBudget?: number; startTime: string; stopTime?: string }, accessToken: string): Promise<{ id: string }>;
+  updateCampaign(campaignId: string, input: { name?: string; status?: 'ACTIVE' | 'PAUSED'; lifetimeBudget?: number; dailyBudget?: number; stopTime?: string }, accessToken: string): Promise<{ id: string }>;
+  pauseCampaign(campaignId: string, accessToken: string): Promise<void>;
+  deleteCampaign(campaignId: string, accessToken: string): Promise<void>;
+}

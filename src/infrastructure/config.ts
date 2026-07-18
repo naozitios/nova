@@ -5,7 +5,7 @@ export const config = {
     appId: process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID || '',
     appSecret: process.env.META_APP_SECRET || '',
     apiVersion: process.env.META_API_VERSION || 'v22.0',
-    redirectUri: process.env.META_REDIRECT_URI || 'http://localhost:3000/api/meta/callback',
+    redirectUri: process.env.META_REDIRECT_URI || 'http://localhost:3000/api/meta/oauth/callback',
     scopes: ['ads_management', 'ads_read', 'business_management'],
   },
   /** Groq LLM API configuration (API key, model name, max tokens). */

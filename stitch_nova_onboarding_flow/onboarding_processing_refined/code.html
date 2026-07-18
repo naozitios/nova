@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NOVA | Processing Data</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/font/sans.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/font/mono.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Geist Sans', 'sans-serif'],
+              mono: ['Geist Mono', 'monospace'],
+            },
+            "colors": {
+                    "on-secondary-fixed": "#1f1b17",
+                    "surface-bright": "#fff8f6",
+                    "ai-purple": "#A855F7",
+                    "surface-container-highest": "#f6ddd8",
+                    "tertiary-container": "#008096",
+                    "secondary": "#645d58",
+                    "secondary-fixed": "#eae1da",
+                    "primary": "#aa3016",
+                    "surface-tint": "#ad3218",
+                    "on-tertiary-fixed-variant": "#004e5c",
+                    "background": "#fff8f6",
+                    "on-primary-fixed-variant": "#8b1a01",
+                    "error-container": "#ffdad6",
+                    "error-red": "#EF4444",
+                    "inverse-surface": "#3c2d2a",
+                    "success-green": "#22C55E",
+                    "on-error": "#ffffff",
+                    "tertiary": "#006577",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-container": "#6a635e",
+                    "accent-hover": "#D14A2E",
+                    "error": "#ba1a1a",
+                    "on-tertiary-container": "#f9fdff",
+                    "on-tertiary-fixed": "#001f26",
+                    "on-background": "#251816",
+                    "surface-dim": "#edd5d0",
+                    "inverse-primary": "#ffb4a4",
+                    "page-bg": "#FAFAF9",
+                    "on-surface-variant": "#59413c",
+                    "warning-amber": "#F59E0B",
+                    "outline-variant": "#e1bfb8",
+                    "on-secondary-fixed-variant": "#4b4641",
+                    "surface-variant": "#f6ddd8",
+                    "inverse-on-surface": "#ffede9",
+                    "on-surface": "#251816",
+                    "primary-fixed": "#ffdad3",
+                    "secondary-container": "#eae1da",
+                    "primary-container": "#cc482c",
+                    "surface-container-lowest": "#ffffff",
+                    "accent-soft-alt": "#FFDAB9",
+                    "on-secondary": "#ffffff",
+                    "surface-container-high": "#fce3dd",
+                    "secondary-fixed-dim": "#cec5bf",
+                    "tertiary-fixed": "#acedff",
+                    "accent-soft": "#FEF3E2",
+                    "surface-container-low": "#fff0ed",
+                    "tertiary-fixed-dim": "#69d5ef",
+                    "info-blue": "#3B82F6",
+                    "outline": "#8d716b",
+                    "surface-container": "#ffe9e5",
+                    "on-error-container": "#93000a",
+                    "surface": "#fff8f6",
+                    "primary-fixed-dim": "#ffb4a4",
+                    "on-primary": "#ffffff",
+                    "on-primary-container": "#fffbff",
+                    "on-primary-fixed": "#3d0600"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "page-gutter-desktop": "6rem",
+                    "control-gap": "0.75rem",
+                    "page-gutter-tablet": "3rem",
+                    "section-gap": "2.5rem",
+                    "grid-gap": "1.5rem",
+                    "card-padding-focus": "2rem",
+                    "page-gutter-mobile": "1.5rem",
+                    "card-padding": "1.5rem"
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        @keyframes slow-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-slow-spin {
+            animation: slow-spin 2s linear infinite;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        body {
+            background-color: #FAFAF9;
+        }
+    </style>
+</head>
+<body class="text-stone-600 font-sans min-h-screen flex flex-col antialiased">
+<!-- TopAppBar Shell Mapping -->
+<nav class="flex justify-between items-center w-full px-page-gutter-mobile md:px-page-gutter-desktop py-4 bg-white fixed top-0 z-50">
+<div class="flex items-center gap-4">
+<span class="text-2xl font-bold text-primary font-sans">NOVA</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-secondary hover:bg-surface-container-low transition-colors p-2 rounded-full active:scale-95 transition-transform">close</button>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-1 pt-24 pb-20 px-page-gutter-mobile md:px-page-gutter-desktop">
+<div class="max-w-3xl mx-auto space-y-section-gap">
+<!-- Progress Indicator -->
+<div class="w-full mb-8">
+<div class="flex justify-between items-center mb-2">
+<span class="text-sm font-semibold text-primary font-sans">Step 4 of 8</span>
+<span class="text-sm text-stone-500 font-sans">Processing Data</span>
+</div>
+<div class="w-full bg-stone-200 rounded-full h-2">
+<div class="bg-primary h-2 rounded-full" style="width: 50%"></div>
+</div>
+</div>
+<!-- Hero Header -->
+<header class="space-y-2">
+<h1 class="text-3xl font-bold text-stone-900 font-sans">Analyzing Your Digital Footprint</h1>
+<p class="text-base text-stone-600 font-sans">Our AI is currently mapping your brand's ecosystem to build a tailored campaign strategy. This usually takes 30-60 seconds.</p>
+</header>
+<!-- Progress Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-grid-gap">
+<!-- Checklist Card -->
+<div class="bg-surface-container-lowest rounded-3xl p-6 border border-stone-100 shadow-sm space-y-6 md:row-span-2">
+<h3 class="text-xl font-semibold text-stone-900 border-b border-stone-50 pb-4 font-sans">Analysis Pipeline</h3>
+<ul class="flex flex-col gap-6">
+<!-- Completed -->
+<li class="flex items-center gap-4">
+<div class="w-8 h-8 rounded-full bg-success-green flex items-center justify-center text-white shrink-0">
+<span class="material-symbols-outlined text-[20px]">check</span>
+</div>
+<span class="text-sm text-stone-700 font-sans">Crawling website</span>
+</li>
+<!-- Completed -->
+<li class="flex items-center gap-4">
+<div class="w-8 h-8 rounded-full bg-success-green flex items-center justify-center text-white shrink-0">
+<span class="material-symbols-outlined text-[20px]">check</span>
+</div>
+<span class="text-sm text-stone-700 font-sans">Reading uploaded documents</span>
+</li>
+<!-- Processing -->
+<li class="flex items-center gap-4">
+<div class="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined text-[20px] animate-slow-spin">progress_activity</span>
+</div>
+<span class="text-sm text-stone-700 font-semibold font-sans">Extracting products/services</span>
+</li>
+<!-- Pending -->
+<li class="flex items-center gap-4 opacity-50">
+<div class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 shrink-0">
+<div class="w-2 h-2 rounded-full bg-current"></div>
+</div>
+<span class="text-sm text-stone-500 font-sans">Identifying audiences</span>
+</li>
+<!-- Pending -->
+<li class="flex items-center gap-4 opacity-50">
+<div class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 shrink-0">
+<div class="w-2 h-2 rounded-full bg-current"></div>
+</div>
+<span class="text-sm text-stone-500 font-sans">Building context</span>
+</li>
+</ul>
+</div>
+<!-- Source Status Cards -->
+<div class="bg-surface-container-lowest rounded-3xl p-6 border border-stone-100 shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-info-blue">language</span>
+<span class="text-lg font-semibold text-stone-900 font-sans">Website URL</span>
+</div>
+<span class="px-2 py-1 bg-success-green/10 text-success-green text-xs font-bold rounded uppercase">Active</span>
+</div>
+<div class="p-3 bg-stone-50 rounded-xl font-mono text-sm text-stone-500 overflow-hidden text-ellipsis whitespace-nowrap">
+                        https://www.nova-ai.workspace/enterprise/solutions
+                    </div>
+</div>
+<div class="bg-surface-container-lowest rounded-3xl p-6 border border-stone-100 shadow-sm relative overflow-hidden flex flex-col justify-center">
+<!-- Subtle AI Animation Background -->
+<div class="absolute inset-0 opacity-10 pointer-events-none">
+</div>
+<div class="relative z-10 flex flex-col justify-between h-full">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-ai-purple">description</span>
+<span class="text-lg font-semibold text-stone-900 font-sans">Marketing Deck</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex-1 bg-stone-100 h-2 rounded-full overflow-hidden">
+<div class="bg-ai-purple h-full w-[85%] transition-all duration-1000 ease-out"></div>
+</div>
+<span class="text-sm text-ai-purple font-bold font-sans">85%</span>
+</div>
+<p class="text-sm text-stone-500 mt-2 font-sans">Extracting value propositions...</p>
+</div>
+</div>
+</section>
+<!-- Bottom Action Area (Disabled until done) -->
+<footer class="flex items-center justify-between pt-8 border-t border-stone-100">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0"></div>
+<span class="text-sm text-stone-600 font-sans">Step 4 of 8: Processing deep analysis...</span>
+</div>
+<button class="bg-stone-200 text-stone-400 font-bold px-8 py-3 rounded-full cursor-not-allowed opacity-70 transition-all flex items-center gap-2 font-sans" disabled="">
+                    Next Step
+                    <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</footer>
+</div>
+</main>
+<!-- Footer Component Mapping -->
+<footer class="max-w-3xl mx-auto flex justify-between items-center px-page-gutter-mobile py-8">
+<p class="text-sm text-stone-500 font-sans">© 2024 NOVA AI. Professional Workspace.</p>
+<div class="flex gap-4">
+<a class="text-sm text-stone-500 hover:text-primary transition-colors underline-offset-4 hover:underline font-sans" href="#">Support</a>
+<a class="text-sm text-stone-500 hover:text-primary transition-colors underline-offset-4 hover:underline font-sans" href="#">Privacy</a>
+<a class="text-sm text-stone-500 hover:text-primary transition-colors underline-offset-4 hover:underline font-sans" href="#">Terms</a>
+</div>
+</footer>
+<script>
+        // Micro-interaction: Simulated progress text updates
+        const analysisSteps = [
+            "Scanning metadata...",
+            "Indexing visual assets...",
+            "Mapping brand voice...",
+            "Clustering audience personas...",
+            "Synthesizing key verticals..."
+        ];
+        
+        let stepIndex = 0;
+        const progressDetail = document.querySelector('p.text-sm.text-stone-500.mt-2.font-sans');
+        
+        if(progressDetail) {
+            setInterval(() => {
+                stepIndex = (stepIndex + 1) % analysisSteps.length;
+                progressDetail.style.opacity = 0;
+                setTimeout(() => {
+                    progressDetail.textContent = analysisSteps[stepIndex];
+                    progressDetail.style.opacity = 1;
+                }, 300);
+            }, 3000);
+        }
+    </script>
+</body></html>

@@ -73,7 +73,7 @@ export async function runHierarchySync(
   for (const partition of partitions) {
     if (completedKeys.has(partition.objectType)) continue
 
-    const partitionResult = await processPartition(
+    const { result: partitionResult, lastCursor } = await processPartition(
       partition.objectType,
       run,
       metaAccountId,
@@ -87,7 +87,7 @@ export async function runHierarchySync(
         runId: run.id,
         partitionKey: partition.objectType,
         status: 'retry_pending',
-        cursor: null,
+        cursor: lastCursor,
       })
       return partitionResult
     }
@@ -110,48 +110,84 @@ async function processPartition(
   metaAccountId: string,
   accessToken: string,
   deps: HierarchyHandlerDeps,
-): Promise<ServiceResult<unknown>> {
+): Promise<{ result: ServiceResult<unknown>; lastCursor: string | null }> {
   const { api, repo } = deps
   const ctx = { workspaceId: run.workspaceId, metaAdAccountId: run.metaAdAccountId, runId: run.id }
 
-  try {
+  const fetchPage = (after?: string): Promise<PageResult> => {
     switch (objectType) {
-      case 'campaigns': {
-        const page = await api.getCampaignsPage(metaAccountId, accessToken)
-        return await repo.upsertCampaigns({ ...ctx, campaigns: page.data })
-      }
-      case 'ad_sets': {
-        const page = await api.getAdSetsPage(metaAccountId, accessToken)
-        return await repo.upsertAdSets({ ...ctx, adSets: page.data })
-      }
-      case 'ads': {
-        const page = await api.getAdsPage(metaAccountId, accessToken)
-        return await repo.upsertAds({ ...ctx, ads: page.data })
-      }
-      case 'creatives': {
-        const page = await api.getCreativesPage(metaAccountId, accessToken)
-        return await repo.upsertCreatives({ ...ctx, creatives: page.data })
-      }
-      default:
-        return { ok: true, data: null }
+      case 'campaigns': return api.getCampaignsPage(metaAccountId, accessToken, after)
+      case 'ad_sets': return api.getAdSetsPage(metaAccountId, accessToken, after)
+      case 'ads': return api.getAdsPage(metaAccountId, accessToken, after)
+      case 'creatives': return api.getCreativesPage(metaAccountId, accessToken, after)
+      default: return Promise.resolve({ data: [], nextPageUrl: null })
     }
+  }
+
+  const upsertPage = (data: Record<string, unknown>[]): Promise<ServiceResult<unknown>> => {
+    switch (objectType) {
+      case 'campaigns': return repo.upsertCampaigns({ ...ctx, campaigns: data })
+      case 'ad_sets': return repo.upsertAdSets({ ...ctx, adSets: data })
+      case 'ads': return repo.upsertAds({ ...ctx, ads: data })
+      case 'creatives': return repo.upsertCreatives({ ...ctx, creatives: data })
+      default: return Promise.resolve({ ok: true, data: null })
+    }
+  }
+
+  let cursor: string | undefined
+  let lastCursor: string | null = null
+  try {
+    do {
+      const page = await fetchPage(cursor)
+
+      if (page.data.length > 0) {
+        const upsertResult = await upsertPage(page.data as Record<string, unknown>[])
+        if (!upsertResult.ok) return { result: upsertResult, lastCursor: cursor ?? null }
+      }
+
+      if (page.nextPageUrl) {
+        const afterMatch = page.nextPageUrl.match(/after=([^&]+)/)
+        cursor = afterMatch?.[1]
+        if (!cursor) throw new Error('nextPageUrl missing after cursor')
+      } else {
+        cursor = undefined
+      }
+
+      lastCursor = cursor ?? null
+
+      await repo.advanceCheckpoint({
+        workspaceId: run.workspaceId,
+        runId: run.id,
+        partitionKey: objectType,
+        status: 'in_progress',
+        cursor: lastCursor,
+      })
+    } while (cursor)
+
+    return { result: { ok: true, data: null }, lastCursor: null }
   } catch (error) {
     const classification = classifyMetaSyncError(error)
     if (classification === 'retryable') {
       return {
-        ok: false,
-        error: {
-          code: 'RETRYABLE_ERROR',
-          message: error instanceof Error ? error.message : String(error),
+        result: {
+          ok: false,
+          error: {
+            code: 'RETRYABLE_ERROR',
+            message: error instanceof Error ? error.message : String(error),
+          },
         },
+        lastCursor: lastCursor,
       }
     }
     return {
-      ok: false,
-      error: {
-        code: 'PROVIDER_ERROR',
-        message: error instanceof Error ? error.message : String(error),
+      result: {
+        ok: false,
+        error: {
+          code: 'PROVIDER_ERROR',
+          message: error instanceof Error ? error.message : String(error),
+        },
       },
+      lastCursor: lastCursor,
     }
   }
 }

@@ -192,6 +192,7 @@ describe('runHierarchySync', () => {
     expect(d.api.getCampaignsPage).toHaveBeenCalledWith(
       'act_1',
       'plain-token',
+      undefined,
     )
   })
 

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NOVA - Add Business Sources</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Sans:wght@100..900&amp;family=Geist+Mono:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            font-family: 'Geist Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 1.5rem;
+        }
+        .drag-active {
+            border-color: #aa3016 !important;
+            background-color: rgba(170, 48, 22, 0.05) !important;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed": "#1f1b17",
+                        "surface-bright": "#fff8f6",
+                        "ai-purple": "#A855F7",
+                        "surface-container-highest": "#f6ddd8",
+                        "tertiary-container": "#008096",
+                        "secondary": "#645d58",
+                        "secondary-fixed": "#eae1da",
+                        "primary": "#aa3016",
+                        "surface-tint": "#ad3218",
+                        "on-tertiary-fixed-variant": "#004e5c",
+                        "background": "#fff8f6",
+                        "on-primary-fixed-variant": "#8b1a01",
+                        "error-container": "#ffdad6",
+                        "error-red": "#EF4444",
+                        "inverse-surface": "#3c2d2a",
+                        "success-green": "#22C55E",
+                        "on-error": "#ffffff",
+                        "tertiary": "#006577",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-container": "#6a635e",
+                        "accent-hover": "#D14A2E",
+                        "error": "#ba1a1a",
+                        "on-tertiary-container": "#f9fdff",
+                        "on-tertiary-fixed": "#001f26",
+                        "on-background": "#251816",
+                        "surface-dim": "#edd5d0",
+                        "inverse-primary": "#ffb4a4",
+                        "page-bg": "#FAFAF9",
+                        "on-surface-variant": "#59413c",
+                        "warning-amber": "#F59E0B",
+                        "outline-variant": "#e1bfb8",
+                        "on-secondary-fixed-variant": "#4b4641",
+                        "surface-variant": "#f6ddd8",
+                        "inverse-on-surface": "#ffede9",
+                        "on-surface": "#251816",
+                        "primary-fixed": "#ffdad3",
+                        "secondary-container": "#eae1da",
+                        "primary-container": "#cc482c",
+                        "surface-container-lowest": "#ffffff",
+                        "accent-soft-alt": "#FFDAB9",
+                        "on-secondary": "#ffffff",
+                        "surface-container-high": "#fce3dd",
+                        "secondary-fixed-dim": "#cec5bf",
+                        "tertiary-fixed": "#acedff",
+                        "accent-soft": "#FEF3E2",
+                        "surface-container-low": "#fff0ed",
+                        "tertiary-fixed-dim": "#69d5ef",
+                        "info-blue": "#3B82F6",
+                        "outline": "#8d716b",
+                        "surface-container": "#ffe9e5",
+                        "on-error-container": "#93000a",
+                        "surface": "#fff8f6",
+                        "primary-fixed-dim": "#ffb4a4",
+                        "on-primary": "#ffffff",
+                        "on-primary-container": "#fffbff",
+                        "on-primary-fixed": "#3d0600"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "page-gutter-desktop": "6rem",
+                        "control-gap": "0.75rem",
+                        "page-gutter-tablet": "3rem",
+                        "section-gap": "2.5rem",
+                        "grid-gap": "1.5rem",
+                        "card-padding-focus": "2rem",
+                        "page-gutter-mobile": "1.5rem",
+                        "card-padding": "1.5rem"
+                    },
+                    "fontFamily": {
+                        "sans": ["Geist Sans", "sans-serif"],
+                        "mono": ["Geist Mono", "monospace"]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-page-bg text-stone-600 font-sans">
+<!-- Top Navigation Anchor (Manual for Onboarding Flow) -->
+<header class="flex justify-between items-center w-full px-page-gutter-mobile md:px-page-gutter-desktop py-4 bg-white border-b border-stone-200 z-50 sticky top-0">
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 text-stone-600 hover:text-stone-900 transition-colors active:scale-95" onclick="history.back()">
+<span class="material-symbols-outlined">arrow_back</span>
+<span class="text-sm">Back</span>
+</button>
+<div class="h-6 w-px bg-outline-variant mx-2"></div>
+<span class="text-xl font-bold text-stone-900">NOVA</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-stone-500 hover:bg-surface-container-low p-2 rounded-full transition-colors">close</button>
+</div>
+</header>
+<!-- Centered Progress Bar -->
+<div class="w-full bg-white border-b border-stone-200 py-4 flex flex-col items-center justify-center">
+<span class="text-sm text-stone-500 mb-2 font-medium">Step 3 of 8</span>
+<div class="w-64 h-2 bg-secondary-container rounded-full overflow-hidden">
+<div class="w-[37.5%] h-full bg-primary transition-all duration-500"></div>
+</div>
+</div>
+<main class="max-w-7xl mx-auto px-page-gutter-mobile md:px-page-gutter-desktop py-12">
+<div class="flex flex-col md:flex-row gap-12 items-start justify-center">
+<!-- Left Side: Header and Context -->
+<div class="md:w-1/3 space-y-6">
+<h1 class="text-3xl font-bold text-stone-900">Deepen NOVA's Intelligence</h1>
+<p class="text-base text-stone-600">
+                    While your website provides a foundation, NOVA learns faster and more accurately from your internal documents, brand guides, and campaign historicals. 
+                </p>
+<!-- Current Active Source Card -->
+<div class="p-6 bg-white border border-stone-200 rounded-3xl shadow-sm space-y-3"><div class="flex items-center justify-between mb-4"><span class="text-xs text-primary bg-primary-container/10 px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">Active Sources</span><span class="material-symbols-outlined text-success-green">verified</span></div><div class="space-y-4"><div class="flex items-center gap-3"><div class="w-8 h-8 bg-secondary-container rounded-lg flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-secondary text-sm">language</span></div><div class="overflow-hidden"><p class="text-sm text-stone-900 font-semibold truncate">www.lumina-digital.com</p><p class="text-xs text-stone-500">To be analysed</p></div></div><div class="h-px bg-stone-100 w-full"></div><div class="flex items-center gap-3"><div class="w-8 h-8 bg-secondary-container rounded-lg flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-blue-500 text-sm">picture_as_pdf</span></div><div class="overflow-hidden"><p class="text-sm text-stone-900 font-semibold truncate">brand_guide_2024.pdf</p><p class="text-xs text-stone-500">To be analysed</p></div></div><div class="flex items-center gap-3"><div class="w-8 h-8 bg-secondary-container rounded-lg flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-primary text-sm">description</span></div><div class="overflow-hidden"><p class="text-sm text-stone-900 font-semibold truncate">q3_campaign_performance.pptx</p><p class="text-xs text-stone-500">To be analysed</p></div></div></div></div>
+<div class="flex items-center gap-2 p-4 bg-accent-soft rounded-2xl">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<p class="text-sm text-stone-600">
+                        Multi-source learning increases ad conversion accuracy by up to 34%.
+                    </p>
+</div>
+</div>
+<!-- Right Side: Interaction Area (Bento Grid) -->
+<div class="md:w-2/3 w-full">
+<div class="bento-grid">
+<!-- Drag and Drop Area -->
+<div class="col-span-12 p-6 border-2 border-dashed border-outline-variant bg-surface-container-lowest rounded-3xl flex flex-col items-center justify-center text-center transition-all cursor-pointer group hover:border-primary min-h-[240px]" id="drop-zone">
+<div class="w-16 h-16 bg-primary-container/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-3xl">upload_file</span>
+</div>
+<h3 class="text-xl font-semibold text-stone-900 mb-2">Upload Business Assets</h3>
+<p class="text-sm text-stone-600 max-w-sm mx-auto mb-6">
+                            Drag and drop your PDF, PPTX, DOCX, or Image files here to train NOVA.
+                        </p>
+<button class="px-6 py-2.5 bg-secondary text-white rounded-full text-sm hover:bg-stone-700 transition-colors">
+                            Select Files
+                        </button>
+</div>
+<!-- Manual Text Area -->
+<div class="col-span-12 bg-white border border-stone-100 p-6 rounded-3xl shadow-sm">
+<label class="block text-xl font-semibold text-stone-900 mb-4" for="brand-notes">Brand Specific Notes</label>
+<textarea class="w-full h-32 p-4 bg-surface-container-low border-none rounded-2xl text-sm text-stone-600 focus:ring-2 focus:ring-primary/20 resize-none placeholder:text-stone-400" id="brand-notes" placeholder="Paste specific campaign goals, prohibited terminology, or unique brand voice instructions..." rows="4"></textarea>
+<div class="flex justify-end mt-4">
+<span class="text-xs text-stone-500">0 / 2000 characters</span>
+</div>
+</div>
+<!-- File List / Processing -->
+</div>
+<!-- Action Footer -->
+<div class="mt-12 flex flex-col sm:flex-row items-center justify-between gap-6 border-t border-outline-variant pt-8">
+<div class="flex items-center gap-2 text-stone-500">
+<span class="material-symbols-outlined text-sm">security</span>
+<p class="text-xs">All data is encrypted and used only for your workspace.</p>
+</div>
+<div class="flex gap-4 w-full sm:w-auto">
+<button class="flex-1 sm:flex-none px-8 py-3 rounded-full text-sm text-stone-600 hover:bg-stone-100 transition-colors active:scale-95">
+                            Skip for now
+                        </button>
+<button class="flex-1 sm:flex-none px-10 py-3 bg-primary text-white rounded-full text-base font-semibold shadow-lg shadow-primary/20 hover:bg-accent-hover transition-all active:scale-95 flex items-center justify-center gap-2">
+<span>Let NOVA learn</span>
+<span class="material-symbols-outlined">auto_awesome</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Component Anchor -->
+<footer class="max-w-3xl mx-auto flex justify-between items-center px-page-gutter-mobile py-8 bg-transparent">
+<span class="text-xs text-stone-500">© 2024 NOVA AI. Professional Workspace.</span>
+<div class="flex gap-4">
+<a class="text-xs text-stone-500 hover:text-stone-900 transition-colors hover:underline underline-offset-4" href="#">Support</a>
+<a class="text-xs text-stone-500 hover:text-stone-900 transition-colors hover:underline underline-offset-4" href="#">Privacy</a>
+<a class="text-xs text-stone-500 hover:text-stone-900 transition-colors hover:underline underline-offset-4" href="#">Terms</a>
+</div>
+</footer>
+<script>
+        // Simple Interaction logic
+        const dropZone = document.getElementById('drop-zone');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            dropZone.classList.add('drag-active');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('drag-active');
+        }
+
+        dropZone.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            console.log('Files dropped:', files);
+            // In a real app, logic to handle file upload would go here
+        }
+
+        // Textarea character counter logic
+        const textarea = document.getElementById('brand-notes');
+        const counter = textarea.nextElementSibling.querySelector('span');
+        
+        textarea.addEventListener('input', () => {
+            const length = textarea.value.length;
+            counter.textContent = `${length} / 2000 characters`;
+        });
+    </script>
+</body></html>

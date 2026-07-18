@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NOVA | Setup Complete</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: Geist Sans & Mono -->
+<link href="https://fonts.googleapis.com/css2?family=Geist+Sans:wght@100..900&amp;family=Geist+Mono:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed": "#1f1b17",
+                        "surface-bright": "#fff8f6",
+                        "ai-purple": "#A855F7",
+                        "surface-container-highest": "#f6ddd8",
+                        "tertiary-container": "#008096",
+                        "secondary": "#645d58",
+                        "secondary-fixed": "#eae1da",
+                        "primary": "#aa3016",
+                        "surface-tint": "#ad3218",
+                        "on-tertiary-fixed-variant": "#004e5c",
+                        "background": "#ffffff", /* Updated to white */
+                        "on-primary-fixed-variant": "#8b1a01",
+                        "error-container": "#ffdad6",
+                        "error-red": "#EF4444",
+                        "inverse-surface": "#3c2d2a",
+                        "success-green": "#22C55E",
+                        "on-error": "#ffffff",
+                        "tertiary": "#006577",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-container": "#6a635e",
+                        "accent-hover": "#D14A2E",
+                        "error": "#ba1a1a",
+                        "on-tertiary-container": "#f9fdff",
+                        "on-tertiary-fixed": "#001f26",
+                        "on-background": "#251816",
+                        "surface-dim": "#edd5d0",
+                        "inverse-primary": "#ffb4a4",
+                        "page-bg": "#FAFAF9",
+                        "on-surface-variant": "#59413c",
+                        "warning-amber": "#F59E0B",
+                        "outline-variant": "#e1bfb8",
+                        "on-secondary-fixed-variant": "#4b4641",
+                        "surface-variant": "#f6ddd8",
+                        "inverse-on-surface": "#ffede9",
+                        "on-surface": "#251816",
+                        "primary-fixed": "#ffdad3",
+                        "secondary-container": "#eae1da",
+                        "primary-container": "#cc482c",
+                        "surface-container-lowest": "#ffffff",
+                        "accent-soft-alt": "#FFDAB9",
+                        "on-secondary": "#ffffff",
+                        "surface-container-high": "#fce3dd",
+                        "secondary-fixed-dim": "#cec5bf",
+                        "tertiary-fixed": "#acedff",
+                        "accent-soft": "#FEF3E2",
+                        "surface-container-low": "#fff0ed",
+                        "tertiary-fixed-dim": "#69d5ef",
+                        "info-blue": "#3B82F6",
+                        "outline": "#8d716b",
+                        "surface-container": "#ffe9e5",
+                        "on-error-container": "#93000a",
+                        "surface": "#ffffff", /* Updated to white */
+                        "primary-fixed-dim": "#ffb4a4",
+                        "on-primary": "#ffffff",
+                        "on-primary-container": "#fffbff",
+                        "on-primary-fixed": "#3d0600"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "page-gutter-desktop": "6rem",
+                        "control-gap": "0.75rem",
+                        "page-gutter-tablet": "3rem",
+                        "section-gap": "2.5rem",
+                        "grid-gap": "1.5rem",
+                        "card-padding-focus": "2rem",
+                        "page-gutter-mobile": "1.5rem",
+                        "card-padding": "1.5rem"
+                    },
+                    "fontFamily": {
+                        "sans": ["Geist Sans", "sans-serif"],
+                        "headline-sm": ["Geist Sans"],
+                        "metric-display": ["Geist Sans"],
+                        "support-text": ["Geist Sans"],
+                        "headline-lg": ["Geist Sans"],
+                        "body-lg": ["Geist Sans"],
+                        "table-header": ["Geist Sans"],
+                        "headline-md": ["Geist Sans"],
+                        "code-label": ["Geist Mono"],
+                        "metadata": ["Geist Sans"],
+                        "body-default": ["Geist Sans"]
+                    },
+                    "fontSize": {
+                        "headline-sm": ["18px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "metric-display": ["30px", {"lineHeight": "36px", "letterSpacing": "tabular-nums", "fontWeight": "600"}],
+                        "support-text": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-lg": ["30px", {"lineHeight": "36px", "fontWeight": "700"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "table-header": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "code-label": ["12px", {"lineHeight": "16px", "fontWeight": "400"}],
+                        "metadata": ["12px", {"lineHeight": "16px", "fontWeight": "400"}],
+                        "body-default": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Geist Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .confetti {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        @keyframes fall {
+            to {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body class="font-sans bg-white text-on-background min-h-screen flex flex-col">
+<!-- Top Navigation (Shell Invisible for Transactional Page, but following logic I will provide a minimal branding anchor) -->
+<header class="bg-white font-sans text-xl font-semibold flex justify-between items-center w-full px-page-gutter-mobile md:px-page-gutter-desktop py-4 top-0 z-50 border-b border-stone-100">
+<div class="text-xl font-bold text-primary dark:text-primary-fixed w-1/3">NOVA</div>
+<div class="w-1/3 flex flex-col items-center justify-center">
+<div class="text-sm text-stone-600 font-medium mb-1">Step 8 of 8</div>
+<div class="flex gap-1">
+<div class="h-1 w-4 sm:w-6 rounded-full bg-primary"></div>
+<div class="h-1 w-4 sm:w-6 rounded-full bg-primary"></div>
+<div class="h-1 w-4 sm:w-6 rounded-full bg-primary"></div>
+<div class="h-1 w-4 sm:w-6 rounded-full bg-primary"></div>
+<div class="h-1 w-4 sm:w-6 rounded-full bg-primary"></div>
+<div class="h-1 w-4 sm:w-6 rounded-full bg-primary"></div>
+<div class="h-1 w-4 sm:w-6 rounded-full bg-primary"></div>
+<div class="h-1 w-4 sm:w-6 rounded-full bg-primary"></div>
+</div>
+</div>
+<div class="w-1/3 flex justify-end">
+<div class="p-2 hover:bg-surface-container-low transition-colors rounded-full cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined">close</span>
+</div>
+</div>
+</header>
+<!-- Sidebar (Suppressed for transactional screen) -->
+<main class="flex-1 flex items-center justify-center relative overflow-hidden px-page-gutter-mobile py-section-gap">
+<!-- Background Subtle Visual -->
+<div class="absolute inset-0 z-0 opacity-10 pointer-events-none">
+<div class="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-fixed blur-[120px] rounded-full"></div>
+<div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent-soft-alt blur-[120px] rounded-full"></div>
+</div>
+<!-- Content Canvas -->
+<div class="max-w-3xl w-full relative z-10">
+<div class="bg-white rounded-3xl border border-stone-200 shadow-sm p-page-gutter-mobile md:p-8 flex flex-col items-center text-center">
+<!-- Success Icon & Celebration Header -->
+<div class="mb-section-gap flex flex-col items-center">
+<div class="w-20 h-20 bg-success-green/10 text-success-green rounded-full flex items-center justify-center mb-6 animate-bounce">
+<span class="material-symbols-outlined text-5xl" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<h1 class="text-3xl font-bold text-on-surface mb-2">You’re all set up!</h1>
+<p class="text-base text-stone-600 max-w-lg">Your business context is mapped and your Meta Ad account is successfully connected to NOVA AI.</p>
+</div>
+<!-- Connection Summary Card -->
+<div class="w-full bg-surface-container-low rounded-xl p-6 mb-section-gap text-left border border-outline-variant/30 flex justify-center">
+<div class="w-full max-w-xl">
+<h3 class="text-xl font-semibold mb-4 text-center">Connection Summary</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-grid-gap justify-items-center md:justify-items-start">
+<div class="flex items-center gap-3 w-full justify-center md:justify-start">
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center border border-stone-100 shadow-sm">
+<span class="material-symbols-outlined text-primary">business</span>
+</div>
+<div>
+<p class="text-xs text-stone-600">Business Profile</p>
+<p class="text-sm font-semibold">Nova Media Group</p>
+</div>
+</div>
+<div class="flex items-center gap-3 w-full justify-center md:justify-start">
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center border border-stone-100 shadow-sm">
+<span class="material-symbols-outlined text-[#1877F2]">face_nod</span>
+</div>
+<div>
+<p class="text-xs text-stone-600">Connected Account</p>
+<p class="text-sm font-semibold">Meta Ads: ID 8221..09</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Next Steps Bento-lite -->
+<div class="w-full text-left mb-section-gap flex justify-center">
+<div class="w-full max-w-xl">
+<h3 class="text-xl font-semibold mb-6 text-center">What happens next?</h3>
+<div class="space-y-4">
+<!-- Step 1 -->
+<div class="group flex gap-4 items-start p-4 rounded-xl hover:bg-stone-50 transition-colors border border-transparent hover:border-stone-100">
+<div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center font-bold text-xs mt-0.5">1</div>
+<div>
+<h4 class="text-sm font-bold mb-1">Import historical data</h4>
+<p class="text-sm text-stone-600">We’re pulling the last 90 days of performance data to establish your baseline.</p>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="group flex gap-4 items-start p-4 rounded-xl hover:bg-stone-50 transition-colors border border-transparent hover:border-stone-100">
+<div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center font-bold text-xs mt-0.5">2</div>
+<div>
+<h4 class="text-sm font-bold mb-1">First AI Audit</h4>
+<p class="text-sm text-stone-600">Our engine scans your campaigns for creative fatigue and efficiency leaks.</p>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="group flex gap-4 items-start p-4 rounded-xl hover:bg-stone-50 transition-colors border border-transparent hover:border-stone-100">
+<div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center font-bold text-xs mt-0.5">3</div>
+<div>
+<h4 class="text-sm font-bold mb-1">Identify Opportunities</h4>
+<p class="text-sm text-stone-600">Receive your first 3 tailored recommendations to improve ROAS.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Primary CTA -->
+<div class="w-full flex justify-center mt-4">
+<button class="w-full max-w-md py-4 bg-primary text-white rounded-full text-xl font-semibold shadow-md hover:bg-accent-hover active:scale-95 transition-all flex items-center justify-center gap-2 group">
+                        Go to dashboard
+                        <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-white w-full py-8 max-w-3xl mx-auto flex justify-between items-center px-page-gutter-mobile text-xs text-stone-600 border-t border-stone-100 mt-auto">
+<p>© 2024 NOVA AI. Professional Workspace.</p>
+<div class="flex gap-4">
+<a class="hover:text-primary transition-colors underline-offset-4 hover:underline" href="#">Support</a>
+<a class="hover:text-primary transition-colors underline-offset-4 hover:underline" href="#">Privacy</a>
+<a class="hover:text-primary transition-colors underline-offset-4 hover:underline" href="#">Terms</a>
+</div>
+</footer>
+<!-- Confetti Script -->
+<script>
+        function createConfetti() {
+            const colors = ['#aa3016', '#ffdad3', '#22C55E', '#A855F7', '#FFDAB9'];
+            const container = document.body;
+            
+            for (let i = 0; i < 40; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.top = '-10px';
+                confetti.style.width = (Math.random() * 8 + 4) + 'px';
+                confetti.style.height = confetti.style.width;
+                confetti.style.opacity = Math.random();
+                
+                const duration = Math.random() * 2 + 2;
+                const delay = Math.random() * 2;
+                
+                confetti.style.animation = `fall ${duration}s linear ${delay}s forwards`;
+                
+                container.appendChild(confetti);
+                
+                setTimeout(() => {
+                    confetti.remove();
+                }, (duration + delay) * 1000);
+            }
+        }
+
+        // Trigger confetti once on load
+        window.addEventListener('load', () => {
+            createConfetti();
+            // Subtle interval to keep it alive slightly
+            const interval = setInterval(createConfetti, 5000);
+            setTimeout(() => clearInterval(interval), 15000);
+        });
+    </script>
+</body></html>

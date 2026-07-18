@@ -7,6 +7,7 @@ import type {
   AdvanceCheckpointInput,
   UpsertDailyInsightsInput,
 } from '@/core/meta-data/repository.port'
+import { config } from '@/infrastructure/config'
 import { buildIncrementalInsightWindows, buildInitialInsightWindows, classifyMetaSyncError } from '@/core/meta-data/sync-policy'
 
 interface PageResult {
@@ -29,6 +30,7 @@ export interface InsightsHandlerDeps {
       accountId: string,
       window: { since: string; until: string },
       accessToken: string,
+      after?: string,
     ): Promise<PageResult>
   }
   tokenVault: {
@@ -64,7 +66,7 @@ export async function runInsightsSync(
   }
 
   const accessToken = deps.tokenVault.decrypt(connResult.data.encryptedAccessToken)
-  const accountTimezone = 'UTC'
+  const accountTimezone = metaAccount.timezoneName ?? 'UTC'
 
   const windows =
     run.mode === 'initial_backfill'
@@ -79,41 +81,62 @@ export async function runInsightsSync(
     const partitionKey = `insights:${window.since}`
     if (completedKeys.has(partitionKey)) continue
 
+    let cursor: string | undefined
     try {
-      const page = await deps.api.getDailyAdInsightsPage(metaAccountId, window, accessToken)
+      do {
+        const page = await deps.api.getDailyAdInsightsPage(metaAccountId, window, accessToken, cursor)
 
-      const upsertResult = await deps.repo.upsertDailyInsights({
-        workspaceId: run.workspaceId,
-        metaAdAccountId: run.metaAdAccountId,
-        runId: run.id,
-        apiVersion: 'v21.0',
-        accountTimezone,
-        currency: 'USD',
-        insights: page.data.map((row) => ({
-          metaCampaignId: row.campaign_id as string | undefined,
-          metaAdSetId: row.adset_id as string | undefined,
-          metaAdId: row.ad_id as string | undefined,
-          dateStart: row.date_start as string | undefined,
-          dateStop: row.date_stop as string | undefined,
-          spend: row.spend as number | string | undefined,
-          impressions: row.impressions as number | string | undefined,
-          reach: row.reach as number | string | undefined,
-          clicks: row.clicks as number | string | undefined,
-          actions: row.actions as unknown[] | undefined,
-          actionValues: row.action_values as unknown[] | undefined,
-        })),
-      })
+        if (page.data.length > 0) {
+          const upsertResult = await deps.repo.upsertDailyInsights({
+            workspaceId: run.workspaceId,
+            metaAdAccountId: run.metaAdAccountId,
+            runId: run.id,
+            apiVersion: config.meta.apiVersion,
+            accountTimezone,
+            currency: metaAccount.currency ?? 'USD',
+            insights: page.data.map((row) => ({
+              metaCampaignId: row.campaign_id as string | undefined,
+              metaAdSetId: row.adset_id as string | undefined,
+              metaAdId: row.ad_id as string | undefined,
+              dateStart: row.date_start as string | undefined,
+              dateStop: row.date_stop as string | undefined,
+              spend: row.spend as number | string | undefined,
+              impressions: row.impressions as number | string | undefined,
+              reach: row.reach as number | string | undefined,
+              clicks: row.clicks as number | string | undefined,
+              actions: row.actions as unknown[] | undefined,
+              actionValues: row.action_values as unknown[] | undefined,
+            })),
+          })
 
-      if (!upsertResult.ok) {
+          if (!upsertResult.ok) {
+            await deps.repo.advanceCheckpoint({
+              workspaceId: run.workspaceId,
+              runId: run.id,
+              partitionKey,
+              status: 'retry_pending',
+              cursor: cursor ?? null,
+            })
+            return upsertResult
+          }
+        }
+
+        if (page.nextPageUrl) {
+          const afterMatch = page.nextPageUrl.match(/after=([^&]+)/)
+          cursor = afterMatch?.[1]
+          if (!cursor) throw new Error('nextPageUrl missing after cursor')
+        } else {
+          cursor = undefined
+        }
+
         await deps.repo.advanceCheckpoint({
           workspaceId: run.workspaceId,
           runId: run.id,
           partitionKey,
-          status: 'retry_pending',
-          cursor: null,
+          status: 'in_progress',
+          cursor: cursor ?? null,
         })
-        return upsertResult
-      }
+      } while (cursor)
 
       await deps.repo.advanceCheckpoint({
         workspaceId: run.workspaceId,
@@ -131,7 +154,7 @@ export async function runInsightsSync(
           runId: run.id,
           partitionKey,
           status: 'retry_pending',
-          cursor: null,
+          cursor: cursor ?? null,
         })
         return {
           ok: false,

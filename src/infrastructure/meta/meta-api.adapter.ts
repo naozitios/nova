@@ -1,32 +1,35 @@
-import type { MetaClientPort, MetaAccountDTO, MetaCampaignSummaryDTO, MetaInsightSummaryDTO, MetaCreativeSummaryDTO } from '@/core/optimization/meta-client.port';
+import type { MetaClientPort, MetaWritePort, MetaAccountDTO, MetaCampaignSummaryDTO, MetaInsightSummaryDTO, MetaCreativeSummaryDTO } from '@/core/optimization/meta-client.port';
 import type { MetaCampaignDTO, MetaCampaignInput } from '@/infrastructure/meta/types';
 import { config } from '@/infrastructure/config';
 
-/** Meta Graph API adapter — implements MetaClientPort for fetching accounts, campaigns, insights, and creatives from Meta. */
-/** Adapter that implements MetaClientPort by calling the Meta (Facebook) Graph API. */
-export class MetaApiAdapter implements MetaClientPort {
+/** Base fetch helper shared by read and write adapters. */
+async function metaFetch<T>(baseUrl: string, path: string, accessToken: string, options?: RequestInit): Promise<T> {
+  const url = path.startsWith('http') ? path : `${baseUrl}/${path}`;
+  const separator = url.includes('?') ? '&' : '?';
+  const finalUrl = `${url}${separator}access_token=${accessToken}`;
+
+  const response = await fetch(finalUrl, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+    throw new Error(`Meta API error: ${error.error?.message || response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/** Read-only Meta Graph API adapter — fetches accounts, campaigns, insights, and creatives. */
+export class MetaReadAdapter implements MetaClientPort {
   private baseUrl = `https://graph.facebook.com/${config.meta.apiVersion}`;
 
-  /** Generic fetch helper that appends the access token and handles errors. */
-  private async fetch<T>(path: string, accessToken: string, options?: RequestInit): Promise<T> {
-    const url = path.startsWith('http') ? path : `${this.baseUrl}/${path}`;
-    const separator = url.includes('?') ? '&' : '?';
-    const finalUrl = `${url}${separator}access_token=${accessToken}`;
-
-    const response = await fetch(finalUrl, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
-      throw new Error(`Meta API error: ${error.error?.message || response.statusText}`);
-    }
-
-    return response.json();
+  protected async fetch<T>(path: string, accessToken: string, options?: RequestInit): Promise<T> {
+    return metaFetch<T>(this.baseUrl, path, accessToken, options);
   }
 
   /** Lists ad accounts accessible by the given access token with full field set. */
@@ -136,6 +139,70 @@ export class MetaApiAdapter implements MetaClientPort {
     }));
   }
 
+  /** Fetches a paginated resource and returns data with optional next page cursor. */
+  protected async fetchPage<T>(path: string, accessToken: string, after?: string): Promise<{ data: T[]; nextPageUrl: string | null }> {
+    const url = after ? `${path}&after=${after}` : path;
+    const raw = await this.fetch<{ data: T[]; paging?: { next?: string } }>(url, accessToken);
+    return { data: raw.data, nextPageUrl: raw.paging?.next ?? null };
+  }
+
+  /** Fetches a page of campaigns for a given ad account. */
+  async getCampaignsPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
+    return this.fetchPage<Record<string, string>>(
+      `${accountId}/campaigns?fields=id,name,objective,status,buying_type,daily_budget,lifetime_budget,start_time,stop_time,created_time,updated_time,bid_strategy&limit=100`,
+      accessToken,
+      after,
+    );
+  }
+
+  /** Fetches a page of ad sets for a given ad account. */
+  async getAdSetsPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
+    return this.fetchPage<Record<string, string>>(
+      `${accountId}/adsets?fields=id,name,status,campaign_id,targeting,daily_budget,lifetime_budget,bid_strategy&limit=100`,
+      accessToken,
+      after,
+    );
+  }
+
+  /** Fetches a page of ads for a given ad account. */
+  async getAdsPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
+    return this.fetchPage<Record<string, string>>(
+      `${accountId}/ads?fields=id,name,status,adset_id,campaign_id,creative&limit=100`,
+      accessToken,
+      after,
+    );
+  }
+
+  /** Fetches a page of creatives for a given ad account. */
+  async getCreativesPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
+    return this.fetchPage<Record<string, string>>(
+      `${accountId}/adcreatives?fields=id,name,title,body,image_hash,image_url,video_id,link_url,call_to_action_type,object_type&limit=100`,
+      accessToken,
+      after,
+    );
+  }
+
+  /** Fetches a paginated page of daily ad-level insights for a given account and date window. */
+  async getDailyAdInsightsPage(
+    accountId: string,
+    window: { since: string; until: string },
+    accessToken: string,
+    after?: string,
+  ): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
+    const fields = 'date_start,date_stop,campaign_id,adset_id,ad_id,spend,impressions,reach,clicks,actions,action_values';
+    const path = `${accountId}/insights?fields=${fields}&level=ad&time_range={'since':'${window.since}','until':'${window.until}'}`;
+    return this.fetchPage<Record<string, string>>(path, accessToken, after);
+  }
+}
+
+/** Write-only Meta Graph API adapter — creates, updates, pauses, and deletes campaigns. */
+export class MetaWriteAdapter implements MetaWritePort {
+  private baseUrl = `https://graph.facebook.com/${config.meta.apiVersion}`;
+
+  protected async fetch<T>(path: string, accessToken: string, options?: RequestInit): Promise<T> {
+    return metaFetch<T>(this.baseUrl, path, accessToken, options);
+  }
+
   /** Creates a new campaign on Meta under the given ad account. */
   async createCampaign(accountId: string, input: MetaCampaignInput, accessToken: string): Promise<MetaCampaignDTO> {
     const body = {
@@ -200,59 +267,35 @@ export class MetaApiAdapter implements MetaClientPort {
       { method: 'DELETE' }
     );
   }
+}
 
-  /** Fetches a paginated resource and returns data with optional next page cursor. */
-  private async fetchPage<T>(path: string, accessToken: string, after?: string): Promise<{ data: T[]; nextPageUrl: string | null }> {
-    const url = after ? `${path}&after=${after}` : path;
-    const raw = await this.fetch<{ data: T[]; paging?: { next?: string } }>(url, accessToken);
-    return { data: raw.data, nextPageUrl: raw.paging?.next ?? null };
+/**
+ * @deprecated Use `MetaReadAdapter` or `MetaWriteAdapter` instead.
+ *
+ * This class exists for backward compatibility only. New code should depend
+ * on `MetaClientPort` (reads) or `MetaWritePort` (writes) and inject
+ * the corresponding adapter.
+ */
+export class MetaApiAdapter extends MetaReadAdapter {
+  private writeAdapter = new MetaWriteAdapter();
+
+  /** Creates a new campaign on Meta under the given ad account. */
+  async createCampaign(accountId: string, input: MetaCampaignInput, accessToken: string): Promise<MetaCampaignDTO> {
+    return this.writeAdapter.createCampaign(accountId, input, accessToken);
   }
 
-  /** Fetches a page of campaigns for a given ad account. */
-  async getCampaignsPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
-    return this.fetchPage<Record<string, string>>(
-      `${accountId}/campaigns?fields=id,name,objective,status,buying_type,daily_budget,lifetime_budget,start_time,stop_time,created_time,updated_time,bid_strategy&limit=100`,
-      accessToken,
-      after,
-    );
+  /** Updates specific fields of an existing Meta campaign. */
+  async updateCampaign(campaignId: string, input: Partial<MetaCampaignInput>, accessToken: string): Promise<MetaCampaignDTO> {
+    return this.writeAdapter.updateCampaign(campaignId, input, accessToken);
   }
 
-  /** Fetches a page of ad sets for a given ad account. */
-  async getAdSetsPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
-    return this.fetchPage<Record<string, string>>(
-      `${accountId}/adsets?fields=id,name,status,campaign_id,targeting,daily_budget,lifetime_budget,bid_strategy&limit=100`,
-      accessToken,
-      after,
-    );
+  /** Pauses a Meta campaign by setting its status to PAUSED. */
+  async pauseCampaign(campaignId: string, accessToken: string): Promise<void> {
+    return this.writeAdapter.pauseCampaign(campaignId, accessToken);
   }
 
-  /** Fetches a page of ads for a given ad account. */
-  async getAdsPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
-    return this.fetchPage<Record<string, string>>(
-      `${accountId}/ads?fields=id,name,status,adset_id,campaign_id,creative&limit=100`,
-      accessToken,
-      after,
-    );
-  }
-
-  /** Fetches a page of creatives for a given ad account. */
-  async getCreativesPage(accountId: string, accessToken: string, after?: string): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
-    return this.fetchPage<Record<string, string>>(
-      `${accountId}/adcreatives?fields=id,name,title,body,image_hash,image_url,video_id,link_url,call_to_action_type,object_type&limit=100`,
-      accessToken,
-      after,
-    );
-  }
-
-  /** Fetches a paginated page of daily ad-level insights for a given account and date window. */
-  async getDailyAdInsightsPage(
-    accountId: string,
-    window: { since: string; until: string },
-    accessToken: string,
-    after?: string,
-  ): Promise<{ data: Record<string, string>[]; nextPageUrl: string | null }> {
-    const fields = 'date_start,date_stop,campaign_id,adset_id,ad_id,spend,impressions,reach,clicks,actions,action_values';
-    const path = `${accountId}/insights?fields=${fields}&level=ad&time_range={'since':'${window.since}','until':'${window.until}'}`;
-    return this.fetchPage<Record<string, string>>(path, accessToken, after);
+  /** Deletes a Meta campaign. */
+  async deleteCampaign(campaignId: string, accessToken: string): Promise<void> {
+    return this.writeAdapter.deleteCampaign(campaignId, accessToken);
   }
 }

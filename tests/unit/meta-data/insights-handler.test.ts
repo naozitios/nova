@@ -96,6 +96,7 @@ describe('runInsightsSync', () => {
       'act_1',
       expect.objectContaining({ since: '2026-04-18', until: '2026-04-18' }),
       'plain-token',
+      undefined,
     )
 
     // last window: yesterday = 2026-07-16
@@ -104,6 +105,7 @@ describe('runInsightsSync', () => {
       'act_1',
       expect.objectContaining({ since: '2026-07-16', until: '2026-07-16' }),
       'plain-token',
+      undefined,
     )
 
     // 90 completed checkpoints
@@ -125,6 +127,7 @@ describe('runInsightsSync', () => {
       'act_1',
       expect.objectContaining({ since: '2026-07-15', until: '2026-07-15' }),
       'plain-token',
+      undefined,
     )
 
     // still called for 2026-07-16
@@ -132,6 +135,7 @@ describe('runInsightsSync', () => {
       'act_1',
       expect.objectContaining({ since: '2026-07-16', until: '2026-07-16' }),
       'plain-token',
+      undefined,
     )
   })
 
