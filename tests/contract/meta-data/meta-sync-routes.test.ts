@@ -13,7 +13,7 @@ function readFileSource(filePath: string): string {
 }
 
 const SYNC_START_FILE = "src/app/api/meta/sync/route.ts";
-const SYNC_RUN_FILE = "src/app/api/meta/sync/[runId]/route.ts";
+const SYNC_RUN_FILE = "src/app/api/meta/sync-runs/[runId]/route.ts";
 const SYNC_RETRY_FILE = "src/app/api/meta/sync/[runId]/retry/route.ts";
 
 // ─── Route file existence ─────────────────────────────────────────────────
@@ -70,9 +70,9 @@ describe("POST /api/meta/sync — source contract", () => {
   });
 });
 
-// ─── GET /api/meta/sync/[runId] — run status ──────────────────────────────
+// ─── GET /api/meta/sync-runs/[runId] — run status ──────────────────────────
 
-describe("GET /api/meta/sync/[runId] — source contract", () => {
+describe("GET /api/meta/sync-runs/[runId] — source contract", () => {
   const source = () => readFileSource(SYNC_RUN_FILE);
 
   it("exports async GET handler", () => {

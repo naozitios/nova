@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { requireAuthz, errorResponse, notFound, jsonResponse } from '@/app/api/businesses/_shared'
 import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository'
 
-// GET /api/meta/sync/[runId] — get sync run status
+// GET /api/meta/sync-runs/[runId] — get sync run status
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ runId: string }> },
