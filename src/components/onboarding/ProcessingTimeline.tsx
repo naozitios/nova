@@ -21,7 +21,7 @@ export function ProcessingTimeline({ processing }: ProcessingTimelineProps) {
       )}
 
       {processing.blockers.length > 0 && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <div className="mb-6 rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-amber-800">
             <AlertTriangle className="size-4" />
             Blockers
@@ -35,7 +35,7 @@ export function ProcessingTimeline({ processing }: ProcessingTimelineProps) {
       )}
 
       {processing.canContinue && (
-        <div className="flex items-center gap-2 rounded-xl border border-[#ead8d3] bg-[#fbf6f4] px-4 py-3 text-sm font-medium text-[#aa3016]">
+        <div className="flex items-center gap-2 rounded-[1.5rem] border border-[#ead8d3] bg-[#fbf6f4] px-4 py-3 text-sm font-medium text-[#aa3016]">
           <CheckCircle2 className="size-4" />
           Ready to continue
         </div>

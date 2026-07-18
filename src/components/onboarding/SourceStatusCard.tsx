@@ -9,7 +9,7 @@ type SourceStatusCardProps = {
 function SourceIcon({ status }: { status: MockSource['status'] }) {
   if (status === 'complete') return <CheckCircle2 className="size-4 text-[#aa3016]" />;
   if (status === 'failed') return <AlertCircle className="size-4 text-red-500" />;
-  return <Loader2 className="size-4 animate-spin text-[#8d716b]" />;
+  return <Loader2 className="size-4 animate-spin text-[#645d58]" />;
 }
 
 function SourceStatusLabel({ status }: { status: MockSource['status'] }) {
@@ -25,11 +25,11 @@ function SourceStatusLabel({ status }: { status: MockSource['status'] }) {
 
 export function SourceStatusCard({ source }: SourceStatusCardProps) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-[#ead8d3] bg-white/85 px-4 py-3">
+    <div className="flex items-center gap-3 rounded-[1.5rem] border border-[#ead8d3] bg-white/85 px-4 py-3">
       <SourceIcon status={source.status} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-[#251816]">{source.sourceName}</p>
-        <p className="text-xs text-[#8d716b]">{source.sourceType}</p>
+        <p className="text-xs text-[#645d58]">{source.sourceType}</p>
         {source.progress > 0 && source.progress < 100 && (
           <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[#ead8d3]">
             <div
@@ -47,7 +47,7 @@ export function SourceStatusCard({ source }: SourceStatusCardProps) {
           'text-xs font-medium',
           source.status === 'complete' && 'text-[#aa3016]',
           source.status === 'failed' && 'text-red-500',
-          (source.status === 'processing' || source.status === 'uploading' || source.status === 'added') && 'text-[#8d716b]'
+          (source.status === 'processing' || source.status === 'uploading' || source.status === 'added') && 'text-[#645d58]'
         )}
       >
         <SourceStatusLabel status={source.status} />

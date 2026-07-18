@@ -34,7 +34,7 @@ export function OnboardingProgress({ currentIndex, skippedStepKeys = [], blocked
             <div key={step.key} className="group relative">
               <div
                 className={cn(
-                  'h-2 rounded-full bg-[#ecd8d2] transition-colors',
+                  'h-2 rounded-full bg-[#ead8d3] transition-colors',
                   complete && 'bg-[#aa3016]',
                   current && 'bg-[#d14a2e]',
                   skipped && 'bg-[#d8ccc8]',

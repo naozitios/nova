@@ -161,10 +161,10 @@ export default function OnboardingPage() {
         return (
           <OnboardingCard>
             <h3 className="text-lg font-semibold text-[#251816]">{state.business.name}</h3>
-            <p className="mt-1 text-sm text-[#6b5c58]">
+            <p className="mt-1 text-sm text-[#645d58]">
               {state.business.websiteUrl || 'Website not provided'}
             </p>
-            <div className="mt-4 space-y-2 text-sm text-[#6b5c58]">
+            <div className="mt-4 space-y-2 text-sm text-[#645d58]">
               <p>
                 <span className="font-medium text-[#251816]">Workspace:</span>{' '}
                 {state.business.workspaceId}
@@ -174,7 +174,7 @@ export default function OnboardingPage() {
                 {state.business.status}
               </p>
             </div>
-            <p className="mt-6 text-sm text-[#6b5c58]">
+            <p className="mt-6 text-sm text-[#645d58]">
               Confirm these details are correct before continuing. You can update them later from Settings.
             </p>
           </OnboardingCard>
@@ -299,11 +299,11 @@ export default function OnboardingPage() {
               Back
             </Button>
             {isFinalStep ? (
-              <Button asChild>
+              <Button asChild className="bg-[#aa3016] text-white hover:bg-[#d14a2e]">
                 <Link href="/dashboard">Go to Dashboard</Link>
               </Button>
             ) : (
-              <Button onClick={goNext} disabled={!canGoNext}>
+              <Button onClick={goNext} disabled={!canGoNext} className="bg-[#aa3016] text-white hover:bg-[#d14a2e]">
                 Continue
               </Button>
             )}

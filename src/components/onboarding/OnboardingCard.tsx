@@ -8,7 +8,7 @@ type OnboardingCardProps = {
 
 export function OnboardingCard({ children, className }: OnboardingCardProps) {
   return (
-    <section className={cn('rounded-[2rem] border border-[#ead8d3] bg-white/85 p-6 shadow-sm shadow-stone-200/60 md:p-8', className)}>
+    <section className={cn('rounded-[2rem] border border-[#ead8d3] bg-white/80 p-6 shadow-sm shadow-[#ead8d3]/40 md:p-8', className)}>
       {children}
     </section>
   );

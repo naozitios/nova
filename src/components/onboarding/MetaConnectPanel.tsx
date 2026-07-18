@@ -11,18 +11,18 @@ type MetaConnectPanelProps = {
 
 export function MetaConnectPanel({ status, onConnect, onSkip, onRetry }: MetaConnectPanelProps) {
   return (
-    <div className="rounded-2xl border border-[#ead8d3] bg-white/80 p-6 shadow-sm">
+    <div className="rounded-[1.5rem] border border-[#ead8d3] bg-white/80 p-6 shadow-sm">
       {status === 'not_connected' && (
         <>
           <div className="flex items-center gap-2">
-            <Link2 className="size-4 text-stone-500" />
-            <h3 className="text-sm font-semibold text-stone-800">Connect Meta</h3>
+            <Link2 className="size-4 text-[#645d58]" />
+            <h3 className="text-sm font-semibold text-[#251816]">Connect Meta</h3>
           </div>
-          <p className="mt-2 text-sm text-stone-600">
+          <p className="mt-2 text-sm text-[#645d58]">
             Connect your Meta account to pull ad data automatically. This step is optional — you can always connect later from Settings.
           </p>
           <div className="mt-4 flex gap-2">
-            <Button size="sm" onClick={onConnect}>Connect Meta</Button>
+            <Button size="sm" className="bg-[#aa3016] text-white hover:bg-[#d14a2e]" onClick={onConnect}>Connect Meta</Button>
             <Button size="sm" variant="ghost" onClick={onSkip}>Skip for now</Button>
           </div>
         </>
@@ -32,9 +32,9 @@ export function MetaConnectPanel({ status, onConnect, onSkip, onRetry }: MetaCon
         <>
           <div className="flex items-center gap-2">
             <CheckCircle2 className="size-4 text-emerald-600" />
-            <h3 className="text-sm font-semibold text-stone-800">Meta Connected</h3>
+            <h3 className="text-sm font-semibold text-[#251816]">Meta Connected</h3>
           </div>
-          <p className="mt-2 text-sm text-stone-600">
+          <p className="mt-2 text-sm text-[#645d58]">
             Your Meta account is connected. Ad data will be pulled in automatically.
           </p>
         </>
@@ -43,10 +43,10 @@ export function MetaConnectPanel({ status, onConnect, onSkip, onRetry }: MetaCon
       {status === 'skipped' && (
         <>
           <div className="flex items-center gap-2">
-            <SkipForward className="size-4 text-stone-400" />
-            <h3 className="text-sm font-semibold text-stone-800">Meta Skipped</h3>
+            <SkipForward className="size-4 text-[#645d58]" />
+            <h3 className="text-sm font-semibold text-[#251816]">Meta Skipped</h3>
           </div>
-          <p className="mt-2 text-sm text-stone-600">
+          <p className="mt-2 text-sm text-[#645d58]">
             No worries — you can connect your Meta account later from Settings whenever you are ready.
           </p>
           <Button size="sm" variant="outline" className="mt-4" onClick={onConnect}>
@@ -59,13 +59,13 @@ export function MetaConnectPanel({ status, onConnect, onSkip, onRetry }: MetaCon
         <>
           <div className="flex items-center gap-2">
             <AlertTriangle className="size-4 text-red-500" />
-            <h3 className="text-sm font-semibold text-stone-800">Connection Failed</h3>
+            <h3 className="text-sm font-semibold text-[#251816]">Connection Failed</h3>
           </div>
-          <p className="mt-2 text-sm text-stone-600">
+          <p className="mt-2 text-sm text-[#645d58]">
             Something went wrong connecting to Meta. You can retry or skip and try again later.
           </p>
           <div className="mt-4 flex gap-2">
-            <Button size="sm" onClick={onRetry}>Retry</Button>
+            <Button size="sm" className="bg-[#aa3016] text-white hover:bg-[#d14a2e]" onClick={onRetry}>Retry</Button>
             <Button size="sm" variant="ghost" onClick={onSkip}>Skip for now</Button>
           </div>
         </>
