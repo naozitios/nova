@@ -6,8 +6,7 @@ Safe agentmemory startup: do not run the long-lived agentmemory daemon inside an
 
 Always Use /"caveman full" skill to reduce verbose responses.
 Always use RTK CLI for bash commands.
-
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+Always ensure that you delegate tasks to cavecrew subagents, but with small boundaries for each task. The main orchestrator agent should do most of the thinking not leave it to smaller subagents. But use subagents liberally to keep context window clean.
 
 Tradeoff: These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
