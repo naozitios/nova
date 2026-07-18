@@ -1,9 +1,3 @@
-<!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
-at specs/006-business-context-supabase/plan.md
-<!-- SPECKIT END -->
-
 When CodeGraph is installed and `.codegraph/` exists, use it first for code exploration, architecture questions, caller/callee tracing, and impact analysis. Prefer `codegraph explore` before grep/find/read. Use `codegraph status` after edits to confirm index freshness.
 
 If agentmemory is installed for this workspace, use it to recover missing project context before editing and to save durable decisions when they matter. Treat it as the source for prior session history, architecture notes, and recurring preferences when repo files are not enough.
