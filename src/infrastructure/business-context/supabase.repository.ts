@@ -111,6 +111,12 @@ export class SupabaseRepository implements RepositoryPort {
     documentId: string,
     data: Parameters<SourceRepository['updateSourceDocument']>[2],
   ) => this.source.updateSourceDocument(workspaceId, documentId, data)
+  replaceDocumentChunks = (
+    workspaceId: string,
+    businessId: string,
+    documentId: string,
+    chunks: Parameters<SourceRepository['replaceDocumentChunks']>[3],
+  ) => this.source.replaceDocumentChunks(workspaceId, businessId, documentId, chunks)
 
   archiveSource = (workspaceId: string, sourceId: string) =>
     this.source.archiveSource(workspaceId, sourceId)

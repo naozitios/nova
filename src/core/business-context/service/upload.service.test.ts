@@ -422,6 +422,10 @@ function makeSourceDocument(overrides?: Partial<SourceDocument>): SourceDocument
     supersedesDocumentId: null,
     metadata: {},
     retrievedAt: new Date(NOW),
+    processedStoragePath: null,
+    processingStatus: 'pending',
+    embeddingModel: null,
+    indexedAt: null,
     ...overrides,
   }
 }

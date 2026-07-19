@@ -28,6 +28,7 @@ import {
 import { runDocumentGates, runFactGates } from '../quality-gates'
 import type { DocumentQualityInput } from '../quality-gates'
 import { resolveFacts } from '../resolver'
+import type { UploadedDocumentProcessor } from './uploaded-document.processor'
 
 /** Shared timeout for source-processing stages (30s heartbeat, 2× stale threshold). */
 const STAGE_TIMEOUT_SECONDS = 30
@@ -38,6 +39,7 @@ export class SourceProcessingService {
   constructor(
     private readonly repo: RepositoryPort,
     private readonly extractionPort?: ExtractionPort,
+    private readonly uploadedProcessor?: UploadedDocumentProcessor,
   ) {}
 
   registerAdapter(adapter: SourceAdapterPort): void {
@@ -229,6 +231,64 @@ export class SourceProcessingService {
       return { ok: true, data: { status: 'blocked_needs_user_action', warnings: [] } }
     }
 
+    // Route uploaded documents through single-document processor
+    const jobInput = job.input as Record<string, any> | null
+    if (jobInput?.documentId) {
+      if (!this.uploadedProcessor) {
+        return { ok: false, error: { code: 'NO_PROCESSOR', message: 'UploadedDocumentProcessor not injected' } }
+      }
+
+      const processorResult = await this.uploadedProcessor.process({
+        workspaceId,
+        businessId,
+        sourceId,
+        documentId: jobInput.documentId,
+      })
+
+      // Update run status based on processor result
+      if (processorResult.ok) {
+        await this.repo.updateProcessingRun(workspaceId, runId, {
+          status: 'succeeded',
+          currentStage: SourceProcessingStage.COMPLETED,
+          terminalOutcome: processorResult.data.status as 'processed' | 'processed_with_warnings',
+          completedAt: new Date(),
+          documentsCreated: 1,
+        })
+
+        if (!options?.job) {
+          await this.repo.updateContextJob(workspaceId, job.id, {
+            status: JobStatus.SUCCEEDED,
+            completedAt: new Date(),
+          })
+        }
+
+        await this.repo.updateContextSource(workspaceId, sourceId, {
+          status: processorResult.data.status,
+          terminalOutcome: processorResult.data.status as 'processed' | 'processed_with_warnings',
+        })
+      } else {
+        await this.repo.updateProcessingRun(workspaceId, runId, {
+          status: 'failed',
+          terminalOutcome: 'failed_permanent',
+          completedAt: new Date(),
+        })
+
+        if (!options?.job) {
+          await this.repo.updateContextJob(workspaceId, job.id, {
+            status: JobStatus.FAILED_PERMANENT,
+            error: serializeError(processorResult.error),
+          })
+        }
+
+        await this.repo.updateContextSource(workspaceId, sourceId, {
+          status: 'failed_permanent',
+          terminalOutcome: 'failed_permanent',
+        })
+      }
+
+      return processorResult
+    }
+
     const collected = await this.collectWithAdapter(workspaceId, businessId, source)
     if (!collected.ok) {
       await this.repo.updateProcessingRun(workspaceId, runId, {
@@ -331,6 +391,10 @@ export class SourceProcessingService {
           fileSizeBytes: doc.fileSizeBytes ?? null,
           contentText: doc.contentText,
           storagePath: null,
+          processedStoragePath: null,
+          processingStatus: 'pending',
+          embeddingModel: null,
+          indexedAt: null,
           contentHash,
           httpStatus: doc.httpStatus ?? null,
           pageOrSlideCount: doc.pageOrSlideCount ?? null,

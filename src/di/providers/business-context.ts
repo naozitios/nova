@@ -21,18 +21,20 @@ import { IdempotencyService } from '@/infrastructure/business-context/idempotenc
 import { MetaResolver } from '@/infrastructure/business-context/meta-resolver.service';
 import { SourceAdapterRegistry } from '@/infrastructure/business-context/source-adapter-registry';
 import { WebsiteSourceAdapter } from '@/infrastructure/business-context/website-source.adapter';
-import { MetaSourceAdapter } from '@/infrastructure/business-context/meta/meta-adapter';
+import { MetaSourceAdapter, type MetaRepoPort } from '@/infrastructure/business-context/meta/meta-adapter';
 import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository';
 import { ManualSourceAdapter } from '@/infrastructure/business-context/manual-source.adapter';
-import { NativeDocumentParserAdapter } from '@/infrastructure/business-context/native-document.parser.adapter';
-import { PaddleOcrDocumentParserAdapter } from '@/infrastructure/business-context/paddleocr-document-parser.adapter';
-import { DocumentParserRouter } from '@/infrastructure/business-context/document-parser-router';
+
 import { LlmExtractionAdapter, type LlmClient } from '@/infrastructure/business-context/llm-extraction.adapter';
 import { OpenRouterExtractionClient } from '@/infrastructure/business-context/openrouter-extraction.client';
 import { SourceProcessingService } from '@/core/business-context/service/source-processing.service';
 import { JobRunner } from '@/infrastructure/business-context/job-runner';
 import { registerHandlers } from '@/infrastructure/business-context/job-runner/register-handlers';
 import { ClamavMalwareScanner } from '@/infrastructure/business-context/clamav-malware.scanner';
+import { DoclingDocumentParserAdapter } from '@/infrastructure/business-context/docling-document-parser.adapter';
+import { OpenAIEmbeddingAdapter } from '@/infrastructure/business-context/openai-embedding.adapter';
+import { UploadedDocumentProcessor } from '@/core/business-context/service/uploaded-document.processor';
+import type { EmbeddingPort } from '@/core/business-context/embedding.port';
 
 let _bcRepo: RepositoryPort | null = null;
 let _bcVisibility: ProcessingVisibilityWriter | null = null;
@@ -48,6 +50,8 @@ let _sourceAdapterRegistry: SourceAdapterRegistry | null = null;
 let _documentParser: DocumentParserPort | null = null;
 let _extractionService: ExtractionPort | null = null;
 let _sourceProcessingService: SourceProcessingService | null = null;
+let _uploadedProcessor: UploadedDocumentProcessor | null = null;
+let _embeddingAdapter: EmbeddingPort | null = null;
 let _jobRunner: JobRunner | null = null;
 
 // ── Repository ────────────────────────────────────────────────────────────
@@ -145,8 +149,8 @@ export function getSourceAdapterRegistry(): SourceAdapterRegistry {
     }
     _sourceAdapterRegistry = new SourceAdapterRegistry();
     _sourceAdapterRegistry.register(new WebsiteSourceAdapter({ apiKey: firecrawlKey }));
-    _sourceAdapterRegistry.register(new MetaSourceAdapter({ repo: new SupabaseMetaRepository(getSupabaseServiceClient()), db: getSupabaseServiceClient() }));
-    _sourceAdapterRegistry.register(new ManualSourceAdapter());
+    const metaRepo = new SupabaseMetaRepository();
+    _sourceAdapterRegistry.register(new MetaSourceAdapter({ repo: metaRepo }));
 
     // Stable unsupported outcomes for stored-document types until B16 adapters land
     _sourceAdapterRegistry.registerUnsupported('brand_deck', 'No adapter for brand_deck yet (B16 pending)');
@@ -161,14 +165,39 @@ export function getSourceAdapterRegistry(): SourceAdapterRegistry {
 /** Returns the document parser. Lazy-initializes router with native + OCR parsers. */
 export function getDocumentParser(): DocumentParserPort {
   if (!_documentParser) {
-    const parser = new DocumentParserRouter(
-      new NativeDocumentParserAdapter(),
-      new PaddleOcrDocumentParserAdapter(),
+    _documentParser = new DoclingDocumentParserAdapter(
+      getUploadStorage(),
     );
-    _documentParser = parser;
-    return parser;
   }
   return _documentParser;
+}
+
+/** Returns the embedding adapter. Lazy-initializes with OpenAI-compatible API. */
+export function getEmbeddingAdapter(): EmbeddingPort {
+  if (!_embeddingAdapter) {
+    const apiKey = process.env.EMBEDDING_API_KEY;
+    if (!apiKey) {
+      throw new Error('EMBEDDING_API_KEY environment variable is required');
+    }
+    _embeddingAdapter = new OpenAIEmbeddingAdapter({
+      apiKey,
+      baseUrl: process.env.EMBEDDING_API_URL,
+    });
+  }
+  return _embeddingAdapter;
+}
+
+/** Returns the uploaded document processor. Lazy-initializes with dependencies. */
+export function getUploadedDocumentProcessor(): UploadedDocumentProcessor {
+  if (!_uploadedProcessor) {
+    _uploadedProcessor = new UploadedDocumentProcessor(
+      getBusinessContextRepository(),
+      getDocumentParser(),
+      getUploadStorage(),
+      getEmbeddingAdapter(),
+    );
+  }
+  return _uploadedProcessor;
 }
 
 /** Returns the extraction service, preferring configured OpenRouter over Groq. */
@@ -212,6 +241,7 @@ export function getSourceProcessingService(): SourceProcessingService {
     _sourceProcessingService = new SourceProcessingService(
       getBusinessContextRepository(),
       getExtractionService(),
+      getUploadedDocumentProcessor(),
     );
     const registry = getSourceAdapterRegistry();
     const seen = new Set<object>();
@@ -259,5 +289,7 @@ export function resetBusinessContextProviders(): void {
   _documentParser = null;
   _extractionService = null;
   _sourceProcessingService = null;
+  _uploadedProcessor = null;
+  _embeddingAdapter = null;
   _jobRunner = null;
 }
