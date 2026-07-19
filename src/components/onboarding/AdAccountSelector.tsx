@@ -110,14 +110,14 @@ export function AdAccountSelector({
                 </p>
 
                 {/* Badges */}
-                <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-4">
-                  <div className="flex items-center gap-1.5 rounded-lg bg-muted px-2 py-1">
-                    <DollarSign className="size-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">{account.currency}</span>
+                <div className="mt-auto flex flex-wrap gap-1.5 border-t border-border pt-4">
+                  <div className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5">
+                    <DollarSign className="size-3 text-muted-foreground" />
+                    <span className="text-[11px] text-muted-foreground">{account.currency}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 rounded-lg bg-muted px-2 py-1">
-                    <Clock className="size-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">{account.timezone}</span>
+                  <div className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5">
+                    <Clock className="size-3 text-muted-foreground" />
+                    <span className="text-[11px] text-muted-foreground">{account.timezone}</span>
                   </div>
                 </div>
               </label>

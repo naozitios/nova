@@ -38,7 +38,7 @@ export function OnboardingProgress({
 
   return (
     <div className="w-full">
-      <div className="mb-3 flex items-center justify-between text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
+      <div className="mb-3 flex items-center justify-between text-xs font-medium uppercase tracking-[0.24em] text-primary">
         <span>{ONBOARDING_STEPS[currentIndex]?.eyebrow}</span>
         <span>{percentage}%</span>
       </div>

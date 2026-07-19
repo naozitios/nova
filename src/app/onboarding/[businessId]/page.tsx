@@ -6,16 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { mockOnboardingState } from '@/lib/onboarding/mock-data';
 import { canContinueFromStep, getCompletionStatus, getNextStepIndex, ONBOARDING_STEPS } from '@/lib/onboarding/flow';
-import type { MockOnboardingState, MockSource } from '@/lib/onboarding/types';
+import type { BusinessBasics, MockOnboardingState, MockSource } from '@/lib/onboarding/types';
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
 import { OnboardingActionFooter } from '@/components/onboarding/OnboardingActionFooter';
 import { OnboardingCard } from '@/components/onboarding/OnboardingCard';
+import { BusinessBasicsForm } from '@/components/onboarding/BusinessBasicsForm';
 import { UploadDropzone } from '@/components/onboarding/UploadDropzone';
 import { SourceStatusCard } from '@/components/onboarding/SourceStatusCard';
 import { MetaConnectPanel } from '@/components/onboarding/MetaConnectPanel';
 import { ProcessingTimeline } from '@/components/onboarding/ProcessingTimeline';
 import { BusinessContextReview } from '@/components/onboarding/BusinessContextReview';
-import { AdAccountSelector } from '@/components/onboarding/AdAccountSelector';
 import { CompletionSummary } from '@/components/onboarding/CompletionSummary';
 import { SidebarContextPanel } from '@/components/onboarding/SidebarContextPanel';
 
@@ -56,6 +56,10 @@ export default function OnboardingPage() {
 
   const updateManualNotes = (notes: string) => {
     setState((s) => ({ ...s, manualNotes: notes }));
+  };
+
+  const updateBusinessBasics = (update: Partial<BusinessBasics>) => {
+    setState((s) => ({ ...s, businessBasics: { ...s.businessBasics, ...update } }));
   };
 
   const mockUpload = () => {
@@ -140,55 +144,37 @@ export default function OnboardingPage() {
   const isSkippedMeta = state.metaConnection.status === 'skipped';
   const isReviewStep = step.key === 'review-business-context';
 
-  const skippedStepKeys = isSkippedMeta ? ['connect-meta', 'select-ad-account'] : [];
+  const skippedStepKeys = isSkippedMeta ? ['connect-meta'] : [];
 
   const renderStep = () => {
     switch (step.key) {
+      case 'business-basics':
+        return (
+          <BusinessBasicsForm
+            value={state.businessBasics}
+            onChange={updateBusinessBasics}
+          />
+        );
+
       case 'add-business-sources':
         return (
           <div className="grid gap-6">
-            <OnboardingCard>
-              <label className="block text-sm font-medium text-foreground">
-                Primary objective
-              </label>
-              <select
-                value={state.selectedObjective ?? ''}
-                onChange={(e) => selectObjective(e.target.value)}
-                className="mt-2 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
-              >
-                <option value="" disabled>
-                  Select an objective
-                </option>
-                {state.objectiveOptions.map((objective) => (
-                  <option key={objective.id} value={objective.id}>
-                    {objective.title}
-                  </option>
-                ))}
-              </select>
-            </OnboardingCard>
             <UploadDropzone onMockUpload={mockUpload} />
-            {state.sources.length > 0 && (
-              <div className="grid gap-3">
-                {state.sources.map((source) => (
-                  <SourceStatusCard key={source.id} source={source} />
-                ))}
-              </div>
-            )}
             <OnboardingCard>
-              <label className="block text-sm font-medium text-foreground">
-                Manual notes
+              <label className="block text-xl font-semibold text-foreground mb-4">
+                Brand Specific Notes
               </label>
               <Textarea
                 value={state.manualNotes}
                 onChange={(e) => updateManualNotes(e.target.value)}
-                placeholder="Add any additional context about your business..."
+                placeholder="Paste specific campaign goals, prohibited terminology, or unique brand voice instructions..."
                 className="mt-2"
                 rows={4}
               />
+              <div className="flex justify-end mt-4">
+                <span className="text-xs text-muted-foreground">{state.manualNotes.length} / 2000 characters</span>
+              </div>
             </OnboardingCard>
-            <p className="text-xs text-muted-foreground">
-              Supported formats: PDF, DOCX, PPTX, XLSX up to 50MB. You can also paste notes directly above.
-            </p>
           </div>
         );
 
@@ -196,6 +182,12 @@ export default function OnboardingPage() {
         return (
           <MetaConnectPanel
             status={state.metaConnection.status}
+            adAccounts={state.adAccounts}
+            selectedAccountId={state.selectedAdAccountId}
+            onSelectAccount={selectAdAccount}
+            onRefresh={() => {}}
+            onConnect={metaConnect}
+            onSkip={() => { metaSkip(); goNext(); }}
           />
         );
 
@@ -207,18 +199,6 @@ export default function OnboardingPage() {
           <BusinessContextReview
             profile={state.compiledProfile}
             onUpdateProfile={updateProfile}
-          />
-        );
-
-      case 'select-ad-account':
-        return (
-          <AdAccountSelector
-            metaStatus={state.metaConnection.status}
-            accounts={state.adAccounts}
-            selectedAdAccountId={state.selectedAdAccountId}
-            onSelect={selectAdAccount}
-            onRefresh={() => {}}
-            onBack={goBack}
           />
         );
 
@@ -239,8 +219,8 @@ export default function OnboardingPage() {
     <OnboardingShell
       currentIndex={currentIndex}
       skippedStepKeys={skippedStepKeys}
-      layout={step.key === 'processing' || isReviewStep || step.key === 'select-ad-account' || step.key === 'setup-complete' ? 'centered' : 'sidebar'}
-      sidebar={step.key === 'processing' || isReviewStep || step.key === 'setup-complete' ? undefined : <SidebarContextPanel state={state} variant={step.key === 'connect-meta' ? 'meta' : 'default'} />}
+      layout={step.key === 'business-basics' || step.key === 'processing' || isReviewStep || step.key === 'select-ad-account' || step.key === 'setup-complete' ? 'centered' : 'sidebar'}
+      sidebar={step.key === 'processing' || isReviewStep || step.key === 'setup-complete' ? undefined : <SidebarContextPanel state={state} variant={step.key === 'connect-meta' ? 'meta' : step.key === 'add-business-sources' ? 'active-sources' : 'default'} />}
       onBack={goBack}
       canGoBack={currentIndex > 0}
       footer={step.key === 'setup-complete' ? null : (
@@ -250,32 +230,27 @@ export default function OnboardingPage() {
               <span className="text-xs text-muted-foreground">
                 Files are encrypted and only used to train NOVA
               </span>
-              <div className="flex items-center gap-3">
-                <Button variant="ghost" onClick={goNext}>
-                  Skip for now
-                </Button>
-                <Button
-                  onClick={goNext}
-                  disabled={!canGoNext}
-                >
-                  Let NOVA learn
-                </Button>
-              </div>
+              <Button
+                onClick={goNext}
+                disabled={!canGoNext}
+              >
+                Next
+              </Button>
             </div>
           ) : step.key === 'connect-meta' ? (
-            <div className="flex w-full items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                NOVA will request read-only access to your Meta ad data
-              </span>
-              <div className="flex items-center gap-3">
-                <Button variant="ghost" onClick={() => { metaSkip(); goNext(); }}>
-                  Do this later
-                </Button>
-                <Button onClick={metaConnect}>
-                  Connect Meta
+            state.metaConnection.status === 'connected' && state.selectedAdAccountId ? (
+              <div className="flex w-full items-center justify-end">
+                <Button onClick={goNext}>
+                  Next
                 </Button>
               </div>
-            </div>
+            ) : state.metaConnection.status === 'connected' ? (
+              <div className="flex w-full items-center justify-end">
+                <Button variant="ghost" onClick={goNext}>
+                  Do this later
+                </Button>
+              </div>
+            ) : null
           ) : step.key === 'processing' ? (
             <div className="flex w-full items-center justify-between">
               <div className="flex items-center gap-4">

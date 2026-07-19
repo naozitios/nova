@@ -13,7 +13,14 @@ export const mockOnboardingState: MockOnboardingState = {
     businessId: 'biz_nova_media',
     workspaceId: 'ws_demo_agency',
     status: 'created',
-    currentStep: 'add-business-sources',
+    currentStep: 'business-basics',
+  },
+  businessBasics: {
+    businessName: 'Nova Media Group',
+    websiteUrl: 'https://novamediagroup.example',
+    primaryMarket: 'us',
+    businessType: 'saas',
+    advertisingGoal: 'leads',
   },
   selectedObjective: 'campaign_setup',
   objectiveOptions: [
@@ -99,7 +106,7 @@ export const mockOnboardingState: MockOnboardingState = {
     },
   ],
   metaConnection: {
-    status: 'skipped',
+    status: 'not_connected',
     connectionId: null,
     connectedAt: null,
     error: null,

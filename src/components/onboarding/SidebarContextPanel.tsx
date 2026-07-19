@@ -1,105 +1,128 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, FileText, Globe, Upload, Link2, AlertTriangle, SkipForward } from 'lucide-react';
-import type { MockOnboardingState, MetaConnectionStatus } from '@/lib/onboarding/types';
+import { CheckCircle2, Globe } from 'lucide-react';
+import type { MockOnboardingState } from '@/lib/onboarding/types';
 
 type SidebarContextPanelProps = {
   state: MockOnboardingState;
-  variant?: 'default' | 'meta';
+  variant?: 'default' | 'meta' | 'active-sources';
 };
 
 export function SidebarContextPanel({ state, variant = 'default' }: SidebarContextPanelProps) {
-  const selectedObjective = state.objectiveOptions.find(
-    (o) => o.id === state.selectedObjective,
-  );
+  const renderActiveSources = () => {
+    const websiteSource = state.sources.find((s) => s.sourceType === 'website');
+    const uploadedSources = state.sources.filter((s) => s.sourceType === 'upload');
 
-  const renderMetaStatus = (status: MetaConnectionStatus) => {
-    if (status === 'connected') {
-      return (
-        <div className="flex items-center gap-2">
-          <CheckCircle2 className="size-4 text-success" />
-          <span className="font-medium text-foreground">Meta Connected</span>
-        </div>
-      );
-    }
-    if (status === 'skipped') {
-      return (
-        <div className="flex items-center gap-2">
-          <SkipForward className="size-4 text-muted-foreground" />
-          <span className="font-medium text-foreground">Meta Skipped</span>
-        </div>
-      );
-    }
-    if (status === 'failed') {
-      return (
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="size-4 text-destructive" />
-          <span className="font-medium text-foreground">Connection Failed</span>
-        </div>
-      );
-    }
     return (
-      <div className="flex items-center gap-2">
-        <Link2 className="size-4 text-muted-foreground" />
-        <span className="font-medium text-foreground">Meta Ads</span>
-        <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Not connected</span>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between mb-4">
+          <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-primary uppercase tracking-wider font-semibold">
+            Active Sources
+          </span>
+          <CheckCircle2 className="size-4 text-success" />
+        </div>
+        <div className="space-y-4">
+          {websiteSource && (
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                <Globe className="size-4 text-muted-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {websiteSource.externalReference || 'Website'}
+                </p>
+                <p className="text-xs text-muted-foreground">To be analysed</p>
+              </div>
+            </div>
+          )}
+          {uploadedSources.map((source) => (
+            <div key={source.id} className="flex items-center gap-3">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                <svg className="size-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">{source.sourceName}</p>
+                <p className="text-xs text-muted-foreground">To be analysed</p>
+              </div>
+            </div>
+          ))}
+          {uploadedSources.length === 0 && !websiteSource && (
+            <p className="text-sm text-muted-foreground">No sources added yet</p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderMetaStatus = () => {
+    const { status } = state.metaConnection;
+    const hasAccount = state.selectedAdAccountId !== null;
+
+    const getStatusInfo = () => {
+      if (status === 'connected' && hasAccount) {
+        return { label: 'Connected', variant: 'success' as const, sub: 'Connected' };
+      }
+      if (status === 'connected' && !hasAccount) {
+        return { label: 'Pending Ad Account', variant: 'pending' as const, sub: 'Pending Ad Account' };
+      }
+      if (status === 'skipped') {
+        return { label: 'Skipped', variant: 'muted' as const, sub: 'Skipped' };
+      }
+      if (status === 'failed') {
+        return { label: 'Failed', variant: 'error' as const, sub: 'Failed' };
+      }
+      return { label: 'Pending', variant: 'pending' as const, sub: 'Not connected' };
+    };
+
+    const statusInfo = getStatusInfo();
+
+    return (
+      <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary">
+              <svg className="size-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">Meta Ads</p>
+              <p className="text-xs text-muted-foreground">{statusInfo.sub}</p>
+            </div>
+          </div>
+          <span
+            className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
+              statusInfo.variant === 'success'
+                ? 'bg-green-100 text-green-700'
+                : statusInfo.variant === 'error'
+                ? 'bg-red-100 text-red-700'
+                : 'bg-secondary text-muted-foreground'
+            }`}
+          >
+            {statusInfo.label}
+          </span>
+        </div>
       </div>
     );
   };
 
   return (
-    <Card className="border-border bg-card">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium text-foreground">Current context</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        {variant === 'meta' ? (
-          renderMetaStatus(state.metaConnection.status)
-        ) : (
-          <div className="flex items-start gap-2">
-            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
-            <div>
-              <span className="font-medium text-foreground">Objective</span>
-              <p className="text-muted-foreground">
-                {selectedObjective?.title ?? 'Not selected'}
-              </p>
-            </div>
-          </div>
-        )}
+    <div className="space-y-6">
+      {/* Active Sources Card - same as step 2 */}
+      <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+        {renderActiveSources()}
+      </div>
 
-        <div className="flex items-start gap-2">
-          <FileText className="mt-0.5 size-4 shrink-0 text-primary" />
-          <div>
-            <span className="font-medium text-foreground">
-              {state.sources.length} source{state.sources.length !== 1 ? 's' : ''}
-            </span>
-            <p className="text-muted-foreground">
-              {state.sources
-                .map((s) => s.sourceName)
-                .join(', ') || 'None yet'}
-            </p>
-          </div>
-        </div>
+      {/* Meta Status Card - for step 3 */}
+      {variant === 'meta' && renderMetaStatus()}
 
-        {state.manualNotes && (
-          <div className="flex items-start gap-2">
-            <Upload className="mt-0.5 size-4 shrink-0 text-primary" />
-            <div>
-              <span className="font-medium text-foreground">Manual notes</span>
-              <p className="line-clamp-2 text-muted-foreground">{state.manualNotes}</p>
-            </div>
-          </div>
-        )}
-
-        {state.business.websiteUrl && (
-          <div className="flex items-start gap-2">
-            <Globe className="mt-0.5 size-4 shrink-0 text-primary" />
-            <div>
-              <span className="font-medium text-foreground">Website</span>
-              <p className="text-muted-foreground">{state.business.websiteUrl}</p>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {/* AI Tip */}
+      <div className="flex items-center gap-2 rounded-2xl bg-secondary p-4">
+        <span className="text-primary">✨</span>
+        <p className="text-sm text-muted-foreground">
+          Multi-source learning increases ad conversion accuracy by up to 34%.
+        </p>
+      </div>
+    </div>
   );
 }

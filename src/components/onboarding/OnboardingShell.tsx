@@ -37,7 +37,7 @@ export function OnboardingShell({
               <ArrowLeft className="size-4" />
             </Button>
           )}
-          <Link href="/dashboard" className="text-lg font-semibold tracking-[-0.03em] text-foreground">
+          <Link href="/dashboard" className="text-lg font-bold tracking-[-0.03em] text-primary">
             NOVA
           </Link>
           <div className="ml-auto">
@@ -56,7 +56,7 @@ export function OnboardingShell({
         {layout === 'sidebar' ? (
           <div className="mt-10 grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:gap-10">
             <aside className="lg:sticky lg:top-24 lg:self-start">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
                 {step.eyebrow}
               </p>
               <h1 className="max-w-xl text-4xl font-semibold tracking-[-0.06em] text-foreground md:text-5xl lg:text-6xl">
@@ -72,7 +72,7 @@ export function OnboardingShell({
         ) : (
           <div className="mt-10">
             <div className="mx-auto max-w-3xl text-center">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
                 {step.eyebrow}
               </p>
               <h1 className="text-4xl font-semibold tracking-[-0.06em] text-foreground md:text-5xl">

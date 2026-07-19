@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NOVA - Business Basics</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Geist+Sans:wght@100..900&family=Geist+Mono:wght@100..900&display=swap');
+        
+        body {
+            font-family: 'Geist Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+
+        /* Custom scrollbar for better UI feel */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e1bfb8;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #8d716b;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-fixed": "#1f1b17",
+                      "surface-bright": "#fff8f6",
+                      "ai-purple": "#A855F7",
+                      "surface-container-highest": "#f6ddd8",
+                      "tertiary-container": "#008096",
+                      "secondary": "#645d58",
+                      "secondary-fixed": "#eae1da",
+                      "primary": "#aa3016",
+                      "surface-tint": "#ad3218",
+                      "on-tertiary-fixed-variant": "#004e5c",
+                      "background": "#fff8f6",
+                      "on-primary-fixed-variant": "#8b1a01",
+                      "error-container": "#ffdad6",
+                      "error-red": "#EF4444",
+                      "inverse-surface": "#3c2d2a",
+                      "success-green": "#22C55E",
+                      "on-error": "#ffffff",
+                      "tertiary": "#006577",
+                      "on-tertiary": "#ffffff",
+                      "on-secondary-container": "#6a635e",
+                      "accent-hover": "#D14A2E",
+                      "error": "#ba1a1a",
+                      "on-tertiary-container": "#f9fdff",
+                      "on-tertiary-fixed": "#001f26",
+                      "on-background": "#251816",
+                      "surface-dim": "#edd5d0",
+                      "inverse-primary": "#ffb4a4",
+                      "page-bg": "#FAFAF9",
+                      "on-surface-variant": "#59413c",
+                      "warning-amber": "#F59E0B",
+                      "outline-variant": "#e1bfb8",
+                      "on-secondary-fixed-variant": "#4b4641",
+                      "surface-variant": "#f6ddd8",
+                      "inverse-on-surface": "#ffede9",
+                      "on-surface": "#251816",
+                      "primary-fixed": "#ffdad3",
+                      "secondary-container": "#eae1da",
+                      "primary-container": "#cc482c",
+                      "surface-container-lowest": "#ffffff",
+                      "accent-soft-alt": "#FFDAB9",
+                      "on-secondary": "#ffffff",
+                      "surface-container-high": "#fce3dd",
+                      "secondary-fixed-dim": "#cec5bf",
+                      "tertiary-fixed": "#acedff",
+                      "accent-soft": "#FEF3E2",
+                      "surface-container-low": "#fff0ed",
+                      "tertiary-fixed-dim": "#69d5ef",
+                      "info-blue": "#3B82F6",
+                      "outline": "#8d716b",
+                      "surface-container": "#ffe9e5",
+                      "on-error-container": "#93000a",
+                      "surface": "#fff8f6",
+                      "primary-fixed-dim": "#ffb4a4",
+                      "on-primary": "#ffffff",
+                      "on-primary-container": "#fffbff",
+                      "on-primary-fixed": "#3d0600"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "page-gutter-desktop": "6rem",
+                      "control-gap": "0.75rem",
+                      "page-gutter-tablet": "3rem",
+                      "section-gap": "2.5rem",
+                      "grid-gap": "1.5rem",
+                      "card-padding-focus": "2rem",
+                      "page-gutter-mobile": "1.5rem",
+                      "card-padding": "1.5rem"
+              }
+            },
+          },
+        }
+      </script>
+</head>
+<body class="bg-page-bg text-on-surface min-h-screen flex flex-col font-sans">
+<!-- Top Navigation Shell -->
+<header class="bg-white border-b border-stone-100 flex justify-between items-center w-full px-page-gutter-mobile md:px-page-gutter-desktop py-4 sticky top-0 z-50">
+<div class="text-2xl font-bold text-primary dark:text-primary-fixed">
+            NOVA
+        </div>
+<nav class="hidden md:flex gap-8">
+<!-- Active state mapping: "Integration" represents the onboarding flow logic -->
+<a class="text-secondary hover:text-primary transition-colors px-2 py-1 text-base font-semibold" href="#">Dashboard</a>
+<a class="text-primary border-b-2 border-primary transition-colors px-2 py-1 text-base font-semibold" href="#">Setup</a>
+<a class="text-secondary hover:text-primary transition-colors px-2 py-1 text-base font-semibold" href="#">Insights</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="active:scale-95 transition-transform text-secondary hover:text-primary p-2 rounded-full">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</header>
+<main class="flex-grow flex items-center justify-center py-section-gap px-page-gutter-mobile">
+<div class="max-w-3xl w-full">
+<!-- Centered Header and Progress Bar -->
+<div class="mb-8 text-center">
+<p class="text-sm font-semibold text-primary mb-2 uppercase tracking-wider">Step 2 of 8</p>
+<h1 class="text-3xl font-bold text-on-surface mb-2">Business Basics</h1>
+<p class="text-base text-stone-600">Define your commercial footprint</p>
+</div>
+<!-- Progress Bar -->
+<div class="max-w-md mx-auto w-full bg-surface-container-highest h-1.5 rounded-full mb-section-gap overflow-hidden border border-stone-100">
+<div class="bg-primary h-full rounded-full transition-all duration-700 ease-out" style="width: 25%"></div>
+</div>
+<!-- Main Form Card -->
+<div class="bg-white rounded-3xl p-6 sm:p-10 border border-stone-200 shadow-sm">
+<form class="space-y-6" id="onboardingForm">
+<!-- Section Title inside Card -->
+<div class="mb-8 border-b border-stone-100 pb-6">
+<div class="flex items-center gap-3 mb-2">
+<div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">hub</span>
+</div>
+<h2 class="text-xl font-semibold">Workspace Integration</h2>
+</div>
+<p class="text-sm text-stone-600">Configure your business profile to allow NOVA to tailor audience segments and performance benchmarks.</p>
+</div>
+<!-- Two-Column Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Business Name -->
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-on-surface" for="business-name">Business name</label>
+<input class="h-11 px-4 rounded-lg border-stone-200 focus:ring-primary focus:border-primary text-sm bg-white transition-all w-full" id="business-name" placeholder="e.g. Acme Corp" type="text"/>
+</div>
+<!-- Website URL -->
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-on-surface" for="website-url">Website URL</label>
+<input class="h-11 px-4 rounded-lg border-stone-200 focus:ring-primary focus:border-primary text-sm bg-white transition-all w-full" id="website-url" placeholder="https://example.com" type="url"/>
+</div>
+<!-- Primary Market -->
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-on-surface" for="primary-market">Primary market</label>
+<select class="h-11 px-4 rounded-lg border-stone-200 focus:ring-primary focus:border-primary text-sm bg-white transition-all w-full" id="primary-market">
+<option disabled="" selected="" value="">Select market</option>
+<option value="us">United States</option>
+<option value="eu">European Union</option>
+<option value="apac">Asia Pacific</option>
+<option value="latam">Latin America</option>
+</select>
+</div>
+<!-- Business Type -->
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-on-surface" for="business-type">Business type</label>
+<select class="h-11 px-4 rounded-lg border-stone-200 focus:ring-primary focus:border-primary text-sm bg-white transition-all w-full" id="business-type">
+<option disabled="" selected="" value="">Select type</option>
+<option value="ecommerce">E-commerce</option>
+<option value="saas">SaaS</option>
+<option value="leadgen">Lead Generation</option>
+<option value="local">Local Service</option>
+</select>
+</div>
+<!-- Main Advertising Goal (Full Width on Desktop) -->
+<div class="flex flex-col gap-2 md:col-span-2">
+<label class="text-sm font-semibold text-on-surface" for="advertising-goal">Main advertising goal</label>
+<select class="h-11 px-4 rounded-lg border-stone-200 focus:ring-primary focus:border-primary text-sm bg-white transition-all w-full" id="advertising-goal">
+<option disabled="" selected="" value="">What is your primary objective?</option>
+<option value="sales">Drive Sales &amp; Revenue</option>
+<option value="leads">Generate Qualified Leads</option>
+<option value="brand">Increase Brand Awareness</option>
+<option value="traffic">Maximize Site Traffic</option>
+</select>
+</div>
+</div>
+<!-- Actions -->
+<div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-8 border-t border-stone-100">
+<button class="flex items-center gap-2 text-stone-600 text-sm hover:text-primary transition-colors py-2 px-4 rounded-full active:scale-95 transition-transform" onclick="history.back()" type="button">
+<span class="material-symbols-outlined">arrow_back</span>
+                            Back
+                        </button>
+<div class="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+<button class="w-full sm:w-auto bg-primary text-on-primary text-base font-semibold px-10 py-3 rounded-full shadow-sm opacity-50 cursor-not-allowed hover:bg-accent-hover active:scale-95 transition-all" disabled="" id="continue-btn" type="submit">
+                                Continue
+                            </button>
+</div>
+</div>
+</form>
+</div>
+<!-- Contextual Information (Bento Hint) -->
+<div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="bg-white border border-stone-200 rounded-2xl p-6 flex gap-4 shadow-sm">
+<div class="text-ai-purple">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">palette</span>
+</div>
+<div>
+<h4 class="text-base font-semibold text-on-surface">AI Personalization</h4>
+<p class="text-sm text-stone-600 mt-1">NOVA uses your industry type to pre-configure optimal ad sets and creative themes.</p>
+</div>
+</div>
+<div class="bg-white border border-stone-200 rounded-2xl p-6 flex gap-4 shadow-sm">
+<div class="text-info-blue">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">fact_check</span>
+</div>
+<div>
+<h4 class="text-base font-semibold text-on-surface">Data Security</h4>
+<p class="text-sm text-stone-600 mt-1">Your business information is encrypted and never shared with competing ad accounts.</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Shell -->
+<footer class="bg-transparent w-full py-8">
+<div class="max-w-3xl mx-auto flex flex-col sm:flex-row justify-between items-center px-page-gutter-mobile border-t border-outline-variant pt-8">
+<p class="text-sm text-stone-600 mb-4 sm:mb-0">© 2024 NOVA AI. Professional Workspace.</p>
+<div class="flex gap-6">
+<a class="text-sm text-stone-600 hover:text-primary transition-colors hover:underline underline-offset-4" href="#">Support</a>
+<a class="text-sm text-stone-600 hover:text-primary transition-colors hover:underline underline-offset-4" href="#">Privacy</a>
+<a class="text-sm text-stone-600 hover:text-primary transition-colors hover:underline underline-offset-4" href="#">Terms</a>
+</div>
+</div>
+</footer>
+<script>
+        // Simple form validation logic
+        const form = document.getElementById('onboardingForm');
+        const continueBtn = document.getElementById('continue-btn');
+        const inputs = form.querySelectorAll('input, select');
+
+        const validate = () => {
+            let isValid = true;
+            inputs.forEach(input => {
+                if (!input.value || input.value === "") {
+                    isValid = false;
+                }
+            });
+
+            if (isValid) {
+                continueBtn.disabled = false;
+                continueBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                continueBtn.disabled = true;
+                continueBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        };
+
+        inputs.forEach(input => {
+            input.addEventListener('input', validate);
+            input.addEventListener('change', validate);
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if(!continueBtn.disabled) {
+                // Success state simulation
+                continueBtn.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span>';
+                setTimeout(() => {
+                    alert('Business basics saved. Moving to next step...');
+                    continueBtn.innerHTML = 'Continue';
+                }, 1000);
+            }
+        });
+    </script>
+</body></html>

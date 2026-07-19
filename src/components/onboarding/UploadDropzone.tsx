@@ -10,17 +10,17 @@ export function UploadDropzone({ onMockUpload }: UploadDropzoneProps) {
   return (
     <div
       className={cn(
-        'flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-10 text-center transition-colors hover:border-primary/40 hover:bg-primary/5'
+        'group flex min-h-[240px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-border bg-white p-6 text-center transition-all hover:border-primary hover:bg-primary/5 cursor-pointer'
       )}
     >
-      <Upload className="size-8 text-muted-foreground" />
-      <div>
-        <p className="text-sm font-medium text-foreground">Upload Business Assets</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          PDF, DOCX, PPTX, XLSX up to 50MB
-        </p>
+      <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-secondary group-hover:scale-110 transition-transform">
+        <Upload className="size-8 text-primary" />
       </div>
-      <Button type="button" variant="outline" size="sm" onClick={onMockUpload}>
+      <h3 className="mb-2 text-xl font-semibold text-foreground">Upload Business Assets</h3>
+      <p className="mb-6 max-w-sm text-sm text-muted-foreground">
+        Drag and drop your PDF, PPTX, DOCX, or Image files here to train NOVA.
+      </p>
+      <Button type="button" variant="secondary" onClick={onMockUpload}>
         Select Files
       </Button>
     </div>
