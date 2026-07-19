@@ -88,3 +88,16 @@ export function getNextStepIndex(state: MockOnboardingState, currentIndex: numbe
 export function getCompletionStatus(state: MockOnboardingState): 'complete' | 'pending_admin_approval' {
   return state.permissions.canApprove ? 'complete' : 'pending_admin_approval';
 }
+
+type ReviewStepInput = {
+  loading: boolean;
+  error: string | null;
+  review: { unresolvedFields: string[] } | null;
+};
+
+export function canContinueFromReviewStep(input: ReviewStepInput): boolean {
+  if (input.loading) return false;
+  if (input.error !== null) return false;
+  if (input.review === null) return false;
+  return input.review.unresolvedFields.length === 0;
+}

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mockOnboardingState } from './mock-data';
 import {
   ONBOARDING_STEPS,
+  canContinueFromReviewStep,
   canContinueFromStep,
   getCompletionStatus,
   getNextStepIndex,
@@ -159,5 +160,39 @@ describe('onboarding flow', () => {
     });
 
     expect(getCompletionStatus(state)).toBe('complete');
+  });
+});
+
+describe('canContinueFromReviewStep', () => {
+  it('returns false while loading', () => {
+    expect(canContinueFromReviewStep({ loading: true, error: null, review: null })).toBe(false);
+  });
+
+  it('returns false when error exists', () => {
+    expect(canContinueFromReviewStep({ loading: false, error: 'network timeout', review: null })).toBe(false);
+  });
+
+  it('returns false when review is null', () => {
+    expect(canContinueFromReviewStep({ loading: false, error: null, review: null })).toBe(false);
+  });
+
+  it('returns false when unresolvedFields is nonempty', () => {
+    expect(
+      canContinueFromReviewStep({
+        loading: false,
+        error: null,
+        review: { unresolvedFields: ['targetAudiences'] },
+      }),
+    ).toBe(false);
+  });
+
+  it('returns true when loaded, no error, review present, and no unresolved fields', () => {
+    expect(
+      canContinueFromReviewStep({
+        loading: false,
+        error: null,
+        review: { unresolvedFields: [] },
+      }),
+    ).toBe(true);
   });
 });

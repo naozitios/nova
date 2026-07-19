@@ -13,6 +13,7 @@ import type {
 } from "@/core/business-context/extraction.port";
 import type { ServiceResult } from "@/core/business-context/types";
 import type { SourceType } from "@/core/business-context/types/enums";
+import type { RepositoryPort } from "@/core/business-context/repository.port";
 
 // ---------------------------------------------------------------------------
 // B31 integration proof — SourceProcessingService wiring
@@ -153,9 +154,7 @@ function createFakeExtractionProvider(
   ];
 
   return {
-    extractFacts: async (
-      request: ExtractionRequest,
-    ): Promise<ServiceResult<ExtractionResult>> => ({
+    extractFacts: async (): Promise<ServiceResult<ExtractionResult>> => ({
       ok: true,
       data: {
         facts: facts ?? defaultFacts,
@@ -683,7 +682,7 @@ describe.skipIf(!SUPABASE_KEY)(
 
       // The service should return a result (not throw), and the source
       // should not be in 'processed' status if document persistence failed
-      const src = await readSource(sourceId);
+      await readSource(sourceId);
       // Either it succeeded (idempotent) or it failed gracefully
       expect(result.ok).toBeDefined();
 
@@ -857,7 +856,7 @@ describe.skipIf(!SUPABASE_KEY)(
       await supabase.from("context_sources").delete().eq("id", otherSourceId);
     });
 
-    it("processSource surfaces extraction failure as warning, never silent", async () => {
+    it("processSource extraction failure produces hard source-processing failure", async () => {
       const sourceId = await seedSource("product_document");
       const adapter = createFakeAdapter(makeCollected());
 
@@ -882,22 +881,30 @@ describe.skipIf(!SUPABASE_KEY)(
 
       const result = await svc.processSource(BIZ, WS, sourceId);
 
-      // Extraction failure should NOT be silent — it should produce
-      // either an error result or warnings in the response
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        // If ok, there must be warnings about the extraction failure
-        expect(result.data.warnings.length).toBeGreaterThan(0);
-        const hasExtractionWarning = result.data.warnings.some(
-          (w) => w.toLowerCase().includes("extraction") || w.toLowerCase().includes("failed"),
-        );
-        expect(hasExtractionWarning).toBe(true);
+      // Extraction failure is a hard source-processing failure — not silent,
+      // not a warning. The pipeline propagates the extraction error as ok:false.
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBeDefined();
+        expect(result.error.code).toBe("EXTRACTION_FAILED");
       }
+
+      // Source and job must be marked failed_permanent
+      const src = await readSource(sourceId);
+      expect(src.status).toBe("failed_permanent");
+      expect(src.terminal_outcome).toBe("failed_permanent");
+
+      const run = await findRunForSource(sourceId);
+      expect(run).not.toBeNull();
+
+      const job = await readJob(run!.job_id);
+      expect(job.status).toBe("failed_permanent");
+      expect(job.error).not.toBeNull();
 
       cleanupIds.push({
         sourceId,
-        jobId: (await findRunForSource(sourceId))?.job_id ?? "",
-        runId: (await findRunForSource(sourceId))?.id ?? "",
+        jobId: run!.job_id,
+        runId: run!.id,
       });
     });
 
@@ -1226,6 +1233,99 @@ describe.skipIf(!SUPABASE_KEY)(
       // Clean up other source
       await supabase.from("context_facts").delete().eq("source_id", otherSourceId);
       await supabase.from("context_sources").delete().eq("id", otherSourceId);
+    });
+
+    // ─── DI wiring: shared SourceFactPipeline ───────────────────────────────
+
+    it("DI wiring: getUploadedDocumentProcessor receives shared SourceFactPipeline from production DI", async () => {
+      // Set minimal env vars required for DI lazy-init (embedding + extraction).
+      // The adapter constructors store config; no real network calls until use.
+      process.env.EMBEDDING_API_KEY ??= "test-wiring-key";
+      process.env.LLM_API_URL ??= "http://localhost:0";
+
+      const { getUploadedDocumentProcessor, getSourceFactPipeline } = await import(
+        "@/di/providers/business-context"
+      );
+
+      const processor = getUploadedDocumentProcessor();
+      const sharedPipeline = getSourceFactPipeline();
+
+      // The processor's internal factPipeline must be the same instance
+      // that the DI provides — proving shared pipeline wiring.
+      expect((processor as unknown as { factPipeline?: unknown }).factPipeline).toBe(sharedPipeline);
+    });
+
+    it("setBusinessContextRepository recreates all repo-bound singletons with repoB", async () => {
+      process.env.EMBEDDING_API_KEY ??= "test-wiring-key";
+      process.env.LLM_API_URL ??= "http://localhost:0";
+      process.env.FIRECRAWL_API_KEY ??= "test-firecrawl-key";
+
+      // Access private repo field for identity assertion
+      const extractRepo = (instance: unknown): RepositoryPort =>
+        (instance as { repo: RepositoryPort }).repo;
+
+      const {
+        setBusinessContextRepository,
+        resetBusinessContextProviders,
+        getCanonicalDocumentIndexer,
+        getSourceFactPipeline,
+        getUploadedDocumentProcessor,
+        getSourceProcessingService,
+        getRetrievalService,
+        getJobRunner,
+      } = await import("@/di/providers/business-context");
+
+      // Clean slate
+      resetBusinessContextProviders();
+
+      // Two distinct repo stubs
+      const repoA = { __tag: "repoA" } as unknown as RepositoryPort;
+      const repoB = { __tag: "repoB" } as unknown as RepositoryPort;
+
+      // ── Phase 1: initialize all singletons with repoA ────────────────
+      setBusinessContextRepository(repoA);
+
+      const indexerA = getCanonicalDocumentIndexer();
+      const pipelineA = getSourceFactPipeline();
+      const processorA = getUploadedDocumentProcessor();
+      const processingSvcA = getSourceProcessingService();
+      const retrievalSvcA = getRetrievalService();
+      const jobRunnerA = getJobRunner();
+
+      // All capture repoA
+      expect(extractRepo(indexerA)).toBe(repoA);
+      expect(extractRepo(pipelineA)).toBe(repoA);
+      expect(extractRepo(processorA)).toBe(repoA);
+      expect(extractRepo(processingSvcA)).toBe(repoA);
+      expect(extractRepo(retrievalSvcA)).toBe(repoA);
+      expect(extractRepo(jobRunnerA)).toBe(repoA);
+
+      // ── Phase 2: switch to repoB ─────────────────────────────────────
+      setBusinessContextRepository(repoB);
+
+      // All getters must return fresh instances bound to repoB
+      const indexerB = getCanonicalDocumentIndexer();
+      const pipelineB = getSourceFactPipeline();
+      const processorB = getUploadedDocumentProcessor();
+      const processingSvcB = getSourceProcessingService();
+      const retrievalSvcB = getRetrievalService();
+      const jobRunnerB = getJobRunner();
+
+      // Identity: new instances, not stale ones
+      expect(indexerB).not.toBe(indexerA);
+      expect(pipelineB).not.toBe(pipelineA);
+      expect(processorB).not.toBe(processorA);
+      expect(processingSvcB).not.toBe(processingSvcA);
+      expect(retrievalSvcB).not.toBe(retrievalSvcA);
+      expect(jobRunnerB).not.toBe(jobRunnerA);
+
+      // Wiring: all capture repoB
+      expect(extractRepo(indexerB)).toBe(repoB);
+      expect(extractRepo(pipelineB)).toBe(repoB);
+      expect(extractRepo(processorB)).toBe(repoB);
+      expect(extractRepo(processingSvcB)).toBe(repoB);
+      expect(extractRepo(retrievalSvcB)).toBe(repoB);
+      expect(extractRepo(jobRunnerB)).toBe(repoB);
     });
 
     // ─── B29 atomic regression ────────────────────────────────────────────

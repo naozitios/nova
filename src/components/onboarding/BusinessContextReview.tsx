@@ -1,68 +1,84 @@
-import { AlertCircle } from 'lucide-react';
-import { OnboardingCard } from './OnboardingCard';
-import type { MockCompiledProfile, MockQuestion } from '@/lib/onboarding/types';
+import { AlertCircle } from 'lucide-react'
+import { OnboardingCard } from './OnboardingCard'
+import { toProfileSections } from '@/lib/onboarding/profile-view'
+import type { OnboardingReview } from '@/lib/onboarding/api'
 
 type BusinessContextReviewProps = {
-  profile: MockCompiledProfile;
-  questions: MockQuestion[];
-  canApprove: boolean;
-};
+  review: OnboardingReview
+  canApprove: boolean
+}
 
-export function BusinessContextReview({ profile, questions, canApprove }: BusinessContextReviewProps) {
+export function BusinessContextReview({ review, canApprove }: BusinessContextReviewProps) {
+  const sections = toProfileSections(review.profile)
+
   return (
     <div className="grid gap-6">
-      <OnboardingCard>
-        <p className="mb-6 text-sm leading-6 text-[#645d58]">{profile.summary}</p>
+      {sections.length === 0 && (
+        <OnboardingCard>
+          <p className="text-sm text-[#645d58]">No business context compiled yet.</p>
+        </OnboardingCard>
+      )}
 
-        <div className="mb-6">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d716b]">Offerings</h3>
-          <ul className="list-inside list-disc space-y-1 text-sm text-[#251816]">
-            {profile.offerings.map((item, i) => (
-              <li key={i}>{item}</li>
+      {sections.map((section) => (
+        <OnboardingCard key={section.key}>
+          <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d716b]">
+            {section.title}
+          </h3>
+          <div className="grid gap-3">
+            {section.fields.map((field) => (
+              <div key={field.label}>
+                <p className="text-xs font-medium text-[#8d716b]">{field.label}</p>
+                {renderValue(field.value)}
+              </div>
             ))}
-          </ul>
-        </div>
-
-        <div className="mb-6">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d716b]">Value Propositions</h3>
-          <ul className="list-inside list-disc space-y-1 text-sm text-[#251816]">
-            {profile.valuePropositions.map((item, i) => (
-              <li key={i}>{item}</li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="mb-6">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d716b]">Target Audiences</h3>
-          <ul className="list-inside list-disc space-y-1 text-sm text-[#251816]">
-            {profile.targetAudiences.map((item, i) => (
-              <li key={i}>{item}</li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-xl border border-[#ead8d3] bg-[#fbf6f4] px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8d716b]">Funnel Goal</p>
-            <p className="mt-1 text-sm font-medium text-[#251816]">{profile.funnelGoal}</p>
           </div>
-          <div className="rounded-xl border border-[#ead8d3] bg-[#fbf6f4] px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8d716b]">Target CPA</p>
-            <p className="mt-1 text-sm font-medium text-[#251816]">{profile.targetCpa}</p>
-          </div>
-        </div>
-      </OnboardingCard>
+        </OnboardingCard>
+      ))}
 
-      {questions.length > 0 && (
+      {review.unresolvedFields.length > 0 && (
+        <OnboardingCard>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d716b]">Missing Information</h3>
+          <ul className="list-inside list-disc space-y-1 text-sm text-[#645d58]">
+            {review.unresolvedFields.map((field) => (
+              <li key={field}>{humanizeKey(field)}</li>
+            ))}
+          </ul>
+        </OnboardingCard>
+      )}
+
+      {review.warnings.length > 0 && (
+        <OnboardingCard>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d716b]">Warnings</h3>
+          <ul className="list-inside list-disc space-y-1 text-sm text-[#645d58]">
+            {review.warnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+        </OnboardingCard>
+      )}
+
+      {review.sources.length > 0 && (
+        <OnboardingCard>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d716b]">Sources</h3>
+          <div className="grid gap-2">
+            {review.sources.map((s) => (
+              <div key={s.id} className="flex items-center justify-between rounded-xl border border-[#ead8d3] bg-[#fbf6f4] px-4 py-3">
+                <span className="text-sm text-[#251816]">{s.name}</span>
+                <span className="text-xs text-[#8d716b]">{s.type} &mdash; {s.status}</span>
+              </div>
+            ))}
+          </div>
+        </OnboardingCard>
+      )}
+
+      {review.questions.length > 0 && (
         <OnboardingCard>
           <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d716b]">Clarifying Questions</h3>
           <div className="grid gap-4">
-            {questions.map((q) => (
+            {review.questions.map((q) => (
               <div key={q.factKey} className="rounded-xl border border-[#ead8d3] bg-[#fbf6f4] px-4 py-3">
                 <p className="text-sm font-medium text-[#251816]">{q.question}</p>
-                {q.answer && (
+                {q.answer != null && (
                   <p className="mt-2 text-sm text-[#645d58]">
-                    {Array.isArray(q.answer) ? q.answer.join(', ') : q.answer}
+                    {Array.isArray(q.answer) ? (q.answer as unknown[]).map(formatItem).join(', ') : String(q.answer)}
                   </p>
                 )}
               </div>
@@ -78,5 +94,34 @@ export function BusinessContextReview({ profile, questions, canApprove }: Busine
         </div>
       )}
     </div>
-  );
+  )
+}
+
+function formatItem(item: unknown): string {
+  return typeof item === 'object' && item !== null ? JSON.stringify(item) : String(item)
+}
+
+function renderValue(value: unknown): React.ReactNode {
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <p className="text-sm text-[#645d58]">None</p>
+    return (
+      <ul className="list-inside list-disc space-y-1 text-sm text-[#251816]">
+        {value.map((item, i) => <li key={i}>{formatItem(item)}</li>)}
+      </ul>
+    )
+  }
+  if (value === null || value === undefined) {
+    return <p className="text-sm italic text-[#8d716b]">No data</p>
+  }
+  if (typeof value === 'object') {
+    return <p className="text-sm text-[#251816]">{JSON.stringify(value)}</p>
+  }
+  return <p className="text-sm font-medium text-[#251816]">{String(value)}</p>
+}
+
+function humanizeKey(key: string): string {
+  return key
+    .split('.')
+    .map((part) => part.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
+    .join(' / ')
 }

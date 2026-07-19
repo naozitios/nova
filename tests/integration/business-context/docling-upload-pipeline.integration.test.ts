@@ -4,6 +4,7 @@ import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import { DoclingDocumentParserAdapter } from '@/infrastructure/business-context/docling-document-parser.adapter';
 import { UploadedDocumentProcessor } from '@/core/business-context/service/uploaded-document.processor';
+import { CanonicalDocumentIndexer } from '@/core/business-context/service/canonical-document-indexer';
 import { SupabaseRepository } from '@/infrastructure/business-context/supabase.repository';
 
 
@@ -276,12 +277,8 @@ describe.skipIf(!canRun)(
         const parser = createParser();
         const repo = createRepo();
 
-        const processor = new UploadedDocumentProcessor(
-          repo,
-          parser,
-          processorStorage,
-          mockEmbedder,
-        );
+        const indexer = new CanonicalDocumentIndexer(processorStorage, mockEmbedder, repo);
+        const processor = new UploadedDocumentProcessor(repo, parser, indexer);
 
         const result = await processor.process({
           workspaceId: wsId,
@@ -370,12 +367,8 @@ describe.skipIf(!canRun)(
         const parser = createParser();
         const repo = createRepo();
 
-        const processor = new UploadedDocumentProcessor(
-          repo,
-          parser,
-          processorStorage,
-          mockEmbedder,
-        );
+        const indexer = new CanonicalDocumentIndexer(processorStorage, mockEmbedder, repo);
+        const processor = new UploadedDocumentProcessor(repo, parser, indexer);
 
         const result = await processor.process({
           workspaceId: wsId,

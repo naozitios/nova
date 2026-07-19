@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { mockOnboardingState } from '@/lib/onboarding/mock-data';
-import { canContinueFromStep, getCompletionStatus, getNextStepIndex, ONBOARDING_STEPS } from '@/lib/onboarding/flow';
+import { canContinueFromReviewStep, canContinueFromStep, getCompletionStatus, getNextStepIndex, ONBOARDING_STEPS } from '@/lib/onboarding/flow';
+import { createOnboardingReviewRequest } from '@/lib/onboarding/api';
+import type { OnboardingReview } from '@/lib/onboarding/api';
 import type { MockOnboardingState, MockSource } from '@/lib/onboarding/types';
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
 import { OnboardingActionFooter } from '@/components/onboarding/OnboardingActionFooter';
@@ -43,15 +46,62 @@ function helperTextForStep(stepKey: string): string {
 }
 
 export default function OnboardingPage() {
+  const params = useParams<{ businessId: string }>();
   const [state, setState] = useState<MockOnboardingState>(() => structuredClone(mockOnboardingState));
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  const [review, setReview] = useState<OnboardingReview | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  const reviewRequestRef = useRef<{ abort: () => void } | null>(null);
+
+  useEffect(() => {
+    const step = ONBOARDING_STEPS[currentIndex];
+    if (step?.key !== 'review-business-context' || !params.businessId) return;
+
+    // Abort any previous request
+    reviewRequestRef.current?.abort();
+
+    const req = createOnboardingReviewRequest(params.businessId);
+    reviewRequestRef.current = req;
+
+    req.promise
+      .then((data) => {
+        if (reviewRequestRef.current !== req) return;
+        setReview(data);
+        setReviewLoading(false);
+      })
+      .catch((err) => {
+        if (reviewRequestRef.current !== req) return;
+        if (err.name === 'AbortError') return;
+        setReviewError(err instanceof Error ? err.message : 'Failed to load');
+        setReviewLoading(false);
+      });
+
+    return () => {
+      req.abort();
+      if (reviewRequestRef.current === req) reviewRequestRef.current = null;
+    };
+  }, [currentIndex, params.businessId]);
+
   const goBack = () => {
+    reviewRequestRef.current?.abort();
+    reviewRequestRef.current = null;
     setCurrentIndex((i) => Math.max(i - 1, 0));
   };
 
   const goNext = () => {
-    setCurrentIndex(getNextStepIndex(state, currentIndex));
+    if (!canGoNext) return;
+    const nextIndex = getNextStepIndex(state, currentIndex);
+    if (ONBOARDING_STEPS[nextIndex]?.key === 'review-business-context') {
+      reviewRequestRef.current?.abort();
+      reviewRequestRef.current = null;
+      setReview(null);
+      setReviewError(null);
+      setReviewLoading(true);
+    }
+    setCurrentIndex(nextIndex);
   };
 
   const selectObjective = (objectiveId: string) => {
@@ -149,7 +199,9 @@ export default function OnboardingPage() {
   };
 
   const step = ONBOARDING_STEPS[currentIndex];
-  const canGoNext = canContinueFromStep(state, currentIndex);
+  const canGoNext = step.key === 'review-business-context'
+    ? canContinueFromStep(state, currentIndex) && canContinueFromReviewStep({ loading: reviewLoading, error: reviewError, review })
+    : canContinueFromStep(state, currentIndex);
   const isFinalStep = currentIndex === ONBOARDING_STEPS.length - 1;
   const isSkippedMeta = state.metaConnection.status === 'skipped';
 
@@ -246,10 +298,44 @@ export default function OnboardingPage() {
         );
 
       case 'review-business-context':
+        if (reviewLoading) {
+          return (
+            <OnboardingCard>
+              <p className="text-sm text-[#645d58]">Loading business context...</p>
+            </OnboardingCard>
+          );
+        }
+        if (reviewError) {
+          return (
+            <OnboardingCard>
+              <p className="mb-3 text-sm text-red-600">Failed to load review: {reviewError}</p>
+              <Button variant="outline" onClick={() => {
+                reviewRequestRef.current?.abort();
+                setReviewError(null);
+                setReviewLoading(true);
+                const req = createOnboardingReviewRequest(params.businessId);
+                reviewRequestRef.current = req;
+                req.promise
+                  .then((data) => {
+                    if (reviewRequestRef.current !== req) return;
+                    setReview(data);
+                    setReviewLoading(false);
+                  })
+                  .catch((err) => {
+                    if (reviewRequestRef.current !== req) return;
+                    if (err.name === 'AbortError') return;
+                    setReviewError(err instanceof Error ? err.message : 'Failed to load');
+                    setReviewLoading(false);
+                  });
+              }}>
+                Retry
+              </Button>
+            </OnboardingCard>
+          );
+        }
         return (
           <BusinessContextReview
-            profile={state.compiledProfile}
-            questions={state.questions}
+            review={review ?? { profile: {}, unresolvedFields: [], warnings: [], sources: [], questions: [] }}
             canApprove={state.permissions.canApprove}
           />
         );

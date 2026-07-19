@@ -1,16 +1,16 @@
 import type { RepositoryPort } from '../repository.port'
 import type { DocumentParserPort } from '../document-parser.port'
-import type { EmbeddingPort } from '../embedding.port'
-import type { UploadStoragePort } from '../upload-storage.port'
-import type { ServiceResult } from '../types'
-import { chunkMarkdown } from '../document-chunk'
+import type { CanonicalDocumentIndexer } from './canonical-document-indexer'
+import type { SourceFactPipeline, SourceFactPipelineDocument } from './source-fact-pipeline'
+import type { ServiceResult, SourceType } from '../types'
+import type { ContextFact } from '../types/entities'
 
 export class UploadedDocumentProcessor {
   constructor(
     private readonly repo: RepositoryPort,
     private readonly parser: DocumentParserPort,
-    private readonly storage: UploadStoragePort,
-    private readonly embedder: EmbeddingPort
+    private readonly indexer: CanonicalDocumentIndexer,
+    private readonly factPipeline?: SourceFactPipeline,
   ) {}
 
   async process(params: {
@@ -18,8 +18,9 @@ export class UploadedDocumentProcessor {
     businessId: string
     sourceId: string
     documentId: string
+    runId?: string
+    sessionId?: string
   }): Promise<ServiceResult<{ status: string; warnings: string[] }>> {
-    // 1. Get document row
     const docResult = await this.repo.getSourceDocument(params.workspaceId, params.documentId)
     if (!docResult.ok) return docResult
     const doc = docResult.data
@@ -27,18 +28,25 @@ export class UploadedDocumentProcessor {
       return { ok: false, error: { code: 'NOT_FOUND', message: 'Document not found' } }
     }
 
-    // 2. Idempotency: if already indexed with same model, return success
-    if (doc.processingStatus === 'indexed' && doc.embeddingModel === this.embedder.model) {
-      return { ok: true, data: { status: 'indexed', warnings: [] } }
+    if (this.factPipeline) {
+      if (
+        doc.processingStatus === 'indexed'
+        && doc.embeddingModel === this.indexer.model
+        && doc.metadata.uploadFactProcessingCompleted === true
+      ) {
+        return { ok: true, data: { status: 'processed', warnings: [] } }
+      }
+    } else {
+      if (doc.processingStatus === 'indexed' && doc.embeddingModel === this.indexer.model) {
+        return { ok: true, data: { status: 'indexed', warnings: [] } }
+      }
     }
 
-    // 3. Mark processing
     await this.repo.updateSourceDocument(params.workspaceId, doc.id, {
       processingStatus: 'processing',
     })
 
     try {
-      // 4. Parse original via Docling
       if (!doc.storagePath || !doc.mimeType) {
         throw new Error('Missing storagePath or mimeType')
       }
@@ -55,71 +63,82 @@ export class UploadedDocumentProcessor {
       }
       const markdown = parseResult.data.contentText
 
-      // 5. Upload deterministic Markdown artifact
-      const processedPath = `${doc.storagePath}.md`
-      const bucket = 'business-context-sources'
-      const uploadResult = await this.storage.upload({
-        bucket,
-        path: processedPath,
-        content: Buffer.from(markdown, 'utf-8'),
-        contentType: 'text/markdown; charset=utf-8',
-        upsert: true,
-      })
-      if (!uploadResult.ok) {
-        await this.repo.updateSourceDocument(params.workspaceId, doc.id, {
-          processingStatus: 'failed',
-        })
-        return uploadResult
-      }
+      const processedStoragePath = `${doc.storagePath}.md`
 
-      // 6. Chunk markdown
-      const chunks = chunkMarkdown(markdown)
-
-      // 7. Embed chunks
-      const texts = chunks.map(c => c.content)
-      const embedResult = await this.embedder.embed(texts)
-      if (!embedResult.ok) {
-        await this.repo.updateSourceDocument(params.workspaceId, doc.id, {
-          processingStatus: 'failed',
-        })
-        return embedResult
-      }
-
-      // 8. Replace chunks
-      const chunkDrafts = chunks.map((chunk, idx) => ({
-        chunkIndex: chunk.chunkIndex,
-        headingPath: chunk.headingPath,
-        content: chunk.content,
-        locator: chunk.locator as Record<string, any>,
-        embedding: embedResult.data[idx],
-        embeddingModel: this.embedder.model,
-      }))
-      const replaceResult = await this.repo.replaceDocumentChunks(
-        params.workspaceId,
-        params.businessId,
-        doc.id,
-        chunkDrafts
-      )
-      if (!replaceResult.ok) {
-        await this.repo.updateSourceDocument(params.workspaceId, doc.id, {
-          processingStatus: 'failed',
-        })
-        return replaceResult
-      }
-
-      // 9. Update document with processed fields
-      await this.repo.updateSourceDocument(params.workspaceId, doc.id, {
-        processedStoragePath: processedPath,
-        processingStatus: 'indexed',
-        embeddingModel: this.embedder.model,
-        indexedAt: new Date(),
-        contentText: markdown,
-        pageOrSlideCount: parseResult.data.pageOrSlideCount ?? null,
+      const indexResult = await this.indexer.index({
+        workspaceId: params.workspaceId,
+        businessId: params.businessId,
+        documentId: doc.id,
+        markdown,
+        processedStoragePath,
         parserName: parseResult.data.parserName,
         parserVersion: parseResult.data.parserVersion,
+        pageOrSlideCount: parseResult.data.pageOrSlideCount ?? null,
       })
+      if (!indexResult.ok) return indexResult
 
-      return { ok: true, data: { status: 'indexed', warnings: [] } }
+      let finalStatus: 'indexed' | 'processed' | 'processed_with_warnings' = 'indexed'
+      const warnings: string[] = []
+
+      if (this.factPipeline) {
+        const existingFactsResult = await this.repo.listContextFacts({
+          workspaceId: params.workspaceId,
+          businessId: params.businessId,
+        })
+        if (!existingFactsResult.ok) {
+          await this.repo.updateSourceDocument(params.workspaceId, doc.id, {
+            processingStatus: 'failed',
+          })
+          return existingFactsResult
+        }
+        const existingFacts: ContextFact[] = existingFactsResult.data.items
+
+        const pipelineDoc: SourceFactPipelineDocument = {
+          sourceDocumentId: doc.id,
+          contentText: markdown,
+          parserName: parseResult.data.parserName,
+        }
+
+        const pipelineResult = await this.factPipeline.process({
+          workspaceId: params.workspaceId,
+          businessId: params.businessId,
+          sourceId: params.sourceId,
+          sourceType: 'upload' as SourceType,
+          existingFacts,
+          runId: params.runId ?? null,
+          sessionId: params.sessionId ?? null,
+          documents: [pipelineDoc],
+        })
+
+        if (pipelineResult.ok) {
+          warnings.push(...pipelineResult.data.warnings)
+          finalStatus = warnings.length > 0 ? 'processed_with_warnings' : 'processed'
+        } else {
+          await this.repo.updateSourceDocument(params.workspaceId, doc.id, {
+            processingStatus: 'failed',
+          })
+          return pipelineResult
+        }
+      }
+
+      // DB constraint only allows document statuses through 'indexed'; store fact completion in metadata.
+      if (finalStatus === 'processed' || finalStatus === 'processed_with_warnings') {
+        const completedResult = await this.repo.updateSourceDocument(params.workspaceId, doc.id, {
+          metadata: {
+            ...doc.metadata,
+            uploadFactProcessingCompleted: true,
+          },
+        })
+        if (!completedResult.ok) {
+          // Best-effort mark failed; fact pipeline already ran — do not rerun.
+          await this.repo.updateSourceDocument(params.workspaceId, doc.id, {
+            processingStatus: 'failed',
+          })
+          return completedResult
+        }
+      }
+
+      return { ok: true, data: { status: finalStatus, warnings } }
     } catch (error) {
       await this.repo.updateSourceDocument(params.workspaceId, doc.id, {
         processingStatus: 'failed',

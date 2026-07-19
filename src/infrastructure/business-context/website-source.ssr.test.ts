@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach } from "vitest";
-import { adapter, fetchSpy, initAdapter, makeSource, makeFetchResponse } from "./website-source.test-helpers";
+import { describe, expect, it, beforeEach, vi } from "vitest";
+import { adapter, fetchSpy, initAdapter, makeSource, makeFetchResponse, enqueueCrawl } from "./website-source.test-helpers";
 
 function redirectResponse(location: string) {
   return new Response(null, {
@@ -113,6 +113,7 @@ describe("post-redirect domain confinement", () => {
   });
 
   it("allows redirect to same approved domain", async () => {
+    vi.useFakeTimers();
     // 1. robots.txt
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse("User-agent: *\nAllow: /\n")
@@ -125,26 +126,27 @@ describe("post-redirect domain confinement", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    // 4. Firecrawl API call → success
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: "Redirected content" },
-        creditsUsed: 1,
-      })
-    );
+    // 4-5. Firecrawl start + poll → success
+    enqueueCrawl(fetchSpy, [
+      { url: "https://example.com/new-page", markdown: "Redirected content", html: "<p>Redirected content</p>", statusCode: 200 },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({ externalReference: "https://example.com" }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(true);
-    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    // robots + 2 preflights + Firecrawl start + poll = 5
+    expect(fetchSpy).toHaveBeenCalledTimes(5);
+    vi.useRealTimers();
   });
 
   it("allows redirect to subdomain of approved domain", async () => {
+    vi.useFakeTimers();
     // 1. robots.txt
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse("User-agent: *\nAllow: /\n")
@@ -157,23 +159,23 @@ describe("post-redirect domain confinement", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    // 4. Firecrawl API call → success
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: "Subdomain content" },
-        creditsUsed: 1,
-      })
-    );
+    // 4-5. Firecrawl start + poll → success
+    enqueueCrawl(fetchSpy, [
+      { url: "https://blog.example.com/post", markdown: "Subdomain content", html: "<p>Subdomain content</p>", statusCode: 200 },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({ externalReference: "https://example.com" }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(true);
-    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    // robots + 2 preflights + Firecrawl start + poll = 5
+    expect(fetchSpy).toHaveBeenCalledTimes(5);
+    vi.useRealTimers();
   });
 });
 
@@ -233,6 +235,7 @@ describe("redirect chain validation", () => {
   beforeEach(initAdapter);
 
   it("follows and validates two-hop redirect chain to approved domain", async () => {
+    vi.useFakeTimers();
     // 1. robots.txt for initial domain
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse("User-agent: *\nAllow: /\n")
@@ -249,24 +252,23 @@ describe("redirect chain validation", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    // 5. Firecrawl API call
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: "Final content" },
-        creditsUsed: 1,
-      })
-    );
+    // 5-6. Firecrawl start + poll
+    enqueueCrawl(fetchSpy, [
+      { url: "https://docs.example.com/final", markdown: "Final content", html: "<p>Final content</p>", statusCode: 200 },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({ externalReference: "https://example.com" }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(true);
-    // robots + 3 preflights + Firecrawl = 5
-    expect(fetchSpy).toHaveBeenCalledTimes(5);
+    // robots + 3 preflights + Firecrawl start + poll = 6
+    expect(fetchSpy).toHaveBeenCalledTimes(6);
+    vi.useRealTimers();
   });
 
   it("rejects second hop when it lands on non-approved domain", async () => {
@@ -462,6 +464,7 @@ describe("malformed Firecrawl page URL", () => {
   beforeEach(initAdapter);
 
   it("rejects when Firecrawl returns page with unparseable URL", async () => {
+    vi.useFakeTimers();
     // 1. robots.txt
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse("User-agent: *\nAllow: /\n")
@@ -470,39 +473,31 @@ describe("malformed Firecrawl page URL", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    // 3. Firecrawl → page with malformed url
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: {
-          pages: [
-            {
-              url: "not-a-valid-url",
-              markdown: "Some content",
-              statusCode: 200,
-            },
-          ],
-        },
-        creditsUsed: 1,
-      })
-    );
+    // 3-4. Firecrawl start + poll → page with malformed url
+    enqueueCrawl(fetchSpy, [
+      { url: "not-a-valid-url", markdown: "Some content", html: "<p>Some content</p>", statusCode: 200 },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({ externalReference: "https://example.com" }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("SSRF_REDIRECT_BLOCKED");
       expect(result.error.message).toContain("malformed");
     }
-    // robots + preflight + Firecrawl = 3
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    // robots + preflight + Firecrawl start + poll = 4
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
   });
 
   it("rejects when Firecrawl returns page with javascript: URL", async () => {
+    vi.useFakeTimers();
     // 1. robots.txt
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse("User-agent: *\nAllow: /\n")
@@ -511,39 +506,31 @@ describe("malformed Firecrawl page URL", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    // 3. Firecrawl → page with javascript: url
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: {
-          pages: [
-            {
-              url: "javascript:alert(1)",
-              markdown: "Payload",
-              statusCode: 200,
-            },
-          ],
-        },
-        creditsUsed: 1,
-      })
-    );
+    // 3-4. Firecrawl start + poll → page with javascript: url
+    enqueueCrawl(fetchSpy, [
+      { url: "javascript:alert(1)", markdown: "Payload", html: "<p>Payload</p>", statusCode: 200 },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({ externalReference: "https://example.com" }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("SSRF_REDIRECT_BLOCKED");
       expect(result.error.message).toContain("non-approved domain");
     }
-    // robots + preflight + Firecrawl = 3
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    // robots + preflight + Firecrawl start + poll = 4
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
   });
 
   it("rejects when Firecrawl returns page with private network URL", async () => {
+    vi.useFakeTimers();
     // 1. robots.txt
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse("User-agent: *\nAllow: /\n")
@@ -552,39 +539,31 @@ describe("malformed Firecrawl page URL", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    // 3. Firecrawl → page with private network URL
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: {
-          pages: [
-            {
-              url: "http://10.0.0.1/admin",
-              markdown: "Internal content",
-              statusCode: 200,
-            },
-          ],
-        },
-        creditsUsed: 1,
-      })
-    );
+    // 3-4. Firecrawl start + poll → page with private network URL
+    enqueueCrawl(fetchSpy, [
+      { url: "http://10.0.0.1/admin", markdown: "Internal content", html: "<p>Internal content</p>", statusCode: 200 },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({ externalReference: "https://example.com" }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("SSRF_REDIRECT_BLOCKED");
       expect(result.error.message).toContain("private network");
     }
-    // robots + preflight + Firecrawl = 3
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    // robots + preflight + Firecrawl start + poll = 4
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
   });
 
   it("rejects when Firecrawl returns page with non-approved domain URL", async () => {
+    vi.useFakeTimers();
     // 1. robots.txt
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse("User-agent: *\nAllow: /\n")
@@ -593,36 +572,27 @@ describe("malformed Firecrawl page URL", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    // 3. Firecrawl → page with non-approved domain URL
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: {
-          pages: [
-            {
-              url: "https://evil.com/phish",
-              markdown: "Malicious content",
-              statusCode: 200,
-            },
-          ],
-        },
-        creditsUsed: 1,
-      })
-    );
+    // 3-4. Firecrawl start + poll → page with non-approved domain URL
+    enqueueCrawl(fetchSpy, [
+      { url: "https://evil.com/phish", markdown: "Malicious content", html: "<p>Malicious content</p>", statusCode: 200 },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({ externalReference: "https://example.com" }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("SSRF_REDIRECT_BLOCKED");
       expect(result.error.message).toContain("non-approved domain");
     }
-    // robots + preflight + Firecrawl = 3
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    // robots + preflight + Firecrawl start + poll = 4
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
   });
 });
 
@@ -632,6 +602,7 @@ describe("full redirect-chain preflight", () => {
   beforeEach(initAdapter);
 
   it("validates every hop in chain before Firecrawl", async () => {
+    vi.useFakeTimers();
     // 1. robots.txt
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse("User-agent: *\nAllow: /\n")
@@ -648,28 +619,27 @@ describe("full redirect-chain preflight", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    // 5. Firecrawl API call
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: "Final content" },
-        creditsUsed: 1,
-      })
-    );
+    // 5-6. Firecrawl start + poll
+    enqueueCrawl(fetchSpy, [
+      { url: "https://docs.example.com/final", markdown: "Final content", html: "<p>Final content</p>", statusCode: 200 },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({ externalReference: "https://example.com" }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(true);
-    // robots + 3 preflights + Firecrawl = 5
-    expect(fetchSpy).toHaveBeenCalledTimes(5);
+    // robots + 3 preflights + Firecrawl start + poll = 6
+    expect(fetchSpy).toHaveBeenCalledTimes(6);
     // Verify fetch was called with redirect: 'manual' for preflights
     expect(fetchSpy.mock.calls[1][1]).toEqual({ redirect: "manual" });
     expect(fetchSpy.mock.calls[2][1]).toEqual({ redirect: "manual" });
     expect(fetchSpy.mock.calls[3][1]).toEqual({ redirect: "manual" });
+    vi.useRealTimers();
   });
 
   it("fails closed on 6th hop even if all previous approved", async () => {

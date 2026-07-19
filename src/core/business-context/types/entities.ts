@@ -295,4 +295,3 @@ export interface AuditLog {
   after: Record<string, JsonValue> | null
   createdAt: Date
 }
-

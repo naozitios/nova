@@ -11,6 +11,7 @@ export async function computeHash(text: string): Promise<string> {
 export interface DedupePage {
   url: string
   markdown?: string
+  html?: string
   statusCode: number
   metadata?: Record<string, unknown>
   title?: string
@@ -33,7 +34,7 @@ export async function dedupeByContentHash(pages: DedupePage[]): Promise<DedupePa
   const seen = new Set<string>()
   const result: DedupePage[] = []
   for (const page of pages) {
-    const hash = await computeHash(page.markdown ?? '')
+    const hash = await computeHash((page.markdown ?? '') + '\0' + (page.html ?? ''))
     if (seen.has(hash)) continue
     seen.add(hash)
     result.push(page)

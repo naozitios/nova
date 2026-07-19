@@ -19,6 +19,8 @@ export interface CollectedDocument {
   fileSizeBytes?: number
   pageOrSlideCount?: number
   httpStatus?: number
+  rawContent?: string
+  rawMimeType?: string
   metadata?: Record<string, JsonValue>
 }
 

@@ -1,10 +1,17 @@
-import { describe, expect, it, beforeEach } from "vitest";
-import { adapter, fetchSpy, initAdapter, makeSource, makeFetchResponse } from "./website-source.test-helpers";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+import { adapter, fetchSpy, initAdapter, makeSource, makeFetchResponse, enqueueCrawl } from "./website-source.test-helpers";
 
 // ─── Approved-domain confinement ────────────────────────────────────────────
 
 describe("approved-domain confinement", () => {
-  beforeEach(initAdapter);
+  beforeEach(() => {
+    vi.useFakeTimers();
+    initAdapter();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("rejects URLs not in the approved domain list", async () => {
     const result = await adapter.collect({
@@ -29,15 +36,16 @@ describe("approved-domain confinement", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: "Content", metadata: { title: "Home" } },
-        creditsUsed: 1,
-      }),
-    );
+    enqueueCrawl(fetchSpy, [
+      {
+        url: "https://example.com/about",
+        statusCode: 200,
+        markdown: "Content",
+        html: "<p>Content</p>",
+      },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({
@@ -45,6 +53,8 @@ describe("approved-domain confinement", () => {
         metadata: { approvedDomains: ["example.com"] },
       }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(true);
   });
@@ -56,15 +66,16 @@ describe("approved-domain confinement", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: "Content", metadata: { title: "Blog" } },
-        creditsUsed: 1,
-      }),
-    );
+    enqueueCrawl(fetchSpy, [
+      {
+        url: "https://blog.example.com/post",
+        statusCode: 200,
+        markdown: "Content",
+        html: "<p>Content</p>",
+      },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({
@@ -72,6 +83,8 @@ describe("approved-domain confinement", () => {
         metadata: { approvedDomains: ["example.com"] },
       }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(true);
   });
@@ -96,7 +109,14 @@ describe("approved-domain confinement", () => {
 // ─── Robots respect ─────────────────────────────────────────────────────────
 
 describe("robots respect", () => {
-  beforeEach(initAdapter);
+  beforeEach(() => {
+    vi.useFakeTimers();
+    initAdapter();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("fetches robots.txt before crawling", async () => {
     fetchSpy.mockResolvedValueOnce(
@@ -105,15 +125,16 @@ describe("robots respect", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: "Content" },
-        creditsUsed: 1,
-      }),
-    );
+    enqueueCrawl(fetchSpy, [
+      {
+        url: "https://example.com/page",
+        statusCode: 200,
+        markdown: "Content",
+        html: "<p>Content</p>",
+      },
+    ]);
 
-    await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({
@@ -121,14 +142,22 @@ describe("robots respect", () => {
         metadata: { approvedDomains: ["example.com"] },
       }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
+    expect(result.ok).toBe(true);
     expect(fetchSpy).toHaveBeenNthCalledWith(
       1,
       "https://example.com/robots.txt",
     );
     expect(fetchSpy).toHaveBeenNthCalledWith(
       3,
-      "https://api.firecrawl.dev/v1/scrape",
+      "https://api.firecrawl.dev/v2/crawl",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("https://api.firecrawl.dev/v2/crawl/"),
       expect.anything(),
     );
   });

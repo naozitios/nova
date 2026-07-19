@@ -1,7 +1,3 @@
-import { execFile } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import type { DocumentParserPort, ParsedDocument } from '@/core/business-context/document-parser.port'
 import type { UploadStoragePort } from '@/core/business-context/upload-storage.port'
 import type { ServiceResult } from '@/core/business-context/types'
@@ -83,6 +79,10 @@ export class DoclingDocumentParserAdapter implements DocumentParserPort {
     fileName?: string,
   ): Promise<ServiceResult<ParsedDocument>> {
     let tempDir: string | undefined
+
+    const { mkdtemp, writeFile, rm } = await import('node:fs/promises')
+    const { join } = await import('node:path')
+    const { tmpdir } = await import('node:os')
 
     try {
       tempDir = await mkdtemp(join(tmpdir(), 'nova-docling-'))
@@ -180,9 +180,10 @@ export class DoclingDocumentParserAdapter implements DocumentParserPort {
     }
   }
 
-  private execPython(
+  private async execPython(
     filePath: string,
   ): Promise<ServiceResult<{ stdout: string; stderr: string }>> {
+    const { execFile } = await import('node:child_process')
     return new Promise((resolve) => {
       const child = execFile(
         this.pythonPath,

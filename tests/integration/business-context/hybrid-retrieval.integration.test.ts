@@ -2,6 +2,7 @@ import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { DoclingDocumentParserAdapter } from "@/infrastructure/business-context/docling-document-parser.adapter";
 import { UploadedDocumentProcessor } from "@/core/business-context/service/uploaded-document.processor";
+import { CanonicalDocumentIndexer } from "@/core/business-context/service/canonical-document-indexer";
 import { SupabaseRepository } from "@/infrastructure/business-context/supabase.repository";
 import { SupabaseUploadStorage } from "@/infrastructure/business-context/supabase-upload.storage";
 import { RetrievalRepository } from "@/infrastructure/business-context/retrieval.repository";
@@ -189,7 +190,8 @@ async function processDocument(): Promise<void> {
     pythonPath: process.env.DOCLING_PYTHON_PATH || ".venv-docling/bin/python",
   });
   const repo = new SupabaseRepository(supabase);
-  const processor = new UploadedDocumentProcessor(repo, parser, storage, mockEmbeddingPort);
+  const indexer = new CanonicalDocumentIndexer(storage, mockEmbeddingPort, repo);
+  const processor = new UploadedDocumentProcessor(repo, parser, indexer);
 
   const result = await processor.process({
     workspaceId: WORKSPACE_ID,

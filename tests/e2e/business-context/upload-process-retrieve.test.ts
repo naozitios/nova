@@ -1,10 +1,11 @@
 import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { createClient } from "@supabase/supabase-js";
 import { SupabaseRepository } from "@/infrastructure/business-context/supabase.repository";
 import { DoclingDocumentParserAdapter } from "@/infrastructure/business-context/docling-document-parser.adapter";
 import { UploadedDocumentProcessor } from "@/core/business-context/service/uploaded-document.processor";
+import { CanonicalDocumentIndexer } from "@/core/business-context/service/canonical-document-indexer";
 import { RetrievalRepository } from "@/infrastructure/business-context/retrieval.repository";
 import { RetrievalService } from "@/core/business-context/service/retrieval.service";
 import { SupabaseMetaRepository } from "@/infrastructure/meta/supabase-meta.repository";
@@ -20,7 +21,14 @@ import type { EmbeddingPort } from "@/core/business-context/embedding.port";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const canRun = Boolean(SUPABASE_KEY);
+const PYTHON_PATH = process.env.DOCLING_PYTHON_PATH || ".venv-docling/bin/python";
+
+const skipReason = !SUPABASE_KEY
+  ? "SUPABASE_SERVICE_ROLE_KEY not set"
+  : !existsSync(PYTHON_PATH)
+    ? `Docling Python not found at ${PYTHON_PATH}`
+    : "";
+const canRun = !skipReason;
 
 // ── Test IDs ──────────────────────────────────────────────────────────────
 
@@ -149,7 +157,7 @@ afterAll(async () => {
 
 // ── Tests ─────────────────────────────────────────────────────────────────
 
-describe.skipIf(!canRun)("E2E — full upload → process → retrieve flow", () => {
+describe.skipIf(!canRun)(`E2E — full upload → process → retrieve flow${skipReason ? ` (skipped: ${skipReason})` : ""}`, () => {
   it(
     "full upload → process → retrieve flow",
     async () => {
@@ -161,7 +169,7 @@ describe.skipIf(!canRun)("E2E — full upload → process → retrieve flow", ()
       const storagePath = `workspaces/${WORKSPACE_ID}/businesses/${BUSINESS_ID}/uploads/e2e-sample.html`;
 
       const { error: uploadError } = await supabase.storage
-        .from("business-context-sources")
+        .from("documents")
         .upload(storagePath, htmlContent, {
           contentType: "text/html; charset=utf-8",
           upsert: true,
@@ -198,10 +206,11 @@ describe.skipIf(!canRun)("E2E — full upload → process → retrieve flow", ()
       // ── Step 4: Process via UploadedDocumentProcessor ────────────────────
       const storage = new (await import("@/infrastructure/business-context/supabase-upload.storage")).SupabaseUploadStorage();
       const parser = new DoclingDocumentParserAdapter(storage, {
-        pythonPath: process.env.DOCLING_PYTHON_PATH || ".venv-docling/bin/python",
+        pythonPath: PYTHON_PATH,
       });
       const repo = new SupabaseRepository(supabase);
-      const processor = new UploadedDocumentProcessor(repo, parser, storage, mockEmbeddingPort);
+      const indexer = new CanonicalDocumentIndexer(storage, mockEmbeddingPort, repo);
+      const processor = new UploadedDocumentProcessor(repo, parser, indexer);
 
       const processResult = await processor.process({
         workspaceId: WORKSPACE_ID,
@@ -210,7 +219,7 @@ describe.skipIf(!canRun)("E2E — full upload → process → retrieve flow", ()
         documentId: DOCUMENT_ID,
       });
 
-      expect(processResult.ok).toBe(true);
+      expect(processResult.ok, JSON.stringify(processResult)).toBe(true);
       if (!processResult.ok) {
         console.error("Process error:", processResult.error);
         return;

@@ -1,10 +1,17 @@
-import { describe, expect, it, beforeEach } from "vitest";
-import { adapter, fetchSpy, initAdapter, makeSource, makeFetchResponse } from "./website-source.test-helpers";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+import { adapter, fetchSpy, initAdapter, makeSource, makeFetchResponse, enqueueCrawl } from "./website-source.test-helpers";
 
 // ─── Prompt-injection isolation ─────────────────────────────────────────────
 
 describe("prompt-injection isolation", () => {
-  beforeEach(initAdapter);
+  beforeEach(() => {
+    vi.useFakeTimers();
+    initAdapter();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("sanitizes untrusted web content before returning to LLM", async () => {
     const maliciousContent =
@@ -19,19 +26,22 @@ describe("prompt-injection isolation", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: maliciousContent },
-        creditsUsed: 1,
-      }),
-    );
+    enqueueCrawl(fetchSpy, [
+      {
+        url: "https://example.com",
+        statusCode: 200,
+        markdown: maliciousContent,
+        html: maliciousContent,
+      },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({ externalReference: "https://example.com" }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -49,15 +59,16 @@ describe("prompt-injection isolation", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: "Line one\nLine two\nLine three" },
-        creditsUsed: 1,
-      }),
-    );
+    enqueueCrawl(fetchSpy, [
+      {
+        url: "https://example.com",
+        statusCode: 200,
+        markdown: "Line one\nLine two\nLine three",
+        html: "Line one\nLine two\nLine three",
+      },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({
@@ -65,6 +76,8 @@ describe("prompt-injection isolation", () => {
         metadata: { llmSafeMode: true },
       }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -83,24 +96,29 @@ describe("prompt-injection isolation", () => {
     fetchSpy.mockResolvedValueOnce(
       makeFetchResponse(null, 200)
     );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: {
-          markdown:
-            '<div onclick="steal()">Click</div>\n' +
-            '<a href="javascript:alert(1)">Link</a>\n' +
-            "Safe content",
-        },
-        creditsUsed: 1,
-      }),
-    );
+    const eventHtml =
+      '<div onclick="steal()">Click</div>\n' +
+      '<a href="javascript:alert(1)">Link</a>\n' +
+      "Safe content";
+    enqueueCrawl(fetchSpy, [
+      {
+        url: "https://example.com",
+        statusCode: 200,
+        markdown:
+          '<div onclick="steal()">Click</div>\n' +
+          '<a href="javascript:alert(1)">Link</a>\n' +
+          "Safe content",
+        html: eventHtml,
+      },
+    ]);
 
-    const result = await adapter.collect({
+    const resultPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({ externalReference: "https://example.com" }),
     });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await resultPromise;
 
     expect(result.ok).toBe(true);
     if (result.ok) {

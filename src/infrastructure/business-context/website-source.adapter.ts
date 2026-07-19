@@ -27,23 +27,39 @@ export interface WebsiteSourceAdapterOptions {
 }
 
 interface FirecrawlPage {
-  url: string
+  url?: string
   markdown?: string
-  statusCode: number
+  html?: string
+  statusCode?: number
   metadata?: Record<string, unknown>
   title?: string
   description?: string
 }
 
-interface FirecrawlResponse {
-  success: boolean
-  data?: {
-    markdown?: string
-    metadata?: Record<string, unknown>
-    pages?: FirecrawlPage[]
-  }
-  creditsUsed?: number
+interface FirecrawlCrawlStartResponse {
+  success?: boolean
+  id?: string
+  jobId?: string
   error?: string
+}
+
+interface FirecrawlCrawlPollResponse {
+  success?: boolean
+  status: 'in_progress' | 'scraping' | 'completed' | 'failed' | 'cancelled'
+  data?: FirecrawlPage[] | { pages?: FirecrawlPage[]; creditsUsed?: number }
+  creditsUsed?: number
+  next?: string
+  error?: string
+}
+
+interface NormalizedPage {
+  url: string
+  markdown?: string
+  html?: string
+  statusCode: number
+  metadata?: Record<string, unknown>
+  title?: string
+  description?: string
 }
 
 // ─── Adapter ────────────────────────────────────────────────────────────────
@@ -202,15 +218,18 @@ export class WebsiteSourceAdapter implements SourceAdapterPort {
       }
     }
 
-    // ── Firecrawl API call ────────────────────────────────────────────────
+    // ── Firecrawl v2 crawl ───────────────────────────────────────────────
     const timeoutMs =
       (source.metadata.timeoutMs as number) ?? this.defaultTimeoutMs
+    const limit =
+      (source.metadata.maxPages as number) ?? this.defaultMaxPages
+    const deadline = Date.now() + timeoutMs
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
 
-    let response: Response
+    let jobId: string
     try {
-      response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      const startResp = await fetch('https://api.firecrawl.dev/v2/crawl', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -218,11 +237,33 @@ export class WebsiteSourceAdapter implements SourceAdapterPort {
         },
         body: JSON.stringify({
           url,
-          formats: ['markdown'],
-          onlyMainContent: true,
+          limit,
+          scrapeOptions: { onlyMainContent: true, formats: ['markdown', 'html'] },
         }),
         signal: controller.signal,
       })
+      if (!startResp.ok) {
+        const errBody = await startResp.json().catch(() => ({}))
+        return {
+          ok: false,
+          error: {
+            code: 'PROVIDER_ERROR',
+            message: (errBody as { error?: string }).error ?? `Firecrawl crawl start failed (${startResp.status})`,
+          },
+        }
+      }
+      const startBody: FirecrawlCrawlStartResponse = await startResp.json()
+      const candidate = startBody.jobId ?? startBody.id
+      if (!candidate) {
+        return {
+          ok: false,
+          error: {
+            code: 'PROVIDER_ERROR',
+            message: startBody.error ?? 'Firecrawl crawl start returned no job ID',
+          },
+        }
+      }
+      jobId = candidate
     } catch (err) {
       clearTimeout(timer)
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -242,29 +283,110 @@ export class WebsiteSourceAdapter implements SourceAdapterPort {
       clearTimeout(timer)
     }
 
-    const body: FirecrawlResponse = await response.json()
-    if (!body.success) {
-      return {
-        ok: false,
-        error: {
-          code: 'PROVIDER_ERROR',
-          message: body.error ?? 'Firecrawl request failed',
-        },
+    // ── Poll for results ──────────────────────────────────────────────────
+    const POLL_INTERVAL = 5000
+    const allPages: FirecrawlPage[] = []
+    let creditsUsed = 0
+    let pollUrl: string | null = `https://api.firecrawl.dev/v2/crawl/${jobId}`
+
+    while (pollUrl && Date.now() < deadline) {
+      const remainingMs = Math.max(0, deadline - Date.now())
+      await new Promise((r) => setTimeout(r, Math.min(POLL_INTERVAL, remainingMs)))
+      if (Date.now() >= deadline) break
+
+      const remaining = deadline - Date.now()
+      const pollController = new AbortController()
+      const pollTimer = setTimeout(() => pollController.abort(), remaining)
+
+      try {
+        const pollResp = await fetch(pollUrl, {
+          headers: { Authorization: `Bearer ${this.apiKey}` },
+          signal: pollController.signal,
+        })
+        clearTimeout(pollTimer)
+        if (!pollResp.ok) {
+          return {
+            ok: false,
+            error: {
+              code: 'PROVIDER_ERROR',
+              message: `Firecrawl poll failed (${pollResp.status})`,
+            },
+          }
+        }
+        const pollBody: FirecrawlCrawlPollResponse = await pollResp.json()
+
+        // Collect pages from data (array) or legacy {pages} envelope
+        if (Array.isArray(pollBody.data)) {
+          allPages.push(...pollBody.data)
+        } else if (pollBody.data?.pages) {
+          allPages.push(...pollBody.data.pages)
+        }
+
+        // Collect creditsUsed from top-level or nested (last wins — Firecrawl reports cumulative total)
+        if (typeof pollBody.creditsUsed === 'number') {
+          creditsUsed = pollBody.creditsUsed
+        } else if (pollBody.data && !Array.isArray(pollBody.data) && typeof pollBody.data.creditsUsed === 'number') {
+          creditsUsed = pollBody.data.creditsUsed
+        }
+
+        // Resolve next URL (relative against Firecrawl API base)
+        const resolvedNext = pollBody.next
+          ? new URL(pollBody.next, 'https://api.firecrawl.dev').href
+          : null
+
+        if (pollBody.status === 'failed' || pollBody.status === 'cancelled') {
+          return {
+            ok: false,
+            error: {
+              code: 'PROVIDER_ERROR',
+              message:
+                pollBody.error ??
+                `Firecrawl crawl ${pollBody.status}`,
+            },
+          }
+        }
+
+        if (pollBody.status === 'completed' && !resolvedNext) {
+          break
+        }
+
+        // Nonterminal (in_progress/scraping) or completed with next → continue
+        pollUrl = resolvedNext ?? pollUrl
+      } catch (err) {
+        clearTimeout(pollTimer)
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return {
+            ok: false,
+            error: { code: 'PROVIDER_TIMEOUT', message: 'Crawl poll timed out' },
+          }
+        }
+        return {
+          ok: false,
+          error: {
+            code: 'PROVIDER_ERROR',
+            message: err instanceof Error ? err.message : 'Poll failed',
+          },
+        }
       }
     }
 
-    // ── Build page list ───────────────────────────────────────────────────
-    const rawPages: FirecrawlPage[] = body.data?.pages ?? [
-      {
-        url,
-        markdown: body.data?.markdown ?? '',
-        statusCode: response.status,
-        metadata: body.data?.metadata as Record<string, unknown> | undefined,
-      },
-    ]
+    if (Date.now() >= deadline) {
+      return {
+        ok: false,
+        error: { code: 'PROVIDER_TIMEOUT', message: 'Crawl poll timed out' },
+      }
+    }
+
+    // ── Normalize pages: extract url/statusCode/title from metadata ──────
+    const normalizedPages: NormalizedPage[] = allPages.map((page) => ({
+      ...page,
+      url: page.url ?? (page.metadata?.sourceURL as string) ?? (page.metadata?.url as string) ?? '',
+      statusCode: page.statusCode ?? (page.metadata?.statusCode as number) ?? 0,
+      title: page.title ?? (page.metadata?.title as string | undefined),
+    }))
 
     // ── Dedupe ────────────────────────────────────────────────────────────
-    const uniqueByCanonical = await dedupeByCanonical(rawPages)
+    const uniqueByCanonical = await dedupeByCanonical(normalizedPages)
     const uniquePages = await dedupeByContentHash(uniqueByCanonical)
 
     // ── Post-redirect SSRF on each page URL ───────────────────────────────
@@ -327,6 +449,22 @@ export class WebsiteSourceAdapter implements SourceAdapterPort {
 
     const documents: CollectedSource['documents'] = []
     for (const page of uniquePages) {
+      const pageUrl = page.url!
+      const pageStatus = page.statusCode!
+      const pageTitle = page.title
+
+
+      // Reject pages with empty or missing html
+      if (!page.html || page.html.trim() === '') {
+        return {
+          ok: false,
+          error: {
+            code: 'FIRECRAWL_HTML_MISSING',
+            message: `Page ${pageUrl} returned empty HTML`,
+          },
+        }
+      }
+
       let text = sanitizeContent(page.markdown ?? '')
       if (llmSafeMode) text = applyLinePrefix(text)
 
@@ -343,11 +481,13 @@ export class WebsiteSourceAdapter implements SourceAdapterPort {
 
       budget.textBytes += textBytes
       documents.push({
-        url: page.url,
-        title: page.title as string | undefined,
+        url: pageUrl,
+        title: pageTitle as string | undefined,
         contentText: text,
         mimeType: 'text/markdown',
-        httpStatus: page.statusCode,
+        rawContent: page.html,
+        rawMimeType: 'text/html',
+        httpStatus: pageStatus,
         metadata: page.metadata as Record<string, JsonValue> | undefined,
       })
     }
@@ -361,7 +501,7 @@ export class WebsiteSourceAdapter implements SourceAdapterPort {
         sourceName: source.sourceName,
         externalReference: url,
         metadata: {
-          creditsUsed: body.creditsUsed ?? 0,
+          creditsUsed,
           pageCount: documents.length,
         },
         documents,

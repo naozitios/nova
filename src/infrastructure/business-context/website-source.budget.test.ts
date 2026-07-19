@@ -1,33 +1,32 @@
-import { describe, expect, it, beforeEach } from "vitest";
-import { adapter, fetchSpy, initAdapter, makeSource, makeFetchResponse } from "./website-source.test-helpers";
+import { describe, expect, it, beforeEach, vi } from "vitest";
+import { adapter, fetchSpy, initAdapter, makeSource, enqueueCrawl } from "./website-source.test-helpers";
 
 // ─── Page budget ────────────────────────────────────────────────────────────
 
 describe("page budget", () => {
-  beforeEach(initAdapter);
+  beforeEach(() => {
+    vi.useFakeTimers();
+    initAdapter();
+  });
 
   it("rejects crawl when page count exceeds 30 pages per site", async () => {
     fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse("User-agent: *\nAllow: /\n")
+      new Response("User-agent: *\nAllow: /\n", { status: 200 }),
     );
     fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse(null, 200)
-    );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: {
-          pages: Array.from({ length: 31 }, (_, i) => ({
-            url: `https://example.com/page/${i}`,
-            markdown: `Page ${i}`,
-            statusCode: 200,
-          })),
-        },
-        creditsUsed: 31,
-      }),
+      new Response(null, { status: 200 }),
     );
 
-    const result = await adapter.collect({
+    const pages = Array.from({ length: 31 }, (_, i) => ({
+      url: `https://example.com/page/${i}`,
+      markdown: `Page ${i}`,
+      html: `<p>Page ${i}</p>`,
+      statusCode: 200,
+    }));
+
+    enqueueCrawl(fetchSpy, pages);
+
+    const collectPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({
@@ -36,6 +35,9 @@ describe("page budget", () => {
       }),
     });
 
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await collectPromise;
+
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("BUDGET_EXCEEDED");
@@ -43,73 +45,56 @@ describe("page budget", () => {
   });
 
   it("tracks cumulative page count across multiple collects", async () => {
-    // First collect: robots.txt + preflight + Firecrawl
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse("User-agent: *\nAllow: /\n")
-    );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse(null, 200)
-    );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: "Content" },
-        creditsUsed: 1,
-      }),
-    );
+    const page = (i: number) => ({
+      url: `https://example.com/page/${i}`,
+      markdown: `Content ${i}`,
+      html: `<p>Content ${i}</p>`,
+      statusCode: 200,
+    });
 
-    // Second collect: robots.txt + preflight + Firecrawl
+    // Collect 1: robots + preflight + crawl start + crawl poll
     fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse("User-agent: *\nAllow: /\n")
+      new Response("User-agent: *\nAllow: /\n", { status: 200 }),
     );
     fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse(null, 200)
+      new Response(null, { status: 200 }),
     );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: "Content" },
-        creditsUsed: 1,
-      }),
-    );
+    enqueueCrawl(fetchSpy, [page(0)]);
 
-    // Third collect: robots.txt + preflight + Firecrawl (should exceed budget)
+    // Collect 2: robots + preflight + crawl start + crawl poll
     fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse("User-agent: *\nAllow: /\n")
+      new Response("User-agent: *\nAllow: /\n", { status: 200 }),
     );
     fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse(null, 200)
+      new Response(null, { status: 200 }),
+    );
+    enqueueCrawl(fetchSpy, [page(1)]);
+
+    // Collect 3: robots + preflight + crawl start + crawl poll (should exceed)
+    fetchSpy.mockResolvedValueOnce(
+      new Response("User-agent: *\nAllow: /\n", { status: 200 }),
     );
     fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: "Content" },
-        creditsUsed: 1,
-      }),
+      new Response(null, { status: 200 }),
     );
+    enqueueCrawl(fetchSpy, [page(2)]);
 
     const source = makeSource({
       externalReference: "https://example.com",
       metadata: { approvedDomains: ["example.com"], maxPages: 2 },
     });
 
-    await adapter.collect({
-      workspaceId: "ws-1",
-      businessId: "biz-1",
-      source,
-    });
+    const p1 = adapter.collect({ workspaceId: "ws-1", businessId: "biz-1", source });
+    await vi.advanceTimersByTimeAsync(6000);
+    await p1;
 
-    await adapter.collect({
-      workspaceId: "ws-1",
-      businessId: "biz-1",
-      source,
-    });
+    const p2 = adapter.collect({ workspaceId: "ws-1", businessId: "biz-1", source });
+    await vi.advanceTimersByTimeAsync(6000);
+    await p2;
 
-    const result = await adapter.collect({
-      workspaceId: "ws-1",
-      businessId: "biz-1",
-      source,
-    });
+    const p3 = adapter.collect({ workspaceId: "ws-1", businessId: "biz-1", source });
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await p3;
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -121,26 +106,31 @@ describe("page budget", () => {
 // ─── Text budget ────────────────────────────────────────────────────────────
 
 describe("text budget", () => {
-  beforeEach(initAdapter);
+  beforeEach(() => {
+    vi.useFakeTimers();
+    initAdapter();
+  });
 
   it("rejects when text content exceeds 5 MB limit", async () => {
     const largeContent = "x".repeat(5 * 1024 * 1024 + 1);
 
     fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse("User-agent: *\nAllow: /\n")
+      new Response("User-agent: *\nAllow: /\n", { status: 200 }),
     );
     fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse(null, 200)
-    );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: largeContent },
-        creditsUsed: 1,
-      }),
+      new Response(null, { status: 200 }),
     );
 
-    const result = await adapter.collect({
+    enqueueCrawl(fetchSpy, [
+      {
+        url: "https://example.com/huge-page",
+        markdown: largeContent,
+        html: "<p>large</p>",
+        statusCode: 200,
+      },
+    ]);
+
+    const collectPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({
@@ -148,6 +138,9 @@ describe("text budget", () => {
         metadata: { approvedDomains: ["example.com"], maxTextBytes: 5 * 1024 * 1024 },
       }),
     });
+
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await collectPromise;
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -159,20 +152,22 @@ describe("text budget", () => {
     const content = "x".repeat(4 * 1024 * 1024);
 
     fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse("User-agent: *\nAllow: /\n")
+      new Response("User-agent: *\nAllow: /\n", { status: 200 }),
     );
     fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse(null, 200)
-    );
-    fetchSpy.mockResolvedValueOnce(
-      makeFetchResponse({
-        success: true,
-        data: { markdown: content },
-        creditsUsed: 1,
-      }),
+      new Response(null, { status: 200 }),
     );
 
-    const result = await adapter.collect({
+    enqueueCrawl(fetchSpy, [
+      {
+        url: "https://example.com/large",
+        markdown: content,
+        html: "<p>large</p>",
+        statusCode: 200,
+      },
+    ]);
+
+    const collectPromise = adapter.collect({
       workspaceId: "ws-1",
       businessId: "biz-1",
       source: makeSource({
@@ -180,6 +175,9 @@ describe("text budget", () => {
         metadata: { approvedDomains: ["example.com"], maxTextBytes: 5 * 1024 * 1024 },
       }),
     });
+
+    await vi.advanceTimersByTimeAsync(6000);
+    const result = await collectPromise;
 
     expect(result.ok).toBe(true);
   });
