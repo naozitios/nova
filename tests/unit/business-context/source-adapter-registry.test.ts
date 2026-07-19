@@ -9,7 +9,7 @@ import type { SourceAdapterPort } from "@/core/business-context/source-adapter.p
 function makeAdapter(supports: string[]): SourceAdapterPort {
   return {
     supports: vi.fn().mockImplementation((t: string) => supports.includes(t)),
-    collect: vi.fn().mockResolvedValue({ ok: true, data: {} as any }),
+    collect: vi.fn().mockResolvedValue({ ok: true, data: {} as Record<string, unknown> }),
   };
 }
 

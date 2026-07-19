@@ -38,9 +38,10 @@ function createFakeChild(): ChildProcess {
     Object.defineProperty(target, "off", { value: target.off.bind(target) });
   }
 
-  (proc as any).stdout = stdout;
-  (proc as any).stderr = stderr;
-  (proc as any).pid = 12345;
+  // Bypass readonly property assertions on ChildProcess
+  Object.defineProperty(proc, "stdout", { value: stdout, configurable: true });
+  Object.defineProperty(proc, "stderr", { value: stderr, configurable: true });
+  Object.defineProperty(proc, "pid", { value: 12345, writable: true, configurable: true });
   proc.kill = vi.fn(() => true);
 
   return proc;
@@ -89,7 +90,7 @@ describe("startWorker", () => {
       detached: true,
     });
 
-    const env = (opts as any).env;
+    const env = (opts as { env?: Record<string, string> }).env;
     expect(env).toBeDefined();
     expect(env.PORT).toBe(String(port));
     expect(env.WORKER_ID).toBe(`test-worker-${port}`);
@@ -147,14 +148,14 @@ describe("startWorker", () => {
     const handle = await workerPromise;
 
     // Remove pid after wrapProcess captured it — simulates stale/corrupt handle
-    const savedPid = (fakeChild as any).pid;
-    (fakeChild as any).pid = undefined;
+    const savedPid = fakeChild.pid;
+    Object.defineProperty(fakeChild, "pid", { value: undefined, writable: true, configurable: true });
 
     // Must fail fast with actionable error, not silently return
     expect(() => handle.kill()).toThrow(/no pid/i);
 
     // Restore pid so afterEach cleanupProcesses can kill normally
-    (fakeChild as any).pid = savedPid;
+    Object.defineProperty(fakeChild, "pid", { value: savedPid, writable: true, configurable: true });
   });
 
   it("handle.kill() cleans up internalProcessMap even when kill throws", async () => {
@@ -401,7 +402,7 @@ describe("cleanupProcesses", () => {
 
     // Spawn second worker with different PID
     const fakeChild2 = createFakeChild();
-    (fakeChild2 as any).pid = 99999;
+    Object.defineProperty(fakeChild2, "pid", { value: 99999, writable: true, configurable: true });
     mockSpawn.mockReturnValue(fakeChild2);
     const worker2Promise = startWorker(port2);
     fakeChild2.stdout!.emit("data", Buffer.from("[worker] polling for jobs\n"));
@@ -516,7 +517,7 @@ describe("cleanupProcesses", () => {
     await worker1Promise;
 
     const fakeChild2 = createFakeChild();
-    (fakeChild2 as any).pid = 99999;
+    Object.defineProperty(fakeChild2, "pid", { value: 99999, writable: true, configurable: true });
     mockSpawn.mockReturnValue(fakeChild2);
     const worker2Promise = startWorker(port2);
     fakeChild2.stdout!.emit("data", Buffer.from("[worker] polling for jobs\n"));
@@ -547,7 +548,7 @@ describe("cleanupProcesses", () => {
 
     // Spawn second worker with different PID
     const fakeChild2 = createFakeChild();
-    (fakeChild2 as any).pid = 99999;
+    Object.defineProperty(fakeChild2, "pid", { value: 99999, writable: true, configurable: true });
     mockSpawn.mockReturnValue(fakeChild2);
     const worker2Promise = startWorker(port2);
     fakeChild2.stdout!.emit("data", Buffer.from("[worker] polling for jobs\n"));
@@ -614,9 +615,10 @@ describe("production WORKER_ID guard", () => {
         env,
         timeout: 10_000,
       });
-    } catch (err: any) {
-      exitCode = typeof err.code === "number" ? err.code : undefined;
-      output = `${err.stdout ?? ""}${err.stderr ?? ""}`;
+    } catch (err: unknown) {
+      const execErr = err as { code?: number; stdout?: string; stderr?: string };
+      exitCode = typeof execErr.code === "number" ? execErr.code : undefined;
+      output = `${execErr.stdout ?? ""}${execErr.stderr ?? ""}`;
     }
     expect(exitCode).toBeDefined();
     expect(exitCode).toBeGreaterThan(0);
@@ -640,9 +642,10 @@ describe("production WORKER_ID guard", () => {
         env,
         timeout: 10_000,
       });
-    } catch (err: any) {
-      exitCode = typeof err.code === "number" ? err.code : undefined;
-      output = `${err.stdout ?? ""}${err.stderr ?? ""}`;
+    } catch (err: unknown) {
+      const execErr = err as { code?: number; stdout?: string; stderr?: string };
+      exitCode = typeof execErr.code === "number" ? execErr.code : undefined;
+      output = `${execErr.stdout ?? ""}${execErr.stderr ?? ""}`;
     }
     expect(exitCode).toBeDefined();
     expect(exitCode).toBeGreaterThan(0);

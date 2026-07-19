@@ -304,7 +304,6 @@ describe("POST /api/businesses — route wiring (B38)", () => {
       schema: unknown,
       data: unknown,
     ) => {
-      const z = require("zod");
       const result = (schema as { safeParse: (d: unknown) => unknown }).safeParse(data);
       if ((result as { success: boolean }).success) {
         return { ok: true, data: (result as { data: unknown }).data };

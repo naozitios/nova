@@ -27,6 +27,7 @@ import {
   authenticatedFetch,
   pollForCondition,
   cleanup,
+  validateConfig,
 } from "./harness";
 
 // ---------------------------------------------------------------------------
@@ -113,6 +114,7 @@ describe.skipIf(!hasDeps)(
     let sourceId: string;
 
     beforeAll(async () => {
+      validateConfig();
       await resetDatabase();
 
       const client = svcClient();

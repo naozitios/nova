@@ -123,7 +123,7 @@ describe.skipIf(!KEY)("B12 acceptance — SourceProcessingService persistence", 
 
     const fs = await facts(sourceId);
     expect(fs.length).toBeGreaterThanOrEqual(2);
-    expect(fs.map((f: any) => f.fact_key)).toEqual(expect.arrayContaining(["brand_name", "target_audience"]));
+    expect(fs.map((f: { fact_key: string }) => f.fact_key)).toEqual(expect.arrayContaining(["brand_name", "target_audience"]));
     for (const f of fs) {
       expect(f.workspace_id).toBe(WS);
       expect(f.business_id).toBe(BIZ);
@@ -134,8 +134,8 @@ describe.skipIf(!KEY)("B12 acceptance — SourceProcessingService persistence", 
 
     const gs = await listGates(sourceId);
     expect(gs.length).toBeGreaterThanOrEqual(1);
-    expect(gs.filter((g: any) => g.gate_scope === "document").length).toBeGreaterThanOrEqual(1);
-    expect(gs.filter((g: any) => g.gate_scope === "fact").length).toBeGreaterThanOrEqual(1);
+    expect(gs.filter((g: { gate_scope: string }) => g.gate_scope === "document").length).toBeGreaterThanOrEqual(1);
+    expect(gs.filter((g: { gate_scope: string }) => g.gate_scope === "fact").length).toBeGreaterThanOrEqual(1);
     for (const g of gs) { expect(g.workspace_id).toBe(WS); expect(g.business_id).toBe(BIZ); }
 
     const r = await findRun(sourceId);
@@ -202,7 +202,7 @@ describe.skipIf(!KEY)("B12 acceptance — SourceProcessingService persistence", 
     expect(ds.length).toBe(1);
     const docId = ds[0].id;
     const gs = await listGates(sourceId);
-    const dg = gs.filter((g: any) => g.gate_scope === "document");
+    const dg = gs.filter((g: { gate_scope: string }) => g.gate_scope === "document");
     expect(dg.length).toBeGreaterThanOrEqual(1);
     for (const g of dg) expect(g.source_document_id).toBe(docId);
     const r = await findRun(sourceId);

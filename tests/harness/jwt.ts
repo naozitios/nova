@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseTestEnv } from "./supabase-test-env";
 
@@ -25,7 +26,7 @@ export function mintLocalAccessToken(userId: string): string {
   };
   const enc = (obj: unknown) =>
     Buffer.from(JSON.stringify(obj)).toString("base64url");
-  const signature = require("node:crypto")
+  const signature = crypto
     .createHmac("sha256", secret)
     .update(`${enc(header)}.${enc(payload)}`)
     .digest("base64url");

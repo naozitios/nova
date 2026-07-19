@@ -3,6 +3,7 @@ import { runHierarchySync } from '@/workers/meta-sync/hierarchy-handler'
 import { runInsightsSync } from '@/workers/meta-sync/insights-handler'
 import type { ServiceResult } from '@/core/business-context/types'
 import type {
+  AdvanceCheckpointInput,
   MetaSyncRunRecord,
   MetaSyncCheckpointRecord,
   MetaConnectionRecord,
@@ -121,7 +122,7 @@ describe('sync-pagination', () => {
 
       // checkpoint advanced with in_progress for each page, then completed at end
       const checkpoints = d.repo.advanceCheckpoint.mock.calls.map(
-        (c: any[]) => ({
+        (c: [AdvanceCheckpointInput]) => ({
           partitionKey: c[0].partitionKey,
           status: c[0].status,
           cursor: c[0].cursor,
@@ -176,10 +177,10 @@ describe('sync-pagination', () => {
 
       // Verify multi-page checkpoints for first window
       const checkpoints = d.repo.advanceCheckpoint.mock.calls.map(
-        (c: any[]) => ({
-          partitionKey: c[0].partitionKey,
-          status: c[0].status,
-          cursor: c[0].cursor,
+        (c: unknown[]) => ({
+          partitionKey: (c[0] as { partitionKey: string }).partitionKey,
+          status: (c[0] as { status: string }).status,
+          cursor: (c[0] as { cursor: string | null }).cursor,
         }),
       )
       const firstWindowCheckpoints = checkpoints.filter(
@@ -297,10 +298,10 @@ describe('sync-pagination', () => {
 
       // checkpoint advanced: in_progress with null cursor (empty page, no nextPageUrl), then completed
       const campaignCheckpoints = d.repo.advanceCheckpoint.mock.calls
-        .map((c: any[]) => ({
-          partitionKey: c[0].partitionKey,
-          status: c[0].status,
-          cursor: c[0].cursor,
+        .map((c: unknown[]) => ({
+          partitionKey: (c[0] as { partitionKey: string }).partitionKey,
+          status: (c[0] as { status: string }).status,
+          cursor: (c[0] as { cursor: string | null }).cursor,
         }))
         .filter((c: { partitionKey: string }) => c.partitionKey === 'campaigns')
 

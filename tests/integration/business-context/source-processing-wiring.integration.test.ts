@@ -509,7 +509,7 @@ describe.skipIf(!SUPABASE_KEY)(
       expect(facts.length).toBeGreaterThanOrEqual(1);
 
       // Each fact has the expected keys
-      const factKeys = facts.map((f: any) => f.fact_key);
+      const factKeys = facts.map((f: { fact_key: string }) => f.fact_key);
       expect(factKeys).toContain("company_name");
       expect(factKeys).toContain("product");
 
@@ -552,11 +552,11 @@ describe.skipIf(!SUPABASE_KEY)(
       expect(gates.length).toBeGreaterThanOrEqual(1);
 
       // At least document-scope gates exist
-      const docGates = gates.filter((g: any) => g.gate_scope === "document");
+      const docGates = gates.filter((g: { gate_scope: string }) => g.gate_scope === "document");
       expect(docGates.length).toBeGreaterThanOrEqual(1);
 
       // At least fact-scope gates exist
-      const factGates = gates.filter((g: any) => g.gate_scope === "fact");
+      const factGates = gates.filter((g: { gate_scope: string }) => g.gate_scope === "fact");
       expect(factGates.length).toBeGreaterThanOrEqual(1);
 
       // All gates have proper scoping
@@ -611,7 +611,7 @@ describe.skipIf(!SUPABASE_KEY)(
       expect(questions!.length).toBeGreaterThanOrEqual(1);
 
       // Question references the uncertain fact key
-      const factKeys = questions!.map((q: any) => q.fact_key);
+      const factKeys = questions!.map((q: { fact_key: string }) => q.fact_key);
       expect(factKeys).toContain("uncertain_fact");
 
       cleanupIds.push({
@@ -722,7 +722,7 @@ describe.skipIf(!SUPABASE_KEY)(
 
       // Quality gate records must reference the real persisted document ID
       const gates = await listQualityGates(sourceId);
-      const docGates = gates.filter((g: any) => g.gate_scope === "document");
+      const docGates = gates.filter((g: { gate_scope: string }) => g.gate_scope === "document");
       expect(docGates.length).toBeGreaterThanOrEqual(1);
 
       for (const g of docGates) {
@@ -1303,9 +1303,9 @@ describe.skipIf(!SUPABASE_KEY)(
         .eq("workspace_id", WS)
         .eq("business_id", BIZ);
 
-      const preExisting = facts!.filter((f: any) => f.fact_key === "existing_key");
-      const newCompany = facts!.filter((f: any) => f.fact_key === "company_name");
-      const newIndustry = facts!.filter((f: any) => f.fact_key === "industry");
+      const preExisting = facts!.filter((f: { fact_key: string }) => f.fact_key === "existing_key");
+      const newCompany = facts!.filter((f: { fact_key: string }) => f.fact_key === "company_name");
+      const newIndustry = facts!.filter((f: { fact_key: string }) => f.fact_key === "industry");
 
       // Pre-existing fact must survive
       expect(preExisting.length).toBe(1);

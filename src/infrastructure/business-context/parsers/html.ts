@@ -6,9 +6,9 @@ const PARSER_VERSION = '1.0.0'
 
 export async function parseHtml(buffer: Buffer): Promise<ServiceResult<ParsedDocument>> {
   try {
-    const htmlToTextModule = (await import('html-to-text')) as any
-    const htmlToText: (html: string, opts?: Record<string, unknown>) => string =
-      htmlToTextModule.convert
+    const { convert: htmlToText } = (await import('html-to-text')) as {
+      convert: (html: string, opts?: Record<string, unknown>) => string
+    }
     const html = buffer.toString('utf-8')
     const text = htmlToText(html, {
       wordwrap: false,

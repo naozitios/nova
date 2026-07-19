@@ -1,7 +1,7 @@
 // US2: Source management — register, list, get, process, archive, queue scan.
 
 import type { RepositoryPort } from '../repository.port'
-import type { ContextSource, ContextJob } from '../types'
+import type { ContextSource, ContextJob, SourceType } from '../types'
 import { SourceProcessingStage, JobStatus } from '../types'
 
 /** Shared timeout for source-processing stages (30s heartbeat, 2× stale threshold). */
@@ -28,7 +28,7 @@ export async function registerSource(
   return repo.createContextSource({
     workspaceId,
     businessId,
-    sourceType: input.sourceType as any,
+    sourceType: input.sourceType as SourceType,
     sourceName: input.sourceName,
     externalReference: input.externalReference ?? null,
     status: 'registered',

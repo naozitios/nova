@@ -51,18 +51,17 @@ class FakeQuery {
 class FakeDb {
   rows: Map<string, Record<string, unknown>> = new Map();
 
-  from(table: string) {
-    const db = this;
+  from = (table: string) => {
     return {
-      select: () => new FakeQuery(db, table),
+      select: () => new FakeQuery(this, table),
       upsert: (row: Record<string, unknown>) => {
         const key = `${table}:${row.id ?? row.provider ?? ""}`;
-        db.rows.set(key, row);
-        return new FakeQuery(db, table, null, row);
+        this.rows.set(key, row);
+        return new FakeQuery(this, table, null, row);
       },
-      update: (patch: Record<string, unknown>) => new FakeQuery(db, table, patch),
+      update: (patch: Record<string, unknown>) => new FakeQuery(this, table, patch),
     };
-  }
+  };
 
   _find(table: string, filters: Array<[string, unknown]>): Record<string, unknown> | null {
     for (const [key, row] of this.rows.entries()) {

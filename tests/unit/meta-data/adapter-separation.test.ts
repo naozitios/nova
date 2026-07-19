@@ -246,19 +246,19 @@ describe('MetaReadAdapter has NO mutation methods', () => {
   });
 
   it('does NOT have createCampaign', () => {
-    expect((adapter as any).createCampaign).toBeUndefined();
+    expect((adapter as unknown as Record<string, unknown>).createCampaign).toBeUndefined();
   });
 
   it('does NOT have updateCampaign', () => {
-    expect((adapter as any).updateCampaign).toBeUndefined();
+    expect((adapter as unknown as Record<string, unknown>).updateCampaign).toBeUndefined();
   });
 
   it('does NOT have pauseCampaign', () => {
-    expect((adapter as any).pauseCampaign).toBeUndefined();
+    expect((adapter as unknown as Record<string, unknown>).pauseCampaign).toBeUndefined();
   });
 
   it('does NOT have deleteCampaign', () => {
-    expect((adapter as any).deleteCampaign).toBeUndefined();
+    expect((adapter as unknown as Record<string, unknown>).deleteCampaign).toBeUndefined();
   });
 });
 

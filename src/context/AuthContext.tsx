@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface User {
@@ -20,15 +20,13 @@ interface AuthState {
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const router = useRouter();
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window === 'undefined') return null;
 
-  useEffect(() => {
     const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
+  const router = useRouter();
 
   const login = (userData: User) => {
     setUser(userData);

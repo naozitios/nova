@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import type { NextRequest } from 'next/server'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -476,7 +477,7 @@ describe('POST /api/meta/oauth/start — handler behavior', () => {
       headers: { 'Content-Type': 'application/json' },
     })
 
-    const res = await POST(req as any)
+    const res = await POST(req as NextRequest)
     expect(res.status).toBe(403)
   })
 
@@ -488,7 +489,7 @@ describe('POST /api/meta/oauth/start — handler behavior', () => {
       headers: { 'Content-Type': 'application/json' },
     })
 
-    const res = await POST(req as any)
+    const res = await POST(req as NextRequest)
     expect(res.status).toBe(400)
   })
 
@@ -500,7 +501,7 @@ describe('POST /api/meta/oauth/start — handler behavior', () => {
       headers: { 'Content-Type': 'application/json' },
     })
 
-    const res = await POST(req as any)
+    const res = await POST(req as NextRequest)
     expect(res.status).toBe(400)
   })
 
@@ -517,7 +518,7 @@ describe('POST /api/meta/oauth/start — handler behavior', () => {
       headers: { 'Content-Type': 'application/json' },
     })
 
-    const res = await POST(req as any)
+    const res = await POST(req as NextRequest)
     expect(res.status).toBe(201)
 
     const body = await res.json()
@@ -549,7 +550,7 @@ describe('POST /api/meta/oauth/start — handler behavior', () => {
       headers: { 'Content-Type': 'application/json' },
     })
 
-    const res = await POST(req as any)
+    const res = await POST(req as NextRequest)
     const body = await res.json()
 
     // Extract the state param from the authorization URL
@@ -579,7 +580,7 @@ describe('POST /api/meta/oauth/start — handler behavior', () => {
       headers: { 'Content-Type': 'application/json' },
     })
 
-    const res = await POST(req as any)
+    const res = await POST(req as NextRequest)
     expect(res.status).toBe(500)
   })
 })
@@ -608,7 +609,7 @@ describe('GET /api/meta/oauth/callback — handler behavior', () => {
     const { GET } = await import('@/app/api/meta/oauth/callback/route')
     const req = new Request('http://localhost:3000/api/meta/oauth/callback', { method: 'GET' })
 
-    const res = await GET(req as any)
+    const res = await GET(req as NextRequest)
     expect(res.status).toBe(303)
     expect(res.headers.get('location')).toContain('error=missing_params')
   })
@@ -620,7 +621,7 @@ describe('GET /api/meta/oauth/callback — handler behavior', () => {
       { method: 'GET' },
     )
 
-    const res = await GET(req as any)
+    const res = await GET(req as NextRequest)
     expect(res.status).toBe(303)
     expect(res.headers.get('location')).toContain('error=missing_params')
   })
@@ -632,7 +633,7 @@ describe('GET /api/meta/oauth/callback — handler behavior', () => {
       { method: 'GET' },
     )
 
-    const res = await GET(req as any)
+    const res = await GET(req as NextRequest)
     expect(res.status).toBe(303)
     expect(res.headers.get('location')).toContain('error=invalid_state')
   })
@@ -661,7 +662,7 @@ describe('GET /api/meta/oauth/callback — handler behavior', () => {
       { method: 'GET' },
     )
 
-    const res = await GET(req as any)
+    const res = await GET(req as NextRequest)
     expect(res.status).toBe(303)
     expect(res.headers.get('location')).toContain('/dashboard')
   })
@@ -690,7 +691,7 @@ describe('GET /api/meta/oauth/callback — handler behavior', () => {
       { method: 'GET' },
     )
 
-    await GET(req as any)
+    await GET(req as NextRequest)
 
     // upsertConnection should use metaUserId from /me (meta-user-999), not nova-user-123
     expect(mockUpsertConnection).toHaveBeenCalledWith(
@@ -725,7 +726,7 @@ describe('GET /api/meta/oauth/callback — handler behavior', () => {
       { method: 'GET' },
     )
 
-    await GET(req as any)
+    await GET(req as NextRequest)
 
     expect(mockUpsertConnection).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -758,7 +759,7 @@ describe('GET /api/meta/oauth/callback — handler behavior', () => {
       { method: 'GET' },
     )
 
-    await GET(req as any)
+    await GET(req as NextRequest)
 
     // Token vault should have been called to encrypt the raw token
     expect(mockEncrypt).toHaveBeenCalledWith('meta-access-token-abc')
@@ -795,7 +796,7 @@ describe('GET /api/meta/oauth/callback — handler behavior', () => {
       { method: 'GET' },
     )
 
-    const res = await GET(req as any)
+    const res = await GET(req as NextRequest)
     const setCookieHeader = res.headers.get('set-cookie')
 
     // No cookies should be set at all for access tokens
@@ -828,7 +829,7 @@ describe('GET /api/meta/oauth/callback — handler behavior', () => {
       { method: 'GET' },
     )
 
-    const res = await GET(req as any)
+    const res = await GET(req as NextRequest)
     expect(res.status).toBe(303)
     expect(res.headers.get('location')).toContain('error=token_exchange_failed')
   })
@@ -857,7 +858,7 @@ describe('GET /api/meta/oauth/callback — handler behavior', () => {
       { method: 'GET' },
     )
 
-    const res = await GET(req as any)
+    const res = await GET(req as NextRequest)
     expect(res.status).toBe(303)
     expect(res.headers.get('location')).toContain('error=meta_user_fetch_failed')
   })
@@ -878,7 +879,7 @@ describe('DELETE /api/meta/connections — handler behavior', () => {
   it('returns 400 when workspace_id query param is missing', async () => {
     const { DELETE } = await import('@/app/api/meta/connections/route')
     const req = new Request('http://localhost:3000/api/meta/connections', { method: 'DELETE' })
-    const res = await DELETE(req as any)
+    const res = await DELETE(req as NextRequest)
     expect(res.status).toBe(400)
   })
 
@@ -890,7 +891,7 @@ describe('DELETE /api/meta/connections — handler behavior', () => {
       'http://localhost:3000/api/meta/connections?workspace_id=ws-1',
       { method: 'DELETE' },
     )
-    const res = await DELETE(req as any)
+    const res = await DELETE(req as NextRequest)
     expect(res.status).toBe(404)
   })
 
@@ -913,7 +914,7 @@ describe('DELETE /api/meta/connections — handler behavior', () => {
       'http://localhost:3000/api/meta/connections?workspace_id=ws-1',
       { method: 'DELETE' },
     )
-    const res = await DELETE(req as any)
+    const res = await DELETE(req as NextRequest)
     expect(res.status).toBe(200)
 
     const body = await res.json()
@@ -940,7 +941,7 @@ describe('DELETE /api/meta/connections — handler behavior', () => {
       'http://localhost:3000/api/meta/connections?workspace_id=ws-2',
       { method: 'DELETE' },
     )
-    const res = await DELETE(req as any)
+    const res = await DELETE(req as NextRequest)
     const body = await res.json()
 
     expect(body.connection).not.toHaveProperty('encrypted_access_token')
@@ -957,7 +958,7 @@ describe('DELETE /api/meta/connections — handler behavior', () => {
       'http://localhost:3000/api/meta/connections?workspace_id=ws-3',
       { method: 'DELETE' },
     )
-    const res = await DELETE(req as any)
+    const res = await DELETE(req as NextRequest)
     expect(res.status).toBe(500)
   })
 })

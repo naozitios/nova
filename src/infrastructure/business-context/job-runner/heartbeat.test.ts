@@ -35,7 +35,7 @@ function fakeRepo(overrides: Partial<RepositoryPort> = {}): RepositoryPort {
     getContextJobByIdempotencyKey: vi.fn(),
     listContextJobs: vi.fn(),
     claimRunnableJobs: vi.fn(),
-    updateContextJob: vi.fn().mockResolvedValue({ ok: true, data: fakeJob() } as any),
+    updateContextJob: vi.fn().mockResolvedValue({ ok: true, data: fakeJob() }),
     createStageEvent: vi.fn(),
     listStageEvents: vi.fn(),
     createSource: vi.fn(),

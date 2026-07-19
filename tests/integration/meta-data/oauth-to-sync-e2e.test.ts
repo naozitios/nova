@@ -203,7 +203,7 @@ describe('OAuth → sync end-to-end', () => {
       // Verify: checkpoint advanced with 'completed' for campaigns
       const checkpointCalls = (deps.repo.advanceCheckpoint as ReturnType<typeof vi.fn>).mock.calls
       const completedCheckpoint = checkpointCalls.find(
-        (call: any[]) => call[0].partitionKey === 'campaigns' && call[0].status === 'completed',
+        (call: [{ partitionKey: string; status: string }]) => call[0].partitionKey === 'campaigns' && call[0].status === 'completed',
       )
       expect(completedCheckpoint).toBeDefined()
 
@@ -246,7 +246,7 @@ describe('OAuth → sync end-to-end', () => {
       // Checkpoint for campaigns was advanced with retry_pending + cursor
       const checkpointCalls = (deps.repo.advanceCheckpoint as ReturnType<typeof vi.fn>).mock.calls
       const retryCheckpoint = checkpointCalls.find(
-        (call: any[]) => call[0].partitionKey === 'campaigns' && call[0].status === 'retry_pending',
+        (call: [{ partitionKey: string; status: string }]) => call[0].partitionKey === 'campaigns' && call[0].status === 'retry_pending',
       )
       expect(retryCheckpoint).toBeDefined()
 

@@ -16,7 +16,15 @@ export interface MetaContext {
 }
 
 interface StoredMetaDb {
-  from(table: string): any
+  from(table: string): {
+    select(columns: string): {
+      eq(column: string, value: string): {
+        eq(column: string, value: string): {
+          order(column: string, opts: { ascending: boolean }): PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>
+        }
+      }
+    }
+  }
 }
 
 export async function fetchMetaArray<T>(

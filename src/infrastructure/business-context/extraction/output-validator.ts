@@ -5,7 +5,7 @@ import type { ExtractionResult } from '../../../core/business-context/extraction
 
 export type LlmRawOutput = ExtractionResult
 
-export interface OutputValidatorConfig {}
+export type OutputValidatorConfig = object
 
 export interface ValidationError {
   code: 'MISSING_KEY' | 'UNKNOWN_KEY' | 'INVALID_TYPE' | 'OUT_OF_RANGE'

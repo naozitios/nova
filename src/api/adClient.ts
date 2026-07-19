@@ -167,7 +167,7 @@ export const adClient = {
     list: async () => { await delay(300); return mockRules; },
     update: async (id: string, data: Partial<BudgetRule>) => { await delay(400); const idx = mockRules.findIndex(r => r.id === id); if (idx >= 0) { mockRules[idx] = { ...mockRules[idx], ...data }; return mockRules[idx]; } return null; },
   },
-  publishCampaign: async (campaignData: any) => {
+  publishCampaign: async (campaignData: Record<string, unknown>) => {
     await delay(2000);
     const results = {
       meta: { success: true, campaignId: `meta-${Date.now()}`, errors: null as string | null },

@@ -104,7 +104,7 @@ describe("compileContextForPurpose", () => {
 
   it("returns error for unknown purpose", () => {
     const pv = makeProfileVersion({});
-    const result = compileContextForPurpose(pv, "nonexistent" as any);
+    const result = compileContextForPurpose(pv, "nonexistent" as unknown as ContextPurpose);
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -138,7 +138,7 @@ describe("getAllowedSections", () => {
   });
 
   it("returns empty array for unknown purpose", () => {
-    const sections = getAllowedSections("unknown" as any);
+    const sections = getAllowedSections("unknown" as unknown as ContextPurpose);
     expect(sections).toEqual([]);
   });
 });

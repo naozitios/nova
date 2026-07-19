@@ -1,8 +1,10 @@
 import { Container } from '@/di/container';
+import type { CampaignFormInput } from '@/core/campaign/generator';
+import type { CampaignConfig } from '@/core/campaign/types';
 
 export const campaignStore = {
-  create(input: any, authoredBy = 'system') {
-    return Container.getCampaignService().create(input as any, authoredBy);
+  create(input: CampaignFormInput, authoredBy = 'system') {
+    return Container.getCampaignService().create(input, authoredBy);
   },
 
   get(id: string) {
@@ -13,7 +15,7 @@ export const campaignStore = {
     return Container.getCampaignService().list();
   },
 
-  update(id: string, input: any, authoredBy = 'system', commitMessage = 'Campaign updated') {
+  update(id: string, input: Partial<CampaignFormInput>, authoredBy = 'system', commitMessage = 'Campaign updated') {
     return Container.getCampaignService().update(id, input, authoredBy, commitMessage);
   },
 
@@ -29,8 +31,8 @@ export const campaignStore = {
     return Container.getCampaignService().rollback(id, versionNumber, authoredBy);
   },
 
-  checkDrift(id: string, platformState: any) {
-    return Container.getCampaignService().checkDrift(id, platformState as any);
+  checkDrift(id: string, platformState: Partial<CampaignConfig>) {
+    return Container.getCampaignService().checkDrift(id, platformState);
   },
 
   getExecutionPlan(id: string) {

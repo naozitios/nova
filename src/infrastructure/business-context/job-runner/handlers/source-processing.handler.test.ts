@@ -177,9 +177,10 @@ describe('source-processing.handler', () => {
       try {
         await handler(job)
         expect.fail('Should have thrown')
-      } catch (err: any) {
-        expect(err.code).toBe('TIMEOUT')
-        expect(err.message).toBe('Provider timed out')
+      } catch (err: unknown) {
+        const e = err as { code: string; message: string }
+        expect(e.code).toBe('TIMEOUT')
+        expect(e.message).toBe('Provider timed out')
       }
     })
 
@@ -216,9 +217,10 @@ describe('source-processing.handler', () => {
       try {
         await handler(job)
         expect.fail('Should have thrown')
-      } catch (err: any) {
-        expect(typeof err.code).toBe('string')
-        expect(err.code.length).toBeGreaterThan(0)
+      } catch (err: unknown) {
+        const e = err as { code: string }
+        expect(typeof e.code).toBe('string')
+        expect(e.code.length).toBeGreaterThan(0)
       }
     })
   })
@@ -249,7 +251,7 @@ describe('source-processing.handler', () => {
           data: { status: 'processed', warnings: [] },
         }),
       })
-      vi.spyOn(Container, 'getSourceProcessingService').mockReturnValue(fakeService as any)
+      vi.spyOn(Container, 'getSourceProcessingService').mockReturnValue(fakeService as SourceProcessingService)
 
       const handler = createSourceProcessingHandler()
       const result = await handler(job)

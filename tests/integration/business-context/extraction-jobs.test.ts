@@ -90,7 +90,7 @@ function track(table: string, id: string) {
 async function insertJob(overrides: Record<string, unknown> = {}) {
   const id = crypto.randomUUID();
   track("context_jobs", id);
-  const { error } = await client!!.from("context_jobs").insert({
+  const { error } = await client!.from("context_jobs").insert({
     id,
     workspace_id: TEST_WORKSPACE,
     business_id: TEST_BUSINESS,

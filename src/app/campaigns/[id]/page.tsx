@@ -400,6 +400,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                       </div>
                       {adSet.creatives[0].mediaUrl && (
                         <div className="rounded-xl overflow-hidden border border-stone-200">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- User-supplied media URLs are not limited to configured Next image hosts. */}
                           <img src={adSet.creatives[0].mediaUrl} alt="Creative preview" className="w-full h-40 object-cover" />
                         </div>
                       )}
@@ -534,6 +535,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                         </div>
                         {form.mediaUrl && (
                           <div className="rounded-2xl overflow-hidden border border-stone-200 max-w-sm">
+                            {/* eslint-disable-next-line @next/next/no-img-element -- User-supplied media URLs are not limited to configured Next image hosts. */}
                             <img src={form.mediaUrl} alt="Preview" className="w-full h-40 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                           </div>
                         )}

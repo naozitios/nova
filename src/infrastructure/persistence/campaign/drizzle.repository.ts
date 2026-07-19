@@ -142,6 +142,6 @@ export class DrizzleCampaignRepository implements CampaignRepositoryPort {
   async delete(id: string): Promise<boolean> {
     await this.db.delete(campaignVersions).where(eq(campaignVersions.campaignId, id));
     const result = await this.db.delete(campaigns).where(eq(campaigns.id, id));
-    return (result as any)?.changes > 0;
+    return ((result as unknown as { changes?: number })?.changes ?? 0) > 0;
   }
 }

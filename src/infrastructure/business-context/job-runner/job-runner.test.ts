@@ -3,6 +3,11 @@ import type { ContextJob } from '@/core/business-context/types'
 import type { RepositoryPort } from '@/core/business-context/repository.port'
 import { JobRunner } from './job-runner'
 
+/** Minimal type to access private `pollCycle` in tests without `any`. */
+interface PollCycleAccess {
+  pollCycle(): Promise<void>
+}
+
 vi.mock('./lease', () => ({
   claimJobs: vi.fn(),
 }))
@@ -86,7 +91,7 @@ describe('JobRunner', () => {
       })
       runner.start()
 
-      const cyclePromise = (runner as any).pollCycle() as Promise<void>
+      const cyclePromise = (runner as unknown as PollCycleAccess).pollCycle()
       await waitForCall(mockedClaim)
 
       const stopPromise = runner.stop()
@@ -135,7 +140,7 @@ describe('JobRunner', () => {
       })
       runner.start()
 
-      const cyclePromise = (runner as any).pollCycle() as Promise<void>
+      const cyclePromise = (runner as unknown as PollCycleAccess).pollCycle()
       await waitForCall(mockedClaim)
 
       const stopPromise = runner.stop()
@@ -183,7 +188,7 @@ describe('JobRunner', () => {
 
       // First cycle — no jobs claimed
       runner.start()
-      const cycle1 = (runner as any).pollCycle() as Promise<void>
+      const cycle1 = (runner as unknown as PollCycleAccess).pollCycle()
       await cycle1
       expect(mockedClaim).toHaveBeenCalledTimes(1)
       expect(mockedDispatch).not.toHaveBeenCalled()
@@ -195,7 +200,7 @@ describe('JobRunner', () => {
       mockedClaim.mockResolvedValueOnce([job])
       mockedDispatch.mockResolvedValue(undefined)
       runner.start()
-      const cycle2 = (runner as any).pollCycle() as Promise<void>
+      const cycle2 = (runner as unknown as PollCycleAccess).pollCycle()
       await waitForCall(mockedDispatch)
       await cycle2
 

@@ -12,7 +12,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:54
 const supabaseServiceKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_KEY;
 
-let supabase = supabaseServiceKey
+const supabase = supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
   : null;
 

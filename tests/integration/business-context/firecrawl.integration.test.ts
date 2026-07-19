@@ -61,7 +61,7 @@ describe("FirecrawlWebsiteAdapter — real novi-health.com", () => {
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        const text = (result.data as any).documents?.[0]?.contentText ?? "";
+        const text = (result.data as { documents?: Array<{ contentText?: string }> }).documents?.[0]?.contentText ?? "";
         console.log("Markdown length:", text.length);
         console.log("First 300 chars:", text.slice(0, 300));
         expect(text.length).toBeGreaterThan(100);
@@ -82,7 +82,7 @@ describe("FirecrawlWebsiteAdapter — real novi-health.com", () => {
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        const text = ((result.data as any).documents?.[0]?.contentText ?? "").toLowerCase();
+        const text = ((result.data as { documents?: Array<{ contentText?: string }> }).documents?.[0]?.contentText ?? "").toLowerCase();
         const hasBranding =
           text.includes("novi") ||
           text.includes("wellness") ||

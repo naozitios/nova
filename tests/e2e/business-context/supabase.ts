@@ -118,7 +118,10 @@ export async function resetDatabase(): Promise<void> {
  * @returns The session cookie string (e.g. "next-auth.session-token=<token>; ...")
  */
 export async function createTestSession(opts: SessionOptions): Promise<string> {
-  const secret = process.env.NEXTAUTH_SECRET ?? "test-secret";
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) {
+    throw new Error("NEXTAUTH_SECRET environment variable required for createTestSession");
+  }
   const maxAge = 60 * 60; // 1 hour
 
   const token = await encode({

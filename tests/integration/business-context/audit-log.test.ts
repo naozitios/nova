@@ -328,7 +328,7 @@ describe("integration: source archive audit events", () => {
 
     await repo.updateContextSource("ws-1", "src-1", {
       status: "archived",
-      terminalOutcome: "archived" as any,
+      terminalOutcome: "archived",
     });
 
     await repo.createAuditLog({
@@ -476,8 +476,8 @@ describe("integration: audit event completeness", () => {
 
     await approveBusinessProfile(repo, "biz-1", "ws-1", {}, "user-1");
 
-    const approvalCalls = (repo.createAuditLog as any).mock.calls.filter(
-      (call: any[]) => call[0].eventType === "profile.approved",
+    const approvalCalls = vi.mocked(repo.createAuditLog).mock.calls.filter(
+      (call) => (call[0] as Omit<AuditLog, 'id' | 'createdAt'>).eventType === "profile.approved",
     );
     expect(approvalCalls).toHaveLength(1);
   });
@@ -487,7 +487,7 @@ describe("integration: audit event completeness", () => {
 
     await approveBusinessProfile(repo, "biz-1", "ws-1", {}, "user-1");
 
-    const call = (repo.createAuditLog as any).mock.calls[0][0];
+    const call = vi.mocked(repo.createAuditLog).mock.calls[0][0];
     expect(typeof call.workspaceId).toBe("string");
     expect(typeof call.businessId).toBe("string");
     expect(typeof call.actorId).toBe("string");
