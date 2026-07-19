@@ -1,8 +1,9 @@
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import { createClient } from "@supabase/supabase-js";
-import { NativeDocumentParser } from "@/infrastructure/business-context/parsers";
+import { DoclingDocumentParserAdapter } from "@/infrastructure/business-context/docling-document-parser.adapter";
+import type { UploadStoragePort } from "@/core/business-context/upload-storage.port";
 import { LlmExtractionAdapter } from "@/infrastructure/business-context/llm-extraction.adapter";
 import { OpenRouterExtractionClient } from "@/infrastructure/business-context/openrouter-extraction.client";
 import { FactRepository } from "@/infrastructure/business-context/repository/facts/fact.repository";
@@ -11,7 +12,7 @@ import { FactRepository } from "@/infrastructure/business-context/repository/fac
 // Full pipeline integration test: parse → extract → save → verify
 // Uses real fixtures, real OpenRouter API, real local Supabase.
 //
-// PDFs in fixtures/ are scanned/image-based → pdf-parse returns empty text.
+// PDFs in fixtures/ may be scanned/image-based — Docling handles them natively.
 // PPTX has extractable text → used as primary test fixture.
 // ---------------------------------------------------------------------------
 
@@ -23,6 +24,15 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 const itIf = RUN_PROVIDER_TESTS && OPENROUTER_KEY && SUPABASE_KEY ? it : it.skip;
 
+// ─── Docling parser mock storage ──────────────────────────────────────────
+
+const mockStorage: UploadStoragePort = {
+  upload: vi.fn().mockResolvedValue({ ok: true, data: { storagePath: "test" } }),
+  download: vi.fn(),
+  getSignedUrl: vi.fn(),
+  delete: vi.fn(),
+};
+
 // ─── Fixtures ──────────────────────────────────────────────────────────────
 
 const FIXTURES_DIR = path.resolve(__dirname, "../../fixtures/documents");
@@ -30,10 +40,11 @@ const PPTX_FILE = path.join(FIXTURES_DIR, "May - July 2026.pptx");
 const PDF_FILE = path.join(FIXTURES_DIR, "May - July 2026.pdf");
 const BRAND_BOOK = path.join(FIXTURES_DIR, "Brand Book 09_04_26 (1).pdf");
 
-// Test workspace/business IDs (must match seed data)
-const WORKSPACE_ID = "11111111-1111-1111-1111-111111111111";
-const BUSINESS_ID = "33333333-3333-3333-3333-333333333333";
-const SOURCE_ID = "77777777-7777-7777-7777-777777777777";
+// Test workspace/business IDs (unique per run to avoid cross-run pollution)
+const WORKSPACE_ID = crypto.randomUUID();
+const BUSINESS_ID = crypto.randomUUID();
+const SOURCE_ID = crypto.randomUUID();
+const SOURCE_DOC_ID = crypto.randomUUID();
 
 // ─── Supabase client ───────────────────────────────────────────────────────
 
@@ -73,7 +84,7 @@ beforeAll(async () => {
     metadata: {},
   });
   await upsertTestFixture("source_documents", {
-    id: "aaaaaaaa-1111-1111-1111-111111111111",
+    id: SOURCE_DOC_ID,
     workspace_id: WORKSPACE_ID,
     business_id: BUSINESS_ID,
     source_id: SOURCE_ID,
@@ -87,17 +98,30 @@ beforeAll(async () => {
   });
 });
 
+afterAll(async () => {
+  if (!SUPABASE_KEY || !supabase) return;
+
+  // Delete in FK-safe order
+  await supabase.from("context_facts").delete().eq("workspace_id", WORKSPACE_ID);
+  await supabase.from("source_documents").delete().eq("workspace_id", WORKSPACE_ID);
+  await supabase.from("context_sources").delete().eq("workspace_id", WORKSPACE_ID);
+  await supabase.from("businesses").delete().eq("id", BUSINESS_ID);
+  await supabase.from("workspaces").delete().eq("id", WORKSPACE_ID);
+});
+
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
-describe("Full pipeline: PPTX parse → OpenRouter extract → Supabase save → verify", () => {
+describe("Full pipeline: Docling parse → OpenRouter extract → Supabase save → verify", () => {
   itIf(
-    "parses PPTX, extracts business facts with OpenRouter, saves to Supabase, queries back",
+    "parses PPTX with Docling, extracts business facts with OpenRouter, saves to Supabase, queries back",
     async () => {
-      // Step 1: Parse PPTX
-      console.log("\n=== STEP 1: Parse PPTX ===");
-      const parser = new NativeDocumentParser();
+      // Step 1: Parse PPTX via Docling
+      console.log("\n=== STEP 1: Parse PPTX (Docling) ===");
+      const parser = new DoclingDocumentParserAdapter(mockStorage, {
+        pythonPath: process.env.DOCLING_PYTHON_PATH || ".venv-docling/bin/python",
+      });
       const pptxBuffer = fs.readFileSync(PPTX_FILE);
-      const parseResult = await parser.route({
+      const parseResult = await parser.parseContent({
         content: pptxBuffer,
         mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         fileName: "May - July 2026.pptx",
@@ -113,17 +137,17 @@ describe("Full pipeline: PPTX parse → OpenRouter extract → Supabase save →
 
       expect(contentText.length).toBeGreaterThan(50);
 
-      // Step 2: Extract facts with Groq
-      console.log("\n=== STEP 2: Extract facts with Groq ===");
+      // Step 2: Extract facts with OpenRouter
+      console.log("\n=== STEP 2: Extract facts with OpenRouter ===");
       const adapter = new LlmExtractionAdapter(new OpenRouterExtractionClient(OPENROUTER_KEY!, OPENROUTER_MODEL));
       const extractResult = await adapter.extractFacts({
         workspaceId: WORKSPACE_ID,
         businessId: BUSINESS_ID,
         sourceId: SOURCE_ID,
-         sourceDocumentId: "aaaaaaaa-1111-1111-1111-111111111111",
+         sourceDocumentId: SOURCE_DOC_ID,
         contentText: contentText.slice(0, 8000),
         sourceType: "product_document",
-        parserName: "native",
+        parserName: "docling",
       });
 
       expect(extractResult.ok).toBe(true);
@@ -165,7 +189,7 @@ describe("Full pipeline: PPTX parse → OpenRouter extract → Supabase save →
           factKey: fact.factKey,
           value: fact.value,
           sourceId: SOURCE_ID,
-          sourceDocumentId: "aaaaaaaa-1111-1111-1111-111111111111",
+          sourceDocumentId: SOURCE_DOC_ID,
           sourceExcerpt: fact.sourceExcerpt || null,
           evidenceLocator: null,
           confidence: fact.confidence,
@@ -207,11 +231,13 @@ describe("Full pipeline: PPTX parse → OpenRouter extract → Supabase save →
   );
 
   itIf(
-    "PDF scanned document produces empty text with OCR warning",
+    "PDF parsed by Docling produces text or image-based warning",
     async () => {
-      const parser = new NativeDocumentParser();
+      const parser = new DoclingDocumentParserAdapter(mockStorage, {
+        pythonPath: process.env.DOCLING_PYTHON_PATH || ".venv-docling/bin/python",
+      });
       const pdfBuffer = fs.readFileSync(PDF_FILE);
-      const result = await parser.route({
+      const result = await parser.parseContent({
         content: pdfBuffer,
         mimeType: "application/pdf",
         fileName: "May - July 2026.pdf",
@@ -223,7 +249,7 @@ describe("Full pipeline: PPTX parse → OpenRouter extract → Supabase save →
       console.log("PDF text length:", result.data.contentText.length);
       console.log("PDF warnings:", result.data.warnings);
 
-      // Scanned PDF → empty text + OCR warning
+      // Scanned PDF → Docling may produce empty text with warnings
       if (result.data.contentText.length === 0) {
         expect(result.data.warnings.length).toBeGreaterThan(0);
         expect(
@@ -231,18 +257,20 @@ describe("Full pipeline: PPTX parse → OpenRouter extract → Supabase save →
             w.toLowerCase().includes("ocr") || w.toLowerCase().includes("scanned"),
           ),
         ).toBe(true);
-        console.log("PDF is image-based — needs PaddleOCR (not available)");
+        console.log("PDF is image-based — needs OCR (Docling native)");
       }
     },
     30_000,
   );
 
   itIf(
-    "brand book PDF produces empty text with OCR warning",
+    "brand book PDF produces text or image-based warning",
     async () => {
-      const parser = new NativeDocumentParser();
+      const parser = new DoclingDocumentParserAdapter(mockStorage, {
+        pythonPath: process.env.DOCLING_PYTHON_PATH || ".venv-docling/bin/python",
+      });
       const pdfBuffer = fs.readFileSync(BRAND_BOOK);
-      const result = await parser.route({
+      const result = await parser.parseContent({
         content: pdfBuffer,
         mimeType: "application/pdf",
         fileName: "Brand Book 09_04_26 (1).pdf",
@@ -256,7 +284,7 @@ describe("Full pipeline: PPTX parse → OpenRouter extract → Supabase save →
 
       if (result.data.contentText.length === 0) {
         expect(result.data.warnings.length).toBeGreaterThan(0);
-        console.log("Brand book is image-based — needs PaddleOCR");
+        console.log("Brand book is image-based — needs OCR (Docling native)");
       }
     },
     30_000,
@@ -265,9 +293,11 @@ describe("Full pipeline: PPTX parse → OpenRouter extract → Supabase save →
   itIf(
     "PPTX extracted facts have valid structure",
     async () => {
-      const parser = new NativeDocumentParser();
+      const parser = new DoclingDocumentParserAdapter(mockStorage, {
+        pythonPath: process.env.DOCLING_PYTHON_PATH || ".venv-docling/bin/python",
+      });
       const pptxBuffer = fs.readFileSync(PPTX_FILE);
-      const parseResult = await parser.route({
+      const parseResult = await parser.parseContent({
         content: pptxBuffer,
         mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         fileName: "May - July 2026.pptx",
@@ -280,10 +310,10 @@ describe("Full pipeline: PPTX parse → OpenRouter extract → Supabase save →
         workspaceId: WORKSPACE_ID,
         businessId: BUSINESS_ID,
         sourceId: SOURCE_ID,
-        sourceDocumentId: "doc-1",
+        sourceDocumentId: SOURCE_DOC_ID,
         contentText: parseResult.data.contentText.slice(0, 8000),
         sourceType: "website",
-        parserName: "native",
+        parserName: "docling",
       });
 
       expect(extractResult.ok).toBe(true);

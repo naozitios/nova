@@ -42,15 +42,13 @@ export const config = {
     supabaseUrl: process.env.SUPABASE_URL || 'http://localhost:54321',
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-    storageSourceBucket: process.env.SUPABASE_STORAGE_SOURCE_BUCKET || 'business-context-source',
-    storageArchiveBucket: process.env.SUPABASE_STORAGE_ARCHIVE_BUCKET || 'business-context-archive',
+    storageSourceBucket: process.env.SUPABASE_STORAGE_SOURCE_BUCKET || 'business-context-sources',
+    storageArchiveBucket: process.env.SUPABASE_STORAGE_ARCHIVE_BUCKET || 'business-context-archives',
     firecrawlApiKey: process.env.FIRECRAWL_API_KEY || '',
     maxWebsitePages: parseInt(process.env.BUSINESS_CONTEXT_MAX_WEBSITE_PAGES || '50'),
     maxNormalizedTextMb: parseInt(process.env.BUSINESS_CONTEXT_MAX_NORMALIZED_TEXT_MB || '10'),
     maxUploadMb: parseInt(process.env.BUSINESS_CONTEXT_MAX_UPLOAD_MB || '50'),
     creditCeiling: parseInt(process.env.BUSINESS_CONTEXT_CREDIT_CEILING || '100'),
-    paddleocrWorkerMode: process.env.PADDLEOCR_WORKER_MODE || 'cpu',
-    paddleocrVlEnabled: process.env.PADDLEOCR_VL_ENABLED === 'true',
   },
   /** ClamAV malware scanner configuration. */
   clamav: {

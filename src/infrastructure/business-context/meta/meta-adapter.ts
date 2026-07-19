@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ServiceResult, JsonValue } from '@/core/business-context/types'
 import type {
   CollectedSource,
@@ -15,16 +16,10 @@ export interface MetaContext {
   apiVersion: string
 }
 
-interface StoredMetaDb {
-  from(table: string): {
-    select(columns: string): {
-      eq(column: string, value: string): {
-        eq(column: string, value: string): {
-          order(column: string, opts: { ascending: boolean }): PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>
-        }
-      }
-    }
-  }
+export interface MetaRepoPort {
+  listAdAccounts(workspaceId: string): Promise<ServiceResult<MetaAdAccountSummary[]>>
+  listDailyInsights(input: { workspaceId: string; metaAdAccountId: string; since: string; until: string }): Promise<ServiceResult<MetaDailyInsightRecord[]>>
+  getDataFreshness(input: { workspaceId: string; metaAdAccountId: string; since?: string; until?: string }): Promise<ServiceResult<DataFreshnessResult>>
 }
 
 export async function fetchMetaArray<T>(
@@ -63,16 +58,12 @@ export async function fetchMetaArray<T>(
 }
 
 export class MetaSourceAdapter implements SourceAdapterPort {
-  private readonly repo: {
-    listAdAccounts(workspaceId: string): Promise<ServiceResult<MetaAdAccountSummary[]>>
-    listDailyInsights(input: { workspaceId: string; metaAdAccountId: string; since: string; until: string }): Promise<ServiceResult<MetaDailyInsightRecord[]>>
-    getDataFreshness(input: { workspaceId: string; metaAdAccountId: string; since?: string; until?: string }): Promise<ServiceResult<DataFreshnessResult>>
-  }
-  private readonly db: StoredMetaDb
+  private readonly repo: MetaRepoPort
+  private readonly db: SupabaseClient
 
   constructor(params: {
-    repo?: MetaSourceAdapter['repo']
-    db?: StoredMetaDb
+    repo?: MetaRepoPort
+    db?: SupabaseClient
     accessToken?: string
     adAccountId?: string
     apiVersion?: string

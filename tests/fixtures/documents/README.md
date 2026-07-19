@@ -1,28 +1,33 @@
-# Test Fixtures for Business Context Tests
+# Test Fixtures for Docling Integration Tests
 
-## Documents (Option B - user-provided real files)
-
-Drop real business documents here for parser integration tests.
-
-### Required files:
+## Owned Fixtures (known structure, stable for assertions)
 
 | File | Type | Purpose |
 |------|------|---------|
-| `sample-website.html` | HTML | Tests HTML parser against real webpage content |
-| `sample-brand-deck.pdf` | PDF | Tests PDF parser (native + OCR fallback path) |
-| `sample-product-doc.docx` | DOCX | Tests Word document parser |
-| `sample-campaign-data.xlsx` | XLSX | Tests Excel parser with table data |
-| `sample-presentation.pptx` | PPTX | Tests PowerPoint parser (slide-level evidence) |
+| `sample.html` | HTML | Full business document with headings, lists, table, and citation paragraph |
+| `sample.pdf` | PDF | Same structure as sample.html — tests PDF parsing with headings, table, lists |
+| `e2e-sample.html` | HTML | Minimal HTML for E2E smoke tests — headings and plain paragraphs only |
 
-### Optional (for edge cases):
+### Content structure (sample.html & sample.pdf)
 
-- `scanned-document.pdf` — image-only PDF, tests OCR fallback
-- `large-table.xlsx` — many rows/columns, tests performance
-- `multi-language.html` — tests Unicode handling
+Both files contain the same document:
+- **H1** — "Product Overview" with paragraph description of Nova Platform
+- **H2** — "Key Features" with bulleted list (analytics, reporting, AI insights)
+- **H2** — "Pricing" with 3-column table (Plan / Price / Users)
+- **H2** — "Customer Success" with paragraph containing citation phrase
 
-## How tests use them:
+Use these fixtures when you need to assert on parsed document structure — the
+content is stable and the structure is well-defined.
 
-Tests will be skipped if files are missing — so you can add them incrementally.
+### e2e-sample.html
+
+Intentionally minimal — only headings and plain `<p>` tags. Use for E2E tests
+that verify the pipeline end-to-end without depending on complex document
+structure.
+
+## How tests use them
+
+Tests will be skipped if files are missing — add fixtures incrementally.
 
 ```typescript
 const exists = await fs.access(filepath).then(() => true).catch(() => false);

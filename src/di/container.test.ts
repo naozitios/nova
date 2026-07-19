@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { Container } from '@/di/container'
 import { UploadRepository } from '@/infrastructure/business-context/repository/upload.repository'
 import { IdempotencyRepository } from '@/infrastructure/business-context/repository/idempotency.repository'
@@ -219,6 +219,13 @@ describe('Container', () => {
   })
 
   describe('getSourceProcessingService', () => {
+    beforeEach(() => {
+      process.env.EMBEDDING_API_KEY = 'test-key'
+    })
+    afterEach(() => {
+      delete process.env.EMBEDDING_API_KEY
+    })
+
     it('resolves without error', () => {
       expect(() => Container.getSourceProcessingService()).not.toThrow()
     })
@@ -318,9 +325,11 @@ describe('Container', () => {
 
   describe('getSourceProcessingService production pipeline', () => {
     it('collectWithAdapter(user_answer) succeeds instead of returning NO_ADAPTER', async () => {
-      const originalKey = process.env.FIRECRAWL_API_KEY
+      const originalFirecrawl = process.env.FIRECRAWL_API_KEY
+      const originalEmbedding = process.env.EMBEDDING_API_KEY
       try {
-        process.env.FIRECRAWL_API_KEY = originalKey ?? 'test-key'
+        process.env.FIRECRAWL_API_KEY = originalFirecrawl ?? 'test-key'
+        process.env.EMBEDDING_API_KEY = originalEmbedding ?? 'test-key'
         Container.reset()
         const svc = Container.getSourceProcessingService()
         const result = await svc.collectWithAdapter('ws-1', 'biz-1', {
@@ -338,21 +347,27 @@ describe('Container', () => {
         })
         expect(result.ok).toBe(true)
       } finally {
-        if (originalKey !== undefined) process.env.FIRECRAWL_API_KEY = originalKey
+        if (originalFirecrawl !== undefined) process.env.FIRECRAWL_API_KEY = originalFirecrawl
         else delete process.env.FIRECRAWL_API_KEY
+        if (originalEmbedding !== undefined) process.env.EMBEDDING_API_KEY = originalEmbedding
+        else delete process.env.EMBEDDING_API_KEY
       }
     })
 
     it('returns an instance of the core SourceProcessingService', () => {
-      const originalKey = process.env.FIRECRAWL_API_KEY
+      const originalFirecrawl = process.env.FIRECRAWL_API_KEY
+      const originalEmbedding = process.env.EMBEDDING_API_KEY
       try {
-        process.env.FIRECRAWL_API_KEY = originalKey ?? 'test-key'
+        process.env.FIRECRAWL_API_KEY = originalFirecrawl ?? 'test-key'
+        process.env.EMBEDDING_API_KEY = originalEmbedding ?? 'test-key'
         Container.reset()
         const svc = Container.getSourceProcessingService()
         expect(svc).toBeInstanceOf(SourceProcessingService)
       } finally {
-        if (originalKey !== undefined) process.env.FIRECRAWL_API_KEY = originalKey
+        if (originalFirecrawl !== undefined) process.env.FIRECRAWL_API_KEY = originalFirecrawl
         else delete process.env.FIRECRAWL_API_KEY
+        if (originalEmbedding !== undefined) process.env.EMBEDDING_API_KEY = originalEmbedding
+        else delete process.env.EMBEDDING_API_KEY
       }
     })
   })

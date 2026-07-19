@@ -30,6 +30,7 @@ describe('OpenAIEmbeddingAdapter', () => {
         body: JSON.stringify({
           model: 'text-embedding-3-small',
           input: ['test text'],
+          dimensions: 1536,
         }),
       })
     )
@@ -62,11 +63,11 @@ describe('OpenAIEmbeddingAdapter', () => {
     }
   })
 
-  it('batches at 64 texts', async () => {
+  it('sends all texts in one request (no batching)', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        data: Array(64).fill({ embedding: Array(1536).fill(0.1) }),
+        data: Array(100).fill({ embedding: Array(1536).fill(0.1) }),
       }),
     })
     global.fetch = mockFetch
@@ -75,7 +76,7 @@ describe('OpenAIEmbeddingAdapter', () => {
     const texts = Array(100).fill('text')
     await adapter.embed(texts)
 
-    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
   it('non-2xx response returns EMBEDDING_FAILED error', async () => {
@@ -151,7 +152,7 @@ describe('OpenAIEmbeddingAdapter', () => {
 
     const adapter = new OpenAIEmbeddingAdapter({
       apiKey: 'sk-abc123',
-      apiUrl: 'https://custom.api.com/v1',
+      baseUrl: 'https://custom.api.com/v1',
       dimensions: 1,
     })
     await adapter.embed(['text'])

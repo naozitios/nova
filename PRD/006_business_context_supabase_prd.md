@@ -1,5 +1,7 @@
 # PRD 006: Business Context Onboarding and Management
 
+> **Supersession note (July 2026):** The original PaddleOCR and native-parser (mammoth/pdf-parse/xlsx/jszip/html-to-text) document parsers have been replaced by a single Docling-based Python converter running as a subprocess of the main TS worker. Schema now stores processed Markdown artifacts in Supabase Storage plus chunks + embeddings in `document_chunks` (pgvector). See `docs/superpowers/plans/2026-07-19-docling-hybrid-retrieval.md` for current architecture.
+
 ## 1. Objective
 
 Build the backend system that creates, stores, verifies, versions and serves a business-specific context for NOVA.

@@ -1,37 +1,24 @@
-// ─── OpenAI-compatible embedding adapter ────────────────────────────────────
-//
-// Implements EmbeddingPort using native fetch against the OpenAI embeddings
-// API (or any compatible endpoint). Batches at 64 texts per request.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import type { EmbeddingPort } from '@/core/business-context/embedding.port'
 import type { ServiceResult } from '@/core/business-context/types'
 
-const BATCH_SIZE = 64
-
-export interface OpenAIEmbeddingConfig {
+interface OpenAIEmbeddingConfig {
   apiKey: string
-  apiUrl?: string
   model?: string
   dimensions?: number
-}
-
-interface EmbeddingResponse {
-  data: Array<{ embedding: number[] }>
+  baseUrl?: string
 }
 
 export class OpenAIEmbeddingAdapter implements EmbeddingPort {
   readonly model: string
   readonly dimensions: number
-
   private readonly apiKey: string
-  private readonly apiUrl: string
+  private readonly baseUrl: string
 
   constructor(config: OpenAIEmbeddingConfig) {
     this.apiKey = config.apiKey
-    this.apiUrl = config.apiUrl ?? 'https://api.openai.com/v1'
     this.model = config.model ?? 'text-embedding-3-small'
     this.dimensions = config.dimensions ?? 1536
+    this.baseUrl = config.baseUrl ?? 'https://api.openai.com/v1'
   }
 
   async embed(texts: string[]): Promise<ServiceResult<number[][]>> {
@@ -39,62 +26,47 @@ export class OpenAIEmbeddingAdapter implements EmbeddingPort {
       return { ok: true, data: [] }
     }
 
-    const allEmbeddings: number[][] = new Array(texts.length)
+    try {
+      const response = await fetch(`${this.baseUrl}/embeddings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          input: texts,
+          dimensions: this.dimensions,
+        }),
+      })
 
-    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
-      const batch = texts.slice(i, i + BATCH_SIZE)
-
-      try {
-        const response = await fetch(`${this.apiUrl}/embeddings`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: this.model,
-            input: batch,
-          }),
-        })
-
-        if (!response.ok) {
-          const text = await response.text().catch(() => 'Unknown error')
-          return {
-            ok: false,
-            error: {
-              code: 'EMBEDDING_FAILED',
-              message: `Embedding request failed with status ${response.status}: ${text}`,
-            },
-          }
-        }
-
-        const body: EmbeddingResponse = await response.json()
-
-        if (!Array.isArray(body.data)) {
-          return {
-            ok: false,
-            error: {
-              code: 'EMBEDDING_FAILED',
-              message: 'Invalid response structure: missing data array',
-            },
-          }
-        }
-
-        // Preserve input order — API returns in same order as input
-        for (let j = 0; j < batch.length; j++) {
-          allEmbeddings[i + j] = body.data[j].embedding
-        }
-      } catch (err) {
+      if (!response.ok) {
+        const body = await response.text()
         return {
           ok: false,
           error: {
             code: 'EMBEDDING_FAILED',
-            message: err instanceof Error ? err.message : 'Network error',
+            message: `OpenAI embedding request failed (${response.status}): ${body}`,
           },
         }
       }
-    }
 
-    return { ok: true, data: allEmbeddings }
+      const data = await response.json() as {
+        data: { embedding: number[]; index: number }[]
+      }
+
+      const sorted = data.data.sort((a, b) => a.index - b.index)
+      const embeddings = sorted.map((d) => d.embedding)
+
+      return { ok: true, data: embeddings }
+    } catch (err) {
+      return {
+        ok: false,
+        error: {
+          code: 'EMBEDDING_FAILED',
+          message: err instanceof Error ? err.message : 'Unknown embedding error',
+        },
+      }
+    }
   }
 }

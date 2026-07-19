@@ -167,7 +167,7 @@ export function getSourceAdapterRegistry(): SourceAdapterRegistry {
   return _sourceAdapterRegistry;
 }
 
-/** Returns the document parser. Lazy-initializes router with native + OCR parsers. */
+/** Returns the document parser. Lazy-initializes Docling adapter. */
 export function getDocumentParser(): DocumentParserPort {
   if (!_documentParser) {
     _documentParser = new DoclingDocumentParserAdapter(

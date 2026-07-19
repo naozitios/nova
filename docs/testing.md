@@ -14,7 +14,7 @@ Lane rules, commands, naming, and environment gates for the Nova test suite.
 | `npm run test:e2e`               | e2e only                       | Yes               |
 | `npm run test:all`               | all Vitest lanes               | Yes               |
 | `npm run test:coverage`          | all lanes with coverage        | Yes               |
-| `pytest workers/paddleocr/tests` | Python worker tests            | No                |
+| `pytest workers/document-processing/tests` | Python worker tests | No |
 
 DB-backed lanes (integration, rls, e2e) run serially (`fileParallelism: false`).
 Unit and contract lanes run in parallel (`fileParallelism: true`).
@@ -85,7 +85,7 @@ Full workflow smoke and resilience paths only. Few, high-value.
 
 Python worker tests owned by pytest.
 
-**Location:** `workers/paddleocr/tests/**/*.py`
+**Location:** `workers/document-processing/tests/**/*.py`
 
 **Rules:**
 

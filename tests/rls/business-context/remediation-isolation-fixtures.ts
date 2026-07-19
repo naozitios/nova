@@ -135,6 +135,13 @@ export async function seedBusinesses() {
   ]);
 }
 
+export async function seedContextSources() {
+  await _serviceClient.from("context_sources").upsert([
+    { id: SOURCE_A, workspace_id: WORKSPACE_A, business_id: BUSINESS_A, source_type: "web", source_name: "Source A" },
+    { id: SOURCE_B, workspace_id: WORKSPACE_B, business_id: BUSINESS_B, source_type: "web", source_name: "Source B" },
+  ]);
+}
+
 // ---------------------------------------------------------------------------
 // RLS Matrix helper
 // ---------------------------------------------------------------------------
