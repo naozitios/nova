@@ -55,6 +55,21 @@ Initial state must be believable but not block interaction. Controls always rema
 
 `Skip for now` on first screen advances without objective, source, or notes. `Do this later` on Meta advances to processing with deferred status. Meta-deferred path skips account selection when processing completes. These are explicit alternate paths, not validation failures.
 
+### Primary Objective Mock Data
+
+Keep Primary Objective in mock state until its backend persistence contract is defined. Replace generic business-objective fixtures with this simplified Meta campaign outcome list:
+
+| Mock value | User-facing label |
+| --- | --- |
+| `awareness` | Awareness |
+| `traffic` | Traffic |
+| `engagement` | Engagement |
+| `leads` | Leads |
+| `app-promotion` | App Promotion |
+| `sales` | Sales |
+
+`Sales` is the current user-facing replacement for legacy “Conversions.” These values are presentation fixtures only; they are not yet Meta API request values and must not be persisted until product/backend defines their destination.
+
 ## Layout Requirements
 
 ### Shared frame
