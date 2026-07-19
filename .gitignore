@@ -67,9 +67,14 @@ specs/
 
 # Python virtual environments
 **/.venv/
+**/.venv-*/
 **/venv/
 **/__pycache__/
 *.pyc
+
+# Local code intelligence indexes
+/.codegraph/*
+!/.codegraph/.gitignore
 
 # editors and temporary files
 /.idea/
