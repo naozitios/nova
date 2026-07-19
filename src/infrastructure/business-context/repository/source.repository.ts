@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   ContextSource,
+  JsonValue,
   ServiceResult,
   SourceDocument,
 } from '@/core/business-context/types'
@@ -209,11 +210,30 @@ export class SourceRepository {
   async updateSourceDocument(
     workspaceId: string,
     documentId: string,
-    data: Partial<Pick<SourceDocument, 'metadata' | 'storagePath'>>,
+    data: Partial<Pick<SourceDocument,
+      | 'metadata'
+      | 'storagePath'
+      | 'processedStoragePath'
+      | 'processingStatus'
+      | 'embeddingModel'
+      | 'indexedAt'
+      | 'contentText'
+      | 'pageOrSlideCount'
+      | 'parserName'
+      | 'parserVersion'
+    >>,
   ): Promise<ServiceResult<SourceDocument>> {
     const update: Record<string, unknown> = {}
     if (data.metadata !== undefined) update.metadata = data.metadata
     if (data.storagePath !== undefined) update.storage_path = data.storagePath
+    if (data.processedStoragePath !== undefined) update.processed_storage_path = data.processedStoragePath
+    if (data.processingStatus !== undefined) update.processing_status = data.processingStatus
+    if (data.embeddingModel !== undefined) update.embedding_model = data.embeddingModel
+    if (data.indexedAt !== undefined) update.indexed_at = data.indexedAt?.toISOString() ?? null
+    if (data.contentText !== undefined) update.content_text = data.contentText
+    if (data.pageOrSlideCount !== undefined) update.page_or_slide_count = data.pageOrSlideCount
+    if (data.parserName !== undefined) update.parser_name = data.parserName
+    if (data.parserVersion !== undefined) update.parser_version = data.parserVersion
 
     const { data: row, error } = await this.db
       .from('source_documents')
@@ -225,6 +245,61 @@ export class SourceRepository {
 
     if (error) return err('UPDATE_FAILED', error.message)
     return { ok: true, data: mapSourceDocument(row) }
+  }
+
+  async replaceDocumentChunks(
+    workspaceId: string,
+    businessId: string,
+    documentId: string,
+    chunks: Array<{
+      chunkIndex: number
+      headingPath: string[]
+      content: string
+      locator: Record<string, JsonValue>
+      embedding: number[]
+      embeddingModel: string
+    }>,
+  ): Promise<ServiceResult<void>> {
+    // Set processing status
+    const { error: statusErr } = await this.db
+      .from('source_documents')
+      .update({ processing_status: 'processing' })
+      .eq('workspace_id', workspaceId)
+      .eq('id', documentId)
+
+    if (statusErr) return err('UPDATE_FAILED', statusErr.message)
+
+    // Delete existing chunks for this document
+    const { error: deleteErr } = await this.db
+      .from('document_chunks')
+      .delete()
+      .eq('workspace_id', workspaceId)
+      .eq('source_document_id', documentId)
+
+    if (deleteErr) return err('DELETE_FAILED', deleteErr.message)
+
+    // Insert new chunks
+    if (chunks.length > 0) {
+      const rows = chunks.map((c) => ({
+        workspace_id: workspaceId,
+        business_id: businessId,
+        source_document_id: documentId,
+        chunk_index: c.chunkIndex,
+        heading_path: c.headingPath,
+        content: c.content,
+        locator: c.locator,
+        embedding: c.embedding,
+        embedding_model: c.embeddingModel,
+      }))
+
+      const { error: insertErr } = await this.db
+        .from('document_chunks')
+        .insert(rows)
+
+      if (insertErr) return err('INSERT_FAILED', insertErr.message)
+    }
+
+    return { ok: true, data: undefined }
   }
 
   async archiveSource(
