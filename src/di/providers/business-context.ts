@@ -34,7 +34,10 @@ import { ClamavMalwareScanner } from '@/infrastructure/business-context/clamav-m
 import { DoclingDocumentParserAdapter } from '@/infrastructure/business-context/docling-document-parser.adapter';
 import { OpenAIEmbeddingAdapter } from '@/infrastructure/business-context/openai-embedding.adapter';
 import { UploadedDocumentProcessor } from '@/core/business-context/service/uploaded-document.processor';
+import { RetrievalService } from '@/core/business-context/service/retrieval.service';
+import { RetrievalRepository } from '@/infrastructure/business-context/retrieval.repository';
 import type { EmbeddingPort } from '@/core/business-context/embedding.port';
+import type { RetrievalPort } from '@/core/business-context/retrieval.port';
 
 let _bcRepo: RepositoryPort | null = null;
 let _bcVisibility: ProcessingVisibilityWriter | null = null;
@@ -52,6 +55,8 @@ let _extractionService: ExtractionPort | null = null;
 let _sourceProcessingService: SourceProcessingService | null = null;
 let _uploadedProcessor: UploadedDocumentProcessor | null = null;
 let _embeddingAdapter: EmbeddingPort | null = null;
+let _retrievalRepo: RetrievalPort | null = null;
+let _retrievalService: RetrievalService | null = null;
 let _jobRunner: JobRunner | null = null;
 
 // ── Repository ────────────────────────────────────────────────────────────
@@ -273,6 +278,26 @@ export function getRegisterHandlers(): (runner: JobRunner) => void {
   };
 }
 
+/** Returns the retrieval repository. Lazy-initializes with Supabase client. */
+export function getRetrievalRepository(): RetrievalPort {
+  if (!_retrievalRepo) _retrievalRepo = new RetrievalRepository(getSupabaseServiceClient());
+  return _retrievalRepo;
+}
+
+/** Returns the retrieval service. Lazy-initializes with dependencies. */
+export function getRetrievalService(): RetrievalService {
+  if (!_retrievalService) {
+    const db = getSupabaseServiceClient();
+    _retrievalService = new RetrievalService(
+      getBusinessContextRepository(),
+      getRetrievalRepository(),
+      getEmbeddingAdapter(),
+      new SupabaseMetaRepository(db),
+    );
+  }
+  return _retrievalService;
+}
+
 /** Resets all Business Context providers to defaults. */
 export function resetBusinessContextProviders(): void {
   _bcRepo = null;
@@ -291,5 +316,7 @@ export function resetBusinessContextProviders(): void {
   _sourceProcessingService = null;
   _uploadedProcessor = null;
   _embeddingAdapter = null;
+  _retrievalRepo = null;
+  _retrievalService = null;
   _jobRunner = null;
 }
