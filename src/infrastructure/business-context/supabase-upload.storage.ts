@@ -3,11 +3,11 @@ import type { ServiceResult } from '@/core/business-context/types'
 import { getSupabaseServiceClient } from './supabase-client'
 
 export class SupabaseUploadStorage implements UploadStoragePort {
-  async upload(params: { bucket: string; path: string; content: Buffer; contentType: string }): Promise<ServiceResult<{ storagePath: string }>> {
+  async upload(params: { bucket: string; path: string; content: Buffer; contentType: string; upsert?: boolean }): Promise<ServiceResult<{ storagePath: string }>> {
     const client = getSupabaseServiceClient()
     const { error } = await client.storage
       .from(params.bucket)
-      .upload(params.path, params.content, { contentType: params.contentType, upsert: false })
+      .upload(params.path, params.content, { contentType: params.contentType, upsert: params.upsert ?? false })
     if (error) {
       return { ok: false, error: { code: 'UPLOAD_FAILED', message: error.message } }
     }
