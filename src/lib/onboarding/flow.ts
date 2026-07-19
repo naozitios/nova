@@ -2,53 +2,41 @@ import type { MockOnboardingState, OnboardingStepDefinition } from './types';
 
 export const ONBOARDING_STEPS: OnboardingStepDefinition[] = [
   {
-    key: 'business-basics',
-    title: 'Business Basics',
-    eyebrow: 'Step 1 of 8',
-    description: 'Confirm the business NOVA is setting up.',
-  },
-  {
-    key: 'primary-objective',
-    title: 'Primary Objective',
-    eyebrow: 'Step 2 of 8',
-    description: 'Choose what NOVA should prioritize first.',
-  },
-  {
     key: 'add-business-sources',
     title: 'Add Business Sources',
-    eyebrow: 'Step 3 of 8',
+    eyebrow: 'Step 1 of 6',
     description: 'Add website, files, decks, and notes for NOVA to learn from.',
   },
   {
     key: 'connect-meta',
     title: 'Connect Meta',
-    eyebrow: 'Step 4 of 8',
+    eyebrow: 'Step 2 of 6',
     description: 'Connect Meta now or skip and do it later.',
     optional: true,
   },
   {
     key: 'processing',
-    title: 'Processing',
-    eyebrow: 'Step 5 of 8',
-    description: 'NOVA analyzes submitted context sources.',
+    title: 'Analyzing Your Digital Footprint',
+    eyebrow: 'Step 3 of 6',
+    description: "Our AI is currently mapping your brand's ecosystem to build a tailored campaign strategy. This usually takes 30-60 seconds.",
   },
   {
     key: 'review-business-context',
     title: 'Review Business Context',
-    eyebrow: 'Step 6 of 8',
+    eyebrow: 'Step 4 of 6',
     description: 'Review the business profile NOVA compiled.',
   },
   {
     key: 'select-ad-account',
     title: 'Select Ad Account',
-    eyebrow: 'Step 7 of 8',
+    eyebrow: 'Step 5 of 6',
     description: 'Choose an ad account if Meta is connected.',
     optional: true,
   },
   {
     key: 'setup-complete',
     title: 'Setup Complete',
-    eyebrow: 'Step 8 of 8',
+    eyebrow: 'Step 6 of 6',
     description: 'Review setup status and continue into NOVA.',
   },
 ];
@@ -66,8 +54,8 @@ export function getStepByIndex(index: number): OnboardingStepDefinition {
 export function canContinueFromStep(state: MockOnboardingState, currentIndex: number): boolean {
   const step = getStepByIndex(currentIndex);
 
-  if (step.key === 'primary-objective') return state.selectedObjective !== null;
-  if (step.key === 'add-business-sources') return state.sources.length > 0 || state.manualNotes.trim().length > 0;
+  if (step.key === 'add-business-sources')
+    return state.selectedObjective !== null && (state.sources.length > 0 || state.manualNotes.trim().length > 0);
   if (step.key === 'connect-meta') {
     return state.metaConnection.status === 'connected' || state.metaConnection.status === 'skipped';
   }
@@ -82,6 +70,13 @@ export function canContinueFromStep(state: MockOnboardingState, currentIndex: nu
 
 export function getNextStepIndex(state: MockOnboardingState, currentIndex: number): number {
   if (!canContinueFromStep(state, currentIndex)) return currentIndex;
+  const step = getStepByIndex(currentIndex);
+  
+  // Skip select-ad-account when Meta is skipped
+  if (step.key === 'review-business-context' && state.metaConnection.status === 'skipped') {
+    return Math.min(currentIndex + 2, ONBOARDING_STEPS.length - 1);
+  }
+  
   return Math.min(currentIndex + 1, ONBOARDING_STEPS.length - 1);
 }
 

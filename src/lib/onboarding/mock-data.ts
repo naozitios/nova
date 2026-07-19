@@ -13,7 +13,7 @@ export const mockOnboardingState: MockOnboardingState = {
     businessId: 'biz_nova_media',
     workspaceId: 'ws_demo_agency',
     status: 'created',
-    currentStep: 'business-basics',
+    currentStep: 'add-business-sources',
   },
   selectedObjective: 'campaign_setup',
   objectiveOptions: [

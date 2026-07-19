@@ -18,52 +18,50 @@ function makeState(overrides: Partial<MockOnboardingState> = {}): MockOnboarding
 }
 
 describe('onboarding flow', () => {
-  it('defines exactly 8 product steps in order', () => {
+  it('defines exactly 6 product steps in order', () => {
     expect(ONBOARDING_STEPS.map((step) => step.title)).toEqual([
-      'Business Basics',
-      'Primary Objective',
       'Add Business Sources',
       'Connect Meta',
-      'Processing',
+      'Analyzing Your Digital Footprint',
       'Review Business Context',
       'Select Ad Account',
       'Setup Complete',
     ]);
-    expect(ONBOARDING_STEPS).toHaveLength(8);
+    expect(ONBOARDING_STEPS).toHaveLength(6);
   });
 
   it('returns steps by zero-based index', () => {
-    expect(getStepByIndex(0).key).toBe('business-basics');
-    expect(getStepByIndex(7).key).toBe('setup-complete');
+    expect(getStepByIndex(0).key).toBe('add-business-sources');
+    expect(getStepByIndex(5).key).toBe('setup-complete');
   });
 
   it('throws for unknown step indexes instead of silently falling through', () => {
     expect(() => getStepByIndex(-1)).toThrow(RangeError);
-    expect(() => getStepByIndex(8)).toThrow('Unknown onboarding step index: 8');
+    expect(() => getStepByIndex(6)).toThrow('Unknown onboarding step index: 6');
   });
 
-  it('requires a selected objective before advancing from step 2', () => {
-    const state = makeState({
-      selectedObjective: null,
-    });
-
-    expect(canContinueFromStep(state, 1)).toBe(false);
-    expect(getNextStepIndex(state, 1)).toBe(1);
-  });
-
-  it('requires at least one source or manual note before learning starts', () => {
+  it('requires a selected objective and at least one source or manual note before learning starts', () => {
     const blockedState = makeState({
+      selectedObjective: null,
+      sources: [],
+      manualNotes: '   ',
+    });
+    const objectiveOnlyState = makeState({
+      selectedObjective: 'campaign_setup',
       sources: [],
       manualNotes: '   ',
     });
     const manualOnlyState = makeState({
+      selectedObjective: 'campaign_setup',
       sources: [],
       manualNotes: 'Position NOVA around qualified pipeline, not raw lead volume.',
     });
 
-    expect(canContinueFromStep(blockedState, 2)).toBe(false);
-    expect(getNextStepIndex(blockedState, 2)).toBe(2);
-    expect(canContinueFromStep(manualOnlyState, 2)).toBe(true);
+    expect(canContinueFromStep(blockedState, 0)).toBe(false);
+    expect(getNextStepIndex(blockedState, 0)).toBe(0);
+    expect(canContinueFromStep(objectiveOnlyState, 0)).toBe(false);
+    expect(getNextStepIndex(objectiveOnlyState, 0)).toBe(0);
+    expect(canContinueFromStep(manualOnlyState, 0)).toBe(true);
   });
 
   it('allows Meta to be skipped but not ignored before continuing', () => {
@@ -74,10 +72,10 @@ describe('onboarding flow', () => {
       metaConnection: { ...mockOnboardingState.metaConnection, status: 'skipped' },
     });
 
-    expect(canContinueFromStep(ignoredState, 3)).toBe(false);
-    expect(getNextStepIndex(ignoredState, 3)).toBe(3);
-    expect(canContinueFromStep(skippedState, 3)).toBe(true);
-    expect(getNextStepIndex(skippedState, 3)).toBe(4);
+    expect(canContinueFromStep(ignoredState, 1)).toBe(false);
+    expect(getNextStepIndex(ignoredState, 1)).toBe(1);
+    expect(canContinueFromStep(skippedState, 1)).toBe(true);
+    expect(getNextStepIndex(skippedState, 1)).toBe(2);
   });
 
   it('blocks a failed Meta connection until the user retries or skips', () => {
@@ -89,11 +87,11 @@ describe('onboarding flow', () => {
       },
     });
 
-    expect(canContinueFromStep(state, 3)).toBe(false);
-    expect(getNextStepIndex(state, 3)).toBe(3);
+    expect(canContinueFromStep(state, 1)).toBe(false);
+    expect(getNextStepIndex(state, 1)).toBe(1);
   });
 
-  it('uses processing readiness as the only step 5 gate', () => {
+  it('uses processing readiness as the only step 3 gate', () => {
     const processingState = makeState({
       processing: { ...mockOnboardingState.processing, canContinue: false },
     });
@@ -101,8 +99,8 @@ describe('onboarding flow', () => {
       processing: { ...mockOnboardingState.processing, canContinue: true },
     });
 
-    expect(canContinueFromStep(processingState, 4)).toBe(false);
-    expect(canContinueFromStep(readyState, 4)).toBe(true);
+    expect(canContinueFromStep(processingState, 2)).toBe(false);
+    expect(canContinueFromStep(readyState, 2)).toBe(true);
   });
 
   it('requires an ad account when Meta is connected', () => {
@@ -115,7 +113,7 @@ describe('onboarding flow', () => {
       selectedAdAccountId: null,
     });
 
-    expect(canContinueFromStep(state, 6)).toBe(false);
+    expect(canContinueFromStep(state, 4)).toBe(false);
   });
 
   it('allows ad account step to continue when connected Meta has an account selection', () => {
@@ -128,8 +126,8 @@ describe('onboarding flow', () => {
       selectedAdAccountId: 'act_822109',
     });
 
-    expect(canContinueFromStep(state, 6)).toBe(true);
-    expect(getNextStepIndex(state, 6)).toBe(7);
+    expect(canContinueFromStep(state, 4)).toBe(true);
+    expect(getNextStepIndex(state, 4)).toBe(5);
   });
 
   it('allows ad account step to continue when Meta was skipped', () => {
@@ -138,11 +136,11 @@ describe('onboarding flow', () => {
       selectedAdAccountId: null,
     });
 
-    expect(canContinueFromStep(state, 6)).toBe(true);
+    expect(canContinueFromStep(state, 4)).toBe(true);
   });
 
   it('does not advance past the final step', () => {
-    expect(getNextStepIndex(mockOnboardingState, 7)).toBe(7);
+    expect(getNextStepIndex(mockOnboardingState, 5)).toBe(5);
   });
 
   it('marks non-admin final state as pending admin approval', () => {

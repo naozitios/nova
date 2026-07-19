@@ -1,6 +1,4 @@
 export type OnboardingStepKey =
-  | 'business-basics'
-  | 'primary-objective'
   | 'add-business-sources'
   | 'connect-meta'
   | 'processing'

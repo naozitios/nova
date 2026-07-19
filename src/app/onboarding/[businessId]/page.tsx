@@ -10,7 +10,6 @@ import type { MockOnboardingState, MockSource } from '@/lib/onboarding/types';
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
 import { OnboardingActionFooter } from '@/components/onboarding/OnboardingActionFooter';
 import { OnboardingCard } from '@/components/onboarding/OnboardingCard';
-import { ObjectiveCard } from '@/components/onboarding/ObjectiveCard';
 import { UploadDropzone } from '@/components/onboarding/UploadDropzone';
 import { SourceStatusCard } from '@/components/onboarding/SourceStatusCard';
 import { MetaConnectPanel } from '@/components/onboarding/MetaConnectPanel';
@@ -18,13 +17,10 @@ import { ProcessingTimeline } from '@/components/onboarding/ProcessingTimeline';
 import { BusinessContextReview } from '@/components/onboarding/BusinessContextReview';
 import { AdAccountSelector } from '@/components/onboarding/AdAccountSelector';
 import { CompletionSummary } from '@/components/onboarding/CompletionSummary';
+import { SidebarContextPanel } from '@/components/onboarding/SidebarContextPanel';
 
 function helperTextForStep(stepKey: string): string {
   switch (stepKey) {
-    case 'business-basics':
-      return 'Review and confirm your business details before continuing.';
-    case 'primary-objective':
-      return 'Pick one objective to focus NOVA\'s setup.';
     case 'add-business-sources':
       return 'Add at least one source or note so NOVA has context to work with.';
     case 'connect-meta':
@@ -127,76 +123,49 @@ export default function OnboardingPage() {
     }));
   };
 
-  const markReadyForReview = () => {
-    setState((s) => ({
-      ...s,
-      processing: {
-        overallStatus: 'ready',
-        currentMessage: 'Business context is ready for review.',
-        sources: s.processing.sources.map((src) => ({
-          ...src,
-          status: 'complete' as const,
-          progress: 100,
-        })),
-        blockers: [],
-        canContinue: true,
-      },
-    }));
-  };
-
   const selectAdAccount = (accountId: string) => {
     setState((s) => ({ ...s, selectedAdAccountId: accountId }));
+  };
+
+  const updateProfile = (field: keyof MockOnboardingState['compiledProfile'], value: unknown) => {
+    setState((s) => ({
+      ...s,
+      compiledProfile: { ...s.compiledProfile, [field]: value },
+    }));
   };
 
   const step = ONBOARDING_STEPS[currentIndex];
   const canGoNext = canContinueFromStep(state, currentIndex);
   const isFinalStep = currentIndex === ONBOARDING_STEPS.length - 1;
   const isSkippedMeta = state.metaConnection.status === 'skipped';
+  const isReviewStep = step.key === 'review-business-context';
 
   const skippedStepKeys = isSkippedMeta ? ['connect-meta', 'select-ad-account'] : [];
 
   const renderStep = () => {
     switch (step.key) {
-      case 'business-basics':
-        return (
-          <OnboardingCard>
-            <h3 className="text-lg font-semibold text-[#251816]">{state.business.name}</h3>
-            <p className="mt-1 text-sm text-[#645d58]">
-              {state.business.websiteUrl || 'Website not provided'}
-            </p>
-            <div className="mt-4 space-y-2 text-sm text-[#645d58]">
-              <p>
-                <span className="font-medium text-[#251816]">Workspace:</span>{' '}
-                {state.business.workspaceId}
-              </p>
-              <p>
-                <span className="font-medium text-[#251816]">Status:</span>{' '}
-                {state.business.status}
-              </p>
-            </div>
-            <p className="mt-6 text-sm text-[#645d58]">
-              Confirm these details are correct before continuing. You can update them later from Settings.
-            </p>
-          </OnboardingCard>
-        );
-
-      case 'primary-objective':
-        return (
-          <div className="grid gap-4">
-            {state.objectiveOptions.map((objective) => (
-              <ObjectiveCard
-                key={objective.id}
-                objective={objective}
-                selected={state.selectedObjective === objective.id}
-                onSelect={() => selectObjective(objective.id)}
-              />
-            ))}
-          </div>
-        );
-
       case 'add-business-sources':
         return (
           <div className="grid gap-6">
+            <OnboardingCard>
+              <label className="block text-sm font-medium text-foreground">
+                Primary objective
+              </label>
+              <select
+                value={state.selectedObjective ?? ''}
+                onChange={(e) => selectObjective(e.target.value)}
+                className="mt-2 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+              >
+                <option value="" disabled>
+                  Select an objective
+                </option>
+                {state.objectiveOptions.map((objective) => (
+                  <option key={objective.id} value={objective.id}>
+                    {objective.title}
+                  </option>
+                ))}
+              </select>
+            </OnboardingCard>
             <UploadDropzone onMockUpload={mockUpload} />
             {state.sources.length > 0 && (
               <div className="grid gap-3">
@@ -206,7 +175,7 @@ export default function OnboardingPage() {
               </div>
             )}
             <OnboardingCard>
-              <label className="block text-sm font-medium text-[#251816]">
+              <label className="block text-sm font-medium text-foreground">
                 Manual notes
               </label>
               <Textarea
@@ -217,7 +186,7 @@ export default function OnboardingPage() {
                 rows={4}
               />
             </OnboardingCard>
-            <p className="text-xs text-[#8d716b]">
+            <p className="text-xs text-muted-foreground">
               Supported formats: PDF, DOCX, PPTX, XLSX up to 50MB. You can also paste notes directly above.
             </p>
           </div>
@@ -227,30 +196,17 @@ export default function OnboardingPage() {
         return (
           <MetaConnectPanel
             status={state.metaConnection.status}
-            onConnect={metaConnect}
-            onSkip={metaSkip}
-            onRetry={metaRetry}
           />
         );
 
       case 'processing':
-        return (
-          <div className="grid gap-4">
-            <ProcessingTimeline processing={state.processing} />
-            {!state.processing.canContinue && (
-              <Button variant="outline" onClick={markReadyForReview}>
-                Mark ready for review
-              </Button>
-            )}
-          </div>
-        );
+        return <ProcessingTimeline processing={state.processing} />;
 
       case 'review-business-context':
         return (
           <BusinessContextReview
             profile={state.compiledProfile}
-            questions={state.questions}
-            canApprove={state.permissions.canApprove}
+            onUpdateProfile={updateProfile}
           />
         );
 
@@ -262,7 +218,7 @@ export default function OnboardingPage() {
             selectedAdAccountId={state.selectedAdAccountId}
             onSelect={selectAdAccount}
             onRefresh={() => {}}
-            onRetryMeta={metaRetry}
+            onBack={goBack}
           />
         );
 
@@ -283,33 +239,113 @@ export default function OnboardingPage() {
     <OnboardingShell
       currentIndex={currentIndex}
       skippedStepKeys={skippedStepKeys}
+      layout={step.key === 'processing' || isReviewStep || step.key === 'select-ad-account' || step.key === 'setup-complete' ? 'centered' : 'sidebar'}
+      sidebar={step.key === 'processing' || isReviewStep || step.key === 'setup-complete' ? undefined : <SidebarContextPanel state={state} variant={step.key === 'connect-meta' ? 'meta' : 'default'} />}
       onBack={goBack}
       canGoBack={currentIndex > 0}
-      footer={
+      footer={step.key === 'setup-complete' ? null : (
         <OnboardingActionFooter>
-          <span className="text-sm text-[#8d716b]">
-            {helperTextForStep(step.key)}
-          </span>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              onClick={goBack}
-              disabled={currentIndex === 0}
-            >
-              Back
-            </Button>
-            {isFinalStep ? (
-              <Button asChild className="bg-[#aa3016] text-white hover:bg-[#d14a2e]">
-                <Link href="/dashboard">Go to Dashboard</Link>
+          {step.key === 'add-business-sources' ? (
+            <div className="flex w-full items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                Files are encrypted and only used to train NOVA
+              </span>
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" onClick={goNext}>
+                  Skip for now
+                </Button>
+                <Button
+                  onClick={goNext}
+                  disabled={!canGoNext}
+                >
+                  Let NOVA learn
+                </Button>
+              </div>
+            </div>
+          ) : step.key === 'connect-meta' ? (
+            <div className="flex w-full items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                NOVA will request read-only access to your Meta ad data
+              </span>
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" onClick={() => { metaSkip(); goNext(); }}>
+                  Do this later
+                </Button>
+                <Button onClick={metaConnect}>
+                  Connect Meta
+                </Button>
+              </div>
+            </div>
+          ) : step.key === 'processing' ? (
+            <div className="flex w-full items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="size-10 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span className="text-sm text-muted-foreground">
+                  Step 3 of 6: Processing deep analysis…
+                </span>
+              </div>
+              <Button disabled={!state.processing.canContinue} onClick={goNext}>
+                Next Step
               </Button>
-            ) : (
-              <Button onClick={goNext} disabled={!canGoNext} className="bg-[#aa3016] text-white hover:bg-[#d14a2e]">
-                Continue
+            </div>
+          ) : isReviewStep ? (
+            <div className="flex w-full items-center justify-between">
+              <Button
+                variant="ghost"
+                onClick={goBack}
+                disabled={currentIndex === 0}
+              >
+                Back
               </Button>
-            )}
-          </div>
+              <div className="flex items-center gap-4">
+                <Button variant="secondary" className="hidden md:flex">
+                  Save as Draft
+                </Button>
+                <Button disabled={!canGoNext} onClick={goNext}>
+                  Confirm business context
+                </Button>
+              </div>
+            </div>
+          ) : step.key === 'select-ad-account' ? (
+            <div className="flex w-full flex-col items-center justify-center gap-4">
+              <Button
+                onClick={goNext}
+                disabled={!canGoNext}
+                className="w-full min-w-[240px] md:w-auto"
+              >
+                Use this account
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                By selecting this account, you grant NOVA AI permission to read performance data and suggest optimizations.
+              </p>
+            </div>
+          ) : (
+            <>
+              <span className="text-sm text-muted-foreground">
+                {helperTextForStep(step.key)}
+              </span>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  onClick={goBack}
+                  disabled={currentIndex === 0}
+                >
+                  Back
+                </Button>
+                {isFinalStep ? (
+                  <Button asChild>
+                    <Link href="/dashboard">Go to Dashboard</Link>
+                  </Button>
+                ) : (
+                  <Button onClick={goNext} disabled={!canGoNext}>
+                    Continue
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
         </OnboardingActionFooter>
-      }
+      )}
     >
       {renderStep()}
     </OnboardingShell>
