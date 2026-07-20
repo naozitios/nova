@@ -182,14 +182,16 @@ export async function withIdempotency(
   return response
 }
 
-// ─── Authz helpers ──────────────────────────────────────────────────────────
+// ─── Auth helpers ───────────────────────────────────────────────────────────
 
-export async function requireAuthz(
+/**
+ * Resolve current user ID from request headers/cookies.
+ * Extracted from requireAuthz for reuse outside workspace-scoped auth.
+ */
+export async function authenticateRequest(
   req: NextRequest,
-  workspaceId: string,
-  minRole: WorkspaceRole = 'viewer',
 ): Promise<
-  | { ok: true; ctx: AuthzContext }
+  | { ok: true; userId: string }
   | { ok: false; response: Response }
 > {
   const client = getSupabaseServiceClient()
@@ -218,6 +220,30 @@ export async function requireAuthz(
     }
   }
 
+  return { ok: true, userId }
+}
+
+// ─── Authz helpers ──────────────────────────────────────────────────────────
+
+export async function requireAuthz(
+  req: NextRequest,
+  workspaceId: string,
+  minRole: WorkspaceRole = 'viewer',
+  authenticatedUserId?: string,
+): Promise<
+  | { ok: true; ctx: AuthzContext }
+  | { ok: false; response: Response }
+> {
+  let userId: string
+  if (authenticatedUserId) {
+    userId = authenticatedUserId
+  } else {
+    const authResult = await authenticateRequest(req)
+    if (!authResult.ok) return authResult
+    userId = authResult.userId
+  }
+
+  const client = getSupabaseServiceClient()
   const authz = await resolveWorkspaceAuth(userId, workspaceId, client)
   if (!authz.ok) {
     return {
