@@ -24,15 +24,21 @@ import { WebsiteSourceAdapter } from '@/infrastructure/business-context/website-
 import { MetaSourceAdapter } from '@/infrastructure/business-context/meta/meta-adapter';
 import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository';
 import { ManualSourceAdapter } from '@/infrastructure/business-context/manual-source.adapter';
-import { NativeDocumentParserAdapter } from '@/infrastructure/business-context/native-document.parser.adapter';
-import { PaddleOcrDocumentParserAdapter } from '@/infrastructure/business-context/paddleocr-document-parser.adapter';
-import { DocumentParserRouter } from '@/infrastructure/business-context/document-parser-router';
 import { LlmExtractionAdapter, type LlmClient } from '@/infrastructure/business-context/llm-extraction.adapter';
 import { OpenRouterExtractionClient } from '@/infrastructure/business-context/openrouter-extraction.client';
 import { SourceProcessingService } from '@/core/business-context/service/source-processing.service';
 import { JobRunner } from '@/infrastructure/business-context/job-runner';
 import { registerHandlers } from '@/infrastructure/business-context/job-runner/register-handlers';
 import { ClamavMalwareScanner } from '@/infrastructure/business-context/clamav-malware.scanner';
+import { DoclingDocumentParserAdapter } from '@/infrastructure/business-context/docling-document-parser.adapter';
+import { OpenAIEmbeddingAdapter } from '@/infrastructure/business-context/openai-embedding.adapter';
+import { UploadedDocumentProcessor } from '@/core/business-context/service/uploaded-document.processor';
+import { CanonicalDocumentIndexer } from '@/core/business-context/service/canonical-document-indexer';
+import { SourceFactPipeline } from '@/core/business-context/service/source-fact-pipeline';
+import { RetrievalService } from '@/core/business-context/service/retrieval.service';
+import { RetrievalRepository } from '@/infrastructure/business-context/retrieval.repository';
+import type { EmbeddingPort } from '@/core/business-context/embedding.port';
+import type { RetrievalPort } from '@/core/business-context/retrieval.port';
 
 let _bcRepo: RepositoryPort | null = null;
 let _bcVisibility: ProcessingVisibilityWriter | null = null;
@@ -48,6 +54,12 @@ let _sourceAdapterRegistry: SourceAdapterRegistry | null = null;
 let _documentParser: DocumentParserPort | null = null;
 let _extractionService: ExtractionPort | null = null;
 let _sourceProcessingService: SourceProcessingService | null = null;
+let _uploadedProcessor: UploadedDocumentProcessor | null = null;
+let _canonicalDocumentIndexer: CanonicalDocumentIndexer | null = null;
+let _sourceFactPipeline: SourceFactPipeline | null = null;
+let _embeddingAdapter: EmbeddingPort | null = null;
+let _retrievalRepo: RetrievalPort | null = null;
+let _retrievalService: RetrievalService | null = null;
 let _jobRunner: JobRunner | null = null;
 
 // ── Repository ────────────────────────────────────────────────────────────
@@ -63,6 +75,12 @@ export function setBusinessContextRepository(repo: RepositoryPort): void {
   _bcRepo = repo;
   _bcVisibility = null;
   _bcCircuitBreaker = null;
+  _canonicalDocumentIndexer = null;
+  _sourceFactPipeline = null;
+  _uploadedProcessor = null;
+  _sourceProcessingService = null;
+  _retrievalService = null;
+  _jobRunner = null;
 }
 
 /** Returns a lazy-initialized ProcessingVisibilityWriter. */
@@ -145,7 +163,7 @@ export function getSourceAdapterRegistry(): SourceAdapterRegistry {
     }
     _sourceAdapterRegistry = new SourceAdapterRegistry();
     _sourceAdapterRegistry.register(new WebsiteSourceAdapter({ apiKey: firecrawlKey }));
-    _sourceAdapterRegistry.register(new MetaSourceAdapter({ repo: new SupabaseMetaRepository(getSupabaseServiceClient()), db: getSupabaseServiceClient() }));
+    _sourceAdapterRegistry.register(new MetaSourceAdapter({ repo: new SupabaseMetaRepository(getSupabaseServiceClient()), db: getSupabaseServiceClient() } as any));
     _sourceAdapterRegistry.register(new ManualSourceAdapter());
 
     // Stable unsupported outcomes for stored-document types until B16 adapters land
@@ -158,17 +176,63 @@ export function getSourceAdapterRegistry(): SourceAdapterRegistry {
   return _sourceAdapterRegistry;
 }
 
-/** Returns the document parser. Lazy-initializes router with native + OCR parsers. */
+/** Returns the document parser. Lazy-initializes Docling adapter. */
 export function getDocumentParser(): DocumentParserPort {
   if (!_documentParser) {
-    const parser = new DocumentParserRouter(
-      new NativeDocumentParserAdapter(),
-      new PaddleOcrDocumentParserAdapter(),
-    );
-    _documentParser = parser;
-    return parser;
+    _documentParser = new DoclingDocumentParserAdapter(getUploadStorage());
   }
   return _documentParser;
+}
+
+/** Returns the embedding adapter. Lazy-initializes with OpenAI-compatible API. */
+export function getEmbeddingAdapter(): EmbeddingPort {
+  if (!_embeddingAdapter) {
+    const apiKey = process.env.EMBEDDING_API_KEY;
+    if (!apiKey) {
+      throw new Error('EMBEDDING_API_KEY environment variable is required');
+    }
+    _embeddingAdapter = new OpenAIEmbeddingAdapter({
+      apiKey,
+      baseUrl: process.env.EMBEDDING_API_URL,
+    });
+  }
+  return _embeddingAdapter;
+}
+
+/** Returns the CanonicalDocumentIndexer. Lazy-initializes with dependencies. */
+export function getCanonicalDocumentIndexer(): CanonicalDocumentIndexer {
+  if (!_canonicalDocumentIndexer) {
+    _canonicalDocumentIndexer = new CanonicalDocumentIndexer(
+      getUploadStorage(),
+      getEmbeddingAdapter(),
+      getBusinessContextRepository(),
+    );
+  }
+  return _canonicalDocumentIndexer;
+}
+
+/** Returns the SourceFactPipeline. Lazy-initializes with dependencies. */
+export function getSourceFactPipeline(): SourceFactPipeline {
+  if (!_sourceFactPipeline) {
+    _sourceFactPipeline = new SourceFactPipeline(
+      getBusinessContextRepository(),
+      getExtractionService(),
+    );
+  }
+  return _sourceFactPipeline;
+}
+
+/** Returns the uploaded document processor. Lazy-initializes with dependencies. */
+export function getUploadedDocumentProcessor(): UploadedDocumentProcessor {
+  if (!_uploadedProcessor) {
+    _uploadedProcessor = new UploadedDocumentProcessor(
+      getBusinessContextRepository(),
+      getDocumentParser(),
+      getCanonicalDocumentIndexer(),
+      getSourceFactPipeline(),
+    );
+  }
+  return _uploadedProcessor;
 }
 
 /** Returns the extraction service, preferring configured OpenRouter over Groq. */
@@ -212,6 +276,10 @@ export function getSourceProcessingService(): SourceProcessingService {
     _sourceProcessingService = new SourceProcessingService(
       getBusinessContextRepository(),
       getExtractionService(),
+      getUploadedDocumentProcessor(),
+      getSourceFactPipeline(),
+      getDocumentParser(),
+      getCanonicalDocumentIndexer(),
     );
     const registry = getSourceAdapterRegistry();
     const seen = new Set<object>();
@@ -243,6 +311,26 @@ export function getRegisterHandlers(): (runner: JobRunner) => void {
   };
 }
 
+/** Returns the retrieval repository. Lazy-initializes with Supabase client. */
+export function getRetrievalRepository(): RetrievalPort {
+  if (!_retrievalRepo) _retrievalRepo = new RetrievalRepository(getSupabaseServiceClient());
+  return _retrievalRepo;
+}
+
+/** Returns the retrieval service. Lazy-initializes with dependencies. */
+export function getRetrievalService(): RetrievalService {
+  if (!_retrievalService) {
+    const db = getSupabaseServiceClient();
+    _retrievalService = new RetrievalService(
+      getBusinessContextRepository(),
+      getRetrievalRepository(),
+      getEmbeddingAdapter(),
+      new SupabaseMetaRepository(db),
+    );
+  }
+  return _retrievalService;
+}
+
 /** Resets all Business Context providers to defaults. */
 export function resetBusinessContextProviders(): void {
   _bcRepo = null;
@@ -259,5 +347,11 @@ export function resetBusinessContextProviders(): void {
   _documentParser = null;
   _extractionService = null;
   _sourceProcessingService = null;
+  _uploadedProcessor = null;
+  _canonicalDocumentIndexer = null;
+  _sourceFactPipeline = null;
+  _embeddingAdapter = null;
+  _retrievalRepo = null;
+  _retrievalService = null;
   _jobRunner = null;
 }

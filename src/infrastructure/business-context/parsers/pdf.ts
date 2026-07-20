@@ -6,7 +6,7 @@ const PARSER_VERSION = '1.0.0'
 
 export async function parsePdf(buffer: Buffer): Promise<ServiceResult<ParsedDocument>> {
   try {
-    const pdfParseModule = await import('pdf-parse') as { default: (buffer: Buffer) => Promise<{ text: string; numpages: number; info: Record<string, unknown> }> } | ((buffer: Buffer) => Promise<{ text: string; numpages: number; info: Record<string, unknown> }>)
+    const pdfParseModule = await import('pdf-parse') as unknown as { default: (buffer: Buffer) => Promise<{ text: string; numpages: number; info: Record<string, unknown> }> } | ((buffer: Buffer) => Promise<{ text: string; numpages: number; info: Record<string, unknown> }>)
     const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number; info: Record<string, unknown> }> =
       typeof pdfParseModule === 'function' ? pdfParseModule : pdfParseModule.default
     const result = await pdfParse(buffer)

@@ -54,7 +54,7 @@ function makeDeps(overrides?: {
     meta_creatives: overrides?.creatives ?? [{ meta_creative_id: 'cr-1', name: 'Sale Creative', title: 'Sale', body: 'Save 20% today' }],
   }
   const db = { from: vi.fn((table: string) => makeQuery(rowsByTable[table] ?? [])) }
-  return { repo, db }
+  return { repo, db } as any
 }
 
 describe('MetaSourceAdapter — stored data acceptance', () => {

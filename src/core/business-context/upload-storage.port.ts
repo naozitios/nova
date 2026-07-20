@@ -1,7 +1,7 @@
 import type { ServiceResult } from './types'
 
 export interface UploadStoragePort {
-  upload(params: { bucket: string; path: string; content: Buffer; contentType: string }): Promise<ServiceResult<{ storagePath: string }>>
+  upload(params: { bucket: string; path: string; content: Buffer; contentType: string; upsert?: boolean }): Promise<ServiceResult<{ storagePath: string }>>
   download(params: { bucket: string; path: string }): Promise<ServiceResult<Buffer>>
   delete(params: { bucket: string; path: string }): Promise<ServiceResult<void>>
   getSignedUrl(params: { bucket: string; path: string }): Promise<ServiceResult<string>>

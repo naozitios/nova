@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { mockOnboardingState } from '@/lib/onboarding/mock-data';
+import { fetchOnboardingReview, getOnboardingState, type OnboardingReview } from '@/lib/onboarding/api';
+import type { JsonValue } from '@/core/business-context/types';
 import { canContinueFromStep, getCompletionStatus, getNextStepIndex, ONBOARDING_STEPS } from '@/lib/onboarding/flow';
 import type { BusinessBasics, MockOnboardingState, MockSource } from '@/lib/onboarding/types';
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
@@ -38,9 +41,173 @@ function helperTextForStep(stepKey: string): string {
   }
 }
 
+function mapBackendProfileToCompiledProfile(profile: Record<string, JsonValue>): MockOnboardingState['compiledProfile'] {
+  const business = profile.business as Record<string, JsonValue> | undefined;
+  const offers = profile.offers as Record<string, JsonValue> | undefined;
+  const brand = profile.brand as Record<string, JsonValue> | undefined;
+  const customers = profile.customers as Record<string, JsonValue> | undefined;
+  const conversion = profile.conversion_journey as Record<string, JsonValue> | undefined;
+  const economics = profile.economics as Record<string, JsonValue> | undefined;
+
+  const summary = typeof business?.summary === 'string'
+    ? business.summary
+    : typeof business?.description === 'string'
+      ? business.description
+      : '';
+
+  const offerings = Array.isArray(offers?.items)
+    ? offers.items.filter((x): x is string => typeof x === 'string')
+    : Array.isArray(offers?.list)
+      ? offers.list.filter((x): x is string => typeof x === 'string')
+      : [];
+
+  const valuePropositions = Array.isArray(brand?.value_propositions)
+    ? brand.value_propositions.filter((x): x is string => typeof x === 'string')
+    : Array.isArray(brand?.messaging)
+      ? brand.messaging.filter((x): x is string => typeof x === 'string')
+      : [];
+
+  const targetAudiences = Array.isArray(customers?.segments)
+    ? customers.segments.filter((x): x is string => typeof x === 'string')
+    : Array.isArray(customers?.target_audiences)
+      ? customers.target_audiences.filter((x): x is string => typeof x === 'string')
+      : [];
+
+  const funnelGoal = typeof conversion?.primary_goal === 'string'
+    ? conversion.primary_goal
+    : typeof economics?.goal === 'string'
+      ? economics.goal
+      : 'Generate qualified sales conversations';
+
+  const targetCpa = typeof economics?.target_cpa === 'string'
+    ? economics.target_cpa
+    : typeof economics?.cpa_target === 'string'
+      ? economics.cpa_target
+      : '$180';
+
+  return { summary, offerings, valuePropositions, targetAudiences, funnelGoal, targetCpa };
+}
+
 export default function OnboardingPage() {
+  const params = useParams<{ businessId: string }>();
+  const businessId = params?.businessId;
   const [state, setState] = useState<MockOnboardingState>(() => structuredClone(mockOnboardingState));
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (!businessId) return;
+
+    fetchOnboardingReview(businessId)
+      .then((review: OnboardingReview) => {
+        setState((s) => ({
+          ...s,
+          compiledProfile: mapBackendProfileToCompiledProfile(review.profile),
+          sources: review.sources.map((src) => ({
+            id: src.id,
+            sourceType: src.type as 'website' | 'upload' | 'manual_note',
+            sourceName: src.name,
+            externalReference: null,
+            status: src.status === 'completed' ? 'complete' : src.status === 'failed' ? 'failed' : 'processing',
+            currentStage: null,
+            progress: src.status === 'completed' ? 100 : 0,
+            error: null,
+          })),
+          questions: review.questions.map((q) => ({
+            factKey: q.factKey,
+            questionType: 'text' as const,
+            question: q.question,
+            options: [],
+            answer: typeof q.answer === 'string' ? q.answer : null,
+          })),
+          processing: {
+            ...s.processing,
+            blockers: review.warnings,
+            canContinue: review.warnings.length === 0,
+          },
+        }));
+      })
+      .catch((err) => {
+        console.error('Failed to fetch onboarding review:', err);
+      });
+
+    getOnboardingState(businessId)
+      .then((onboardingState) => {
+        setState((s) => ({
+          ...s,
+          business: {
+            ...s.business,
+            workspaceId: onboardingState.business.workspaceId,
+            name: onboardingState.business.name,
+            websiteUrl: onboardingState.business.websiteUrl ?? '',
+          },
+          businessBasics: {
+            ...s.businessBasics,
+            businessName: onboardingState.business.name,
+            websiteUrl: onboardingState.business.websiteUrl ?? '',
+          },
+        }));
+      })
+      .catch((err) => {
+        console.error('Failed to fetch onboarding state:', err);
+      });
+  }, [businessId]);
+
+  useEffect(() => {
+    const workspaceId = state.business.workspaceId;
+    if (!workspaceId) return;
+
+    let cancelled = false;
+
+    fetch(`/api/meta/connections?workspace_id=${workspaceId}`)
+      .then((res) => res.json())
+      .then((data: { connected: boolean; connection: { id: string; status: string; selected_ad_account_id: string | null } | null }) => {
+        if (cancelled) return;
+
+        const isConnected = data.connected && data.connection?.status === 'connected';
+
+        setState((s) => ({
+          ...s,
+          metaConnection: {
+            ...s.metaConnection,
+            status: isConnected ? 'connected' : 'not_connected',
+            connectionId: data.connection?.id ?? null,
+            error: null,
+          },
+        }));
+
+        if (!isConnected) return;
+
+        return fetch(`/api/meta/ad-accounts?workspace_id=${workspaceId}`)
+          .then((res) => res.json())
+          .then((data: { accounts: Array<{ id: string; accountId: string; name: string; currency: string; timezoneName: string; businessId: string; businessName: string; isSelected: boolean }> }) => {
+            if (cancelled) return;
+
+            const selectedId = data.accounts.find((a) => a.isSelected)?.id ?? null;
+
+            setState((s) => ({
+              ...s,
+              adAccounts: data.accounts.map((account) => ({
+                id: account.id,
+                name: account.name,
+                accountId: account.accountId,
+                currency: account.currency,
+                timezone: account.timezoneName,
+                businessName: account.businessName,
+                isSelected: account.isSelected,
+                status: 'active',
+              })),
+              selectedAdAccountId: selectedId,
+            }));
+          });
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('Failed to fetch Meta connection:', err);
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [state.business.workspaceId]);
 
   const goBack = () => {
     setCurrentIndex((i) => Math.max(i - 1, 0));
@@ -219,7 +386,7 @@ export default function OnboardingPage() {
     <OnboardingShell
       currentIndex={currentIndex}
       skippedStepKeys={skippedStepKeys}
-      layout={step.key === 'business-basics' || step.key === 'processing' || isReviewStep || step.key === 'select-ad-account' || step.key === 'setup-complete' ? 'centered' : 'sidebar'}
+      layout={step.key === 'business-basics' || step.key === 'processing' || isReviewStep || step.key === 'setup-complete' ? 'centered' : 'sidebar'}
       sidebar={step.key === 'processing' || isReviewStep || step.key === 'setup-complete' ? undefined : <SidebarContextPanel state={state} variant={step.key === 'connect-meta' ? 'meta' : step.key === 'add-business-sources' ? 'active-sources' : 'default'} />}
       onBack={goBack}
       canGoBack={currentIndex > 0}
@@ -280,19 +447,6 @@ export default function OnboardingPage() {
                   Confirm business context
                 </Button>
               </div>
-            </div>
-          ) : step.key === 'select-ad-account' ? (
-            <div className="flex w-full flex-col items-center justify-center gap-4">
-              <Button
-                onClick={goNext}
-                disabled={!canGoNext}
-                className="w-full min-w-[240px] md:w-auto"
-              >
-                Use this account
-              </Button>
-              <p className="text-center text-xs text-muted-foreground">
-                By selecting this account, you grant NOVA AI permission to read performance data and suggest optimizations.
-              </p>
             </div>
           ) : (
             <>

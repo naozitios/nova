@@ -53,4 +53,6 @@ export {
 
 export { compileContextForPurpose } from './compile.service'
 
+export { getOnboardingReview, type OnboardingReview } from './onboarding-review'
+
 export { BusinessContextService } from './service'

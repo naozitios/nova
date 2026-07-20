@@ -199,7 +199,6 @@ export type Provider =
   | 'firecrawl'
   | 'meta'
   | 'llm_extraction'
-  | 'native_parser'
-  | 'paddleocr'
+  | 'docling'
 
 export type WorkspaceRole = 'owner' | 'admin' | 'editor' | 'viewer'

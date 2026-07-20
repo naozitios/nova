@@ -2,15 +2,11 @@ import { createHash } from 'node:crypto'
 import type { RepositoryPort } from '../repository.port'
 import type { SourceAdapterPort } from '../source-adapter.port'
 import type { CollectedSource } from '../source-adapter.port'
-import type { ExtractionPort, ExtractedFact } from '../extraction.port'
-import type {
-  PersistFactReconciliationConflict,
-  PersistFactReconciliationCreate,
-  PersistFactReconciliationSupersede,
-} from '../repository/fact.port'
-import type { ContextSource, ContextJob, ServiceResult, JsonValue } from '../types'
+import type { DocumentParserPort } from '../document-parser.port'
+import type { ExtractionPort } from '../extraction.port'
+import type { ContextSource, ContextJob, ServiceResult, JsonValue, SourceType } from '../types'
+import type { CanonicalDocumentIndexer } from './canonical-document-indexer'
 import { SourceProcessingStage, JobStatus } from '../types'
-import { computeQuestionLifecycle } from '../resolver/question-lifecycle'
 import { archiveSource } from './source.service'
 import {
   NO_PARSE_TYPES,
@@ -25,9 +21,13 @@ import {
   buildJobInput,
   serializeError,
 } from './pipeline-executor'
-import { runDocumentGates, runFactGates } from '../quality-gates'
+import { runDocumentGates } from '../quality-gates'
 import type { DocumentQualityInput } from '../quality-gates'
-import { resolveFacts } from '../resolver'
+import type { UploadedDocumentProcessor } from './uploaded-document.processor'
+import type { SourceFactPipelineDocument } from './source-fact-pipeline'
+import {
+  SourceFactPipeline,
+} from './source-fact-pipeline'
 
 /** Shared timeout for source-processing stages (30s heartbeat, 2× stale threshold). */
 const STAGE_TIMEOUT_SECONDS = 30
@@ -38,7 +38,22 @@ export class SourceProcessingService {
   constructor(
     private readonly repo: RepositoryPort,
     private readonly extractionPort?: ExtractionPort,
+    private readonly uploadedProcessor?: UploadedDocumentProcessor,
+    private readonly factPipeline?: SourceFactPipeline,
+    private readonly documentParser?: DocumentParserPort,
+    private readonly documentIndexer?: CanonicalDocumentIndexer,
   ) {}
+
+  private _effectiveFactPipeline: SourceFactPipeline | null = null
+
+  private get effectiveFactPipeline(): SourceFactPipeline | undefined {
+    if (this._effectiveFactPipeline === null) {
+      this._effectiveFactPipeline = this.factPipeline
+        ?? (this.extractionPort ? new SourceFactPipeline(this.repo, this.extractionPort) : undefined)
+        ?? null
+    }
+    return this._effectiveFactPipeline ?? undefined
+  }
 
   registerAdapter(adapter: SourceAdapterPort): void {
     this.adapters.push(adapter)
@@ -229,6 +244,69 @@ export class SourceProcessingService {
       return { ok: true, data: { status: 'blocked_needs_user_action', warnings: [] } }
     }
 
+    // Route uploaded documents through single-document processor
+    const jobInput = job.input as Record<string, unknown> | null
+    const documentId = typeof jobInput?.documentId === 'string' && jobInput.documentId.length > 0
+      ? jobInput.documentId
+      : undefined
+    if (documentId) {
+      if (!this.uploadedProcessor) {
+        return { ok: false, error: { code: 'NO_PROCESSOR', message: 'UploadedDocumentProcessor not injected' } }
+      }
+
+      const processorResult = await this.uploadedProcessor.process({
+        workspaceId,
+        businessId,
+        sourceId,
+        documentId,
+        runId,
+        sessionId: options?.sessionId ?? job.sessionId ?? undefined,
+      })
+
+      // Update run status based on processor result
+      if (processorResult.ok) {
+        await this.repo.updateProcessingRun(workspaceId, runId, {
+          status: processorResult.data.status === 'processed_with_warnings' ? 'succeeded_with_warnings' : 'succeeded',
+          currentStage: SourceProcessingStage.COMPLETED,
+          terminalOutcome: processorResult.data.status as 'processed' | 'processed_with_warnings',
+          completedAt: new Date(),
+          documentsCreated: 1,
+        })
+
+        if (!options?.job) {
+          await this.repo.updateContextJob(workspaceId, job.id, {
+            status: JobStatus.SUCCEEDED,
+            completedAt: new Date(),
+          })
+        }
+
+        await this.repo.updateContextSource(workspaceId, sourceId, {
+          status: processorResult.data.status,
+          terminalOutcome: processorResult.data.status as 'processed' | 'processed_with_warnings',
+        })
+      } else {
+        await this.repo.updateProcessingRun(workspaceId, runId, {
+          status: 'failed',
+          terminalOutcome: 'failed_permanent',
+          completedAt: new Date(),
+        })
+
+        if (!options?.job) {
+          await this.repo.updateContextJob(workspaceId, job.id, {
+            status: JobStatus.FAILED_PERMANENT,
+            error: serializeError(processorResult.error),
+          })
+        }
+
+        await this.repo.updateContextSource(workspaceId, sourceId, {
+          status: 'failed_permanent',
+          terminalOutcome: 'failed_permanent',
+        })
+      }
+
+      return processorResult
+    }
+
     const collected = await this.collectWithAdapter(workspaceId, businessId, source)
     if (!collected.ok) {
       await this.repo.updateProcessingRun(workspaceId, runId, {
@@ -297,27 +375,53 @@ export class SourceProcessingService {
       if (!stageResult.ok) return stageResult
     }
 
-    // ── B31 pipeline: extraction, persistence, quality gates ──────────────
+    // ── B31 pipeline: persistence, quality gates, fact extraction ──────────
 
     let factsExtracted = 0
     const warnings: string[] = []
 
     if (this.extractionPort && !shouldSkipParse) {
-      const allExtractedFacts: ExtractedFact[] = []
-      const allDocumentGateInputs: DocumentQualityInput[] = []
-
-      // Snapshot existing business facts BEFORE persisting new ones
-      // so reconciliation compares against the true prior state
       const existingFactsResult = await this.repo.listContextFacts({
         workspaceId,
         businessId,
       })
       const existingFacts = existingFactsResult.ok ? existingFactsResult.data.items : []
 
-      // Persist each collected document and run document quality gates
+      const persistedDocs: SourceFactPipelineDocument[] = []
+
       for (let i = 0; i < collected.data.documents.length; i++) {
         const doc = collected.data.documents[i]
-        const contentHash = createHash('sha256').update(doc.contentText ?? '').digest('hex')
+
+        const hasRaw = !!(doc.rawContent && doc.rawMimeType && this.documentParser && this.documentIndexer)
+
+        let canonicalContent = doc.contentText ?? ''
+        let effectiveParserName = 'passthrough'
+        let effectiveParserVersion = '1.0.0'
+
+        if (hasRaw) {
+          const parseResult = await this.documentParser.parseContent({
+            content: Buffer.from(doc.rawContent!, 'utf-8'),
+            mimeType: doc.rawMimeType!,
+          })
+          if (!parseResult.ok) {
+            if (!options?.job) {
+              await this.repo.updateContextJob(workspaceId, job.id, {
+                status: JobStatus.FAILED_PERMANENT,
+                error: serializeError(parseResult.error),
+              })
+            }
+            await this.repo.updateContextSource(workspaceId, sourceId, {
+              status: 'failed_permanent',
+              terminalOutcome: 'failed_permanent',
+            })
+            return { ok: false, error: parseResult.error }
+          }
+          canonicalContent = parseResult.data.contentText
+          effectiveParserName = parseResult.data.parserName
+          effectiveParserVersion = parseResult.data.parserVersion
+        }
+
+        const contentHash = createHash('sha256').update(canonicalContent).digest('hex')
 
         const docResult = await this.repo.createSourceDocument({
           workspaceId,
@@ -329,13 +433,17 @@ export class SourceProcessingService {
           mimeType: doc.mimeType ?? null,
           fileName: doc.fileName ?? null,
           fileSizeBytes: doc.fileSizeBytes ?? null,
-          contentText: doc.contentText,
+          contentText: canonicalContent,
           storagePath: null,
+          processedStoragePath: null,
+          processingStatus: 'pending',
+          embeddingModel: null,
+          indexedAt: null,
           contentHash,
           httpStatus: doc.httpStatus ?? null,
           pageOrSlideCount: doc.pageOrSlideCount ?? null,
-          parserName: 'passthrough',
-          parserVersion: '1.0.0',
+          parserName: effectiveParserName,
+          parserVersion: effectiveParserVersion,
           effectiveAt: new Date(),
           supersedesDocumentId: null,
           metadata: (doc.metadata ?? {}) as Record<string, JsonValue>,
@@ -358,12 +466,46 @@ export class SourceProcessingService {
 
         const persistedDocId = docResult.data.id
 
-        // Document quality gates
+        if (hasRaw) {
+          const pathId = createHash('sha256').update(doc.url ?? doc.fileName ?? contentHash).digest('hex').slice(0, 16)
+          const processedPath = `websites/${workspaceId}/${businessId}/${sourceId}/${pathId}.md`
+          const indexResult = await this.documentIndexer.index({
+            workspaceId,
+            businessId,
+            documentId: persistedDocId,
+            markdown: canonicalContent,
+            processedStoragePath: processedPath,
+            parserName: effectiveParserName,
+            parserVersion: effectiveParserVersion,
+            pageOrSlideCount: doc.pageOrSlideCount ?? null,
+            baseLocator: doc.url ? { url: doc.url } : undefined,
+          })
+          if (!indexResult.ok) {
+            if (!options?.job) {
+              await this.repo.updateContextJob(workspaceId, job.id, {
+                status: JobStatus.FAILED_PERMANENT,
+                error: serializeError(indexResult.error),
+              })
+            }
+            await this.repo.updateContextSource(workspaceId, sourceId, {
+              status: 'failed_permanent',
+              terminalOutcome: 'failed_permanent',
+            })
+            return indexResult
+          }
+        }
+
+        persistedDocs.push({
+          sourceDocumentId: persistedDocId,
+          contentText: canonicalContent,
+          parserName: effectiveParserName,
+        })
+
         const docGateInput: DocumentQualityInput = {
           sourceDocumentId: persistedDocId,
           mimeType: doc.mimeType ?? 'text/plain',
           contentHash,
-          contentText: doc.contentText,
+          contentText: canonicalContent,
           pageOrSlideCount: doc.pageOrSlideCount ?? null,
           pagesProcessed: 1,
           slidesProcessed: 0,
@@ -372,7 +514,6 @@ export class SourceProcessingService {
           evidenceLocatorsPresent: false,
           truncationDetected: false,
         }
-        allDocumentGateInputs.push(docGateInput)
 
         const docGates = runDocumentGates(docGateInput)
         for (const gate of docGates) {
@@ -391,205 +532,35 @@ export class SourceProcessingService {
             reason: gate.reason,
           })
         }
-
-        // Extract facts from each document
-        const extractionResult = await this.extractionPort.extractFacts({
-          sourceDocumentId: persistedDocId,
-          sourceId,
-          businessId,
-          workspaceId,
-          contentText: doc.contentText,
-          sourceType: source.sourceType,
-          parserName: 'passthrough',
-        })
-
-        if (extractionResult.ok) {
-          allExtractedFacts.push(...extractionResult.data.facts)
-        } else {
-          warnings.push(`Extraction failed for document "${doc.title ?? doc.fileName ?? persistedDocId}": ${extractionResult.error.message}`)
-        }
       }
 
-      // Reconcile extracted facts against ALL existing business facts
-      if (allExtractedFacts.length > 0) {
-
-        // Group by fact key for reconciliation
-        const byKey = new Map<string, ExtractedFact[]>()
-        for (const f of allExtractedFacts) {
-          const key = f.factKey.toLowerCase().trim()
-          if (!byKey.has(key)) byKey.set(key, [])
-          byKey.get(key)!.push(f)
-        }
-
-        const conflictFactKeys = new Set<string>()
-
-        const toCreate: PersistFactReconciliationCreate[] = []
-        const toSupersede: PersistFactReconciliationSupersede[] = []
-        const toConflicts: PersistFactReconciliationConflict[] = []
-
-        // Track which oldFactIds were superseded per key for provenance
-        const supersededIdsByFactKey = new Map<string, string[]>()
-
-        for (const [factKey, newFacts] of byKey) {
-          const matching = existingFacts.filter(
-            (ef) => ef.factKey.toLowerCase().trim() === factKey,
-          )
-
-          if (source.sourceType === 'meta') {
-            const activeDifferent = matching.filter((ef) =>
-              ef.verificationStatus !== 'superseded' &&
-              ef.verificationStatus !== 'rejected' &&
-              newFacts.some((nf) => JSON.stringify(nf.value) !== JSON.stringify(ef.value))
-            )
-            if (activeDifferent.length > 0) {
-              conflictFactKeys.add(factKey)
-              toConflicts.push({ factKey, factIds: activeDifferent.map((f) => f.id) })
-              continue
-            }
-          }
-
-          const resolution = resolveFacts(matching, newFacts)
-
-          // Collect supersession payloads and track oldFactIds per key FIRST
-          for (const s of resolution.superseded) {
-            toSupersede.push({
-              oldFactId: s.oldFactId,
-            })
-            const existing = supersededIdsByFactKey.get(factKey) ?? []
-            existing.push(s.oldFactId)
-            supersededIdsByFactKey.set(factKey, existing)
-          }
-
-          // Collect creation payloads with supersession provenance
-          for (const f of resolution.toCreate) {
-            const supersededIds = supersededIdsByFactKey.get(factKey)
-            toCreate.push({
-              factKey: f.factKey,
-              value: f.value,
-              sourceId,
-              sourceExcerpt: f.sourceExcerpt,
-              evidenceLocator: f.evidenceLocator as JsonValue | null,
-              confidence: f.confidence,
-              supersedesFactId: supersededIds?.[0] ?? null,
-            })
-          }
-
-          // Track conflicts
-          if (resolution.conflicts.length > 0) {
-            for (const c of resolution.conflicts) {
-              conflictFactKeys.add(c.factKey)
-              toConflicts.push({ factKey: c.factKey, factIds: c.factIds })
-            }
-          }
-        }
-
-        // Batch persist all reconciled facts
-        if (toCreate.length > 0 || toSupersede.length > 0 || toConflicts.length > 0) {
-          const reconcResult = await this.repo.persistFactReconciliation(
-            workspaceId,
-            businessId,
-            toSupersede,
-            toCreate,
-            toConflicts,
-          )
-          if (!reconcResult.ok) {
-            if (!options?.job) {
-              await this.repo.updateContextJob(workspaceId, job.id, {
-                status: JobStatus.FAILED_PERMANENT,
-                error: serializeError(reconcResult.error),
-              })
-            }
-            await this.repo.updateContextSource(workspaceId, sourceId, {
-              status: 'failed_permanent',
-              terminalOutcome: 'failed_permanent',
-            })
-            return { ok: false, error: reconcResult.error }
-          }
-          if (!Array.isArray(reconcResult.data.created_fact_ids)) {
-            return {
-              ok: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Reconciliation RPC returned success but payload missing created_fact_ids',
-              },
-            }
-          }
-          factsExtracted += reconcResult.data.created_fact_ids.length
-        }
-
-        // Fact quality gates + lifecycle questions
-        const persistedFacts = await this.repo.listContextFacts({
+      if (this.effectiveFactPipeline) {
+        const pipelineResult = await this.effectiveFactPipeline.process({
           workspaceId,
           businessId,
           sourceId,
+          sourceType: source.sourceType as SourceType,
+          existingFacts,
+          runId,
+          sessionId: options?.sessionId ?? options?.job?.sessionId ?? null,
+          documents: persistedDocs,
         })
-        const facts = persistedFacts.ok ? persistedFacts.data.items : []
-        const gapKeys: string[] = []
 
-        for (const fact of facts) {
-          const hasConflict = conflictFactKeys.has(fact.factKey)
-          const factGates = runFactGates({
-            factId: fact.id,
-            factKey: fact.factKey,
-            value: fact.value,
-            sourceId: fact.sourceId,
-            sourceExcerpt: fact.sourceExcerpt,
-            evidenceLocator: fact.evidenceLocator,
-            confidence: fact.confidence,
-            verificationStatus: fact.verificationStatus,
-            hasConflict,
-            supersedesFactId: fact.supersedesFactId,
-          })
-
-          for (const gate of factGates) {
-            await this.repo.createQualityGateResult({
-              workspaceId,
-              businessId,
-              runId,
-              sourceId,
-              sourceDocumentId: null,
-              factId: fact.id,
-              gateScope: gate.gateScope,
-              gateName: gate.gateName,
-              status: gate.status,
-              measuredValue: gate.measuredValue,
-              threshold: gate.threshold,
-              reason: gate.reason,
+        if (pipelineResult.ok) {
+          factsExtracted = pipelineResult.data.factsExtracted
+          warnings.push(...pipelineResult.data.warnings)
+        } else {
+          if (!options?.job) {
+            await this.repo.updateContextJob(workspaceId, job.id, {
+              status: JobStatus.FAILED_PERMANENT,
+              error: serializeError(pipelineResult.error),
             })
           }
-
-          // Collect gap keys for lifecycle
-          if (fact.confidence < 0.7 || hasConflict) {
-            gapKeys.push(fact.factKey)
-          }
-        }
-
-        // ── Question lifecycle: create only toCreate, dismiss only toDismiss ──
-        const sessionId = options?.sessionId ?? options?.job?.sessionId ?? null
-        if (sessionId) {
-          const existingQs = await this.repo.listOnboardingQuestions({
-            workspaceId,
-            sessionId,
+          await this.repo.updateContextSource(workspaceId, sourceId, {
+            status: 'failed_permanent',
+            terminalOutcome: 'failed_permanent',
           })
-          const existingQuestions = existingQs.ok ? existingQs.data.items : []
-
-          const lifecycle = computeQuestionLifecycle({
-            gaps: gapKeys,
-            existingQuestions,
-            businessId,
-            workspaceId,
-            sessionId,
-          })
-
-          for (const q of lifecycle.toCreate) {
-            const qResult = await this.repo.createOnboardingQuestion(q)
-            if (!qResult.ok) {
-              return { ok: false, error: qResult.error }
-            }
-          }
-          for (const questionId of lifecycle.toDismiss) {
-            await this.repo.dismissOnboardingQuestion(workspaceId, questionId)
-          }
+          return pipelineResult
         }
       }
     }

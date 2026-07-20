@@ -79,6 +79,10 @@ export interface SourceDocument {
   fileSizeBytes: number | null
   contentText: string | null
   storagePath: string | null
+  processedStoragePath: string | null
+  processingStatus: 'pending' | 'processing' | 'indexed' | 'failed'
+  embeddingModel: string | null
+  indexedAt: Date | null
   contentHash: string
   httpStatus: number | null
   pageOrSlideCount: number | null
@@ -88,6 +92,20 @@ export interface SourceDocument {
   supersedesDocumentId: string | null
   metadata: Record<string, JsonValue>
   retrievedAt: Date
+}
+
+export interface DocumentChunk {
+  id: string
+  workspaceId: string
+  businessId: string
+  sourceDocumentId: string
+  chunkIndex: number
+  headingPath: string[]
+  content: string
+  locator: Record<string, JsonValue>
+  embedding: number[]
+  embeddingModel: string
+  createdAt: Date
 }
 
 export interface ContextFact {
@@ -277,4 +295,3 @@ export interface AuditLog {
   after: Record<string, JsonValue> | null
   createdAt: Date
 }
-

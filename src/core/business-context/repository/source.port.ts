@@ -1,5 +1,6 @@
 import type {
   ContextSource,
+  JsonValue,
   ServiceResult,
   SourceDocument,
 } from '../types'
@@ -72,8 +73,33 @@ export interface SourceRepositoryPort {
   updateSourceDocument(
     workspaceId: string,
     documentId: string,
-    data: Partial<Pick<SourceDocument, 'metadata' | 'storagePath'>>,
+    data: Partial<Pick<SourceDocument,
+      | 'metadata'
+      | 'storagePath'
+      | 'processedStoragePath'
+      | 'processingStatus'
+      | 'embeddingModel'
+      | 'indexedAt'
+      | 'contentText'
+      | 'pageOrSlideCount'
+      | 'parserName'
+      | 'parserVersion'
+    >>,
   ): Promise<ServiceResult<SourceDocument>>
+
+  replaceDocumentChunks(
+    workspaceId: string,
+    businessId: string,
+    documentId: string,
+    chunks: Array<{
+      chunkIndex: number
+      headingPath: string[]
+      content: string
+      locator: Record<string, JsonValue>
+      embedding: number[]
+      embeddingModel: string
+    }>,
+  ): Promise<ServiceResult<void>>
 
   archiveSource(
     workspaceId: string,

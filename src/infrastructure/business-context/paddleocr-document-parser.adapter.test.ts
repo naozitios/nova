@@ -25,7 +25,7 @@ const mockStorage = () => {
   const downloadSpy = vi.fn()
   const fromSpy = vi.fn().mockReturnValue({ upload: uploadSpy, download: downloadSpy })
   const client = { storage: { from: fromSpy } }
-  vi.mocked(getSupabaseServiceClient).mockReturnValue(client as ReturnType<typeof getSupabaseServiceClient>)
+  vi.mocked(getSupabaseServiceClient).mockReturnValue(client as unknown as ReturnType<typeof getSupabaseServiceClient>)
   return { uploadSpy, downloadSpy, fromSpy }
 }
 

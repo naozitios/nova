@@ -78,7 +78,7 @@ export class MetaSourceAdapter implements SourceAdapterPort {
     apiVersion?: string
   } = {}) {
     this.repo = params.repo ?? new SupabaseMetaRepository()
-    this.db = params.db ?? getSupabaseServiceClient()
+    this.db = params.db ?? (getSupabaseServiceClient() as unknown as StoredMetaDb)
   }
 
   supports(sourceType: string): boolean {

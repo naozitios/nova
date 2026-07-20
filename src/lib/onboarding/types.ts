@@ -95,8 +95,11 @@ export type MockMetaConnection = {
 export type MockAdAccount = {
   id: string;
   name: string;
+  accountId: string;
   currency: string;
   timezone: string;
+  businessName: string;
+  isSelected: boolean;
   status: string;
 };
 
