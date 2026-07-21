@@ -184,27 +184,41 @@ export default function OnboardingPage() {
   }, [businessId]);
 
   useEffect(() => {
+    if (ONBOARDING_STEPS[currentIndex].key !== 'add-business-sources') return;
     const url = state.businessBasics.websiteUrl?.trim();
-    if (!url) return;
-    if (state.sources.some((s) => s.sourceType === 'website' && s.externalReference === url)) return;
+    if (!url || !/^https?:\/\//i.test(url)) return;
 
-    setState((s) => ({
-      ...s,
-      sources: [
-        ...s.sources,
-        {
-          id: `src_website_${Date.now()}`,
-          sourceType: 'website',
-          sourceName: url,
-          externalReference: url,
-          status: 'processing',
-          currentStage: 'crawling',
-          progress: 0,
-          error: null,
-        },
-      ],
-    }));
-  }, [state.businessBasics.websiteUrl]);
+    setState((s) => {
+      const existing = s.sources.find((src) => src.sourceType === 'website');
+      if (existing?.externalReference === url) return s;
+      if (existing) {
+        return {
+          ...s,
+          sources: s.sources.map((src) =>
+            src.id === existing.id
+              ? { ...src, externalReference: url, sourceName: url, status: 'added' as const }
+              : src,
+          ),
+        };
+      }
+      return {
+        ...s,
+        sources: [
+          ...s.sources,
+          {
+            id: `src_website_${Date.now()}`,
+            sourceType: 'website' as const,
+            sourceName: url,
+            externalReference: url,
+            status: 'added' as const,
+            currentStage: 'queued',
+            progress: 0,
+            error: null,
+          },
+        ],
+      };
+    });
+  }, [currentIndex, state.businessBasics.websiteUrl]);
 
   useEffect(() => {
     const workspaceId = state.business.workspaceId;
@@ -284,18 +298,28 @@ export default function OnboardingPage() {
   };
 
   const handleFileSelect = (files: FileList) => {
-    setState((s) => {
-      const newSources: MockSource[] = Array.from(files).map((file, i) => ({
-        id: `src_upload_${Date.now()}_${i}`,
-        sourceType: 'upload',
-        sourceName: file.name,
-        externalReference: null,
-        status: 'processing',
-        currentStage: 'uploading',
-        progress: 0,
-        error: null,
-      }));
-      return { ...s, sources: [...s.sources, ...newSources] };
+    const newSources: MockSource[] = Array.from(files).map((file, i) => ({
+      id: `src_upload_${Date.now()}_${i}`,
+      sourceType: 'upload',
+      sourceName: file.name,
+      externalReference: null,
+      status: 'added',
+      currentStage: 'queued',
+      progress: 0,
+      error: null,
+    }));
+    setState((s) => ({ ...s, sources: [...s.sources, ...newSources] }));
+    newSources.forEach((src) => {
+      setTimeout(() => {
+        setState((s) => ({
+          ...s,
+          sources: s.sources.map((cur) =>
+            cur.id === src.id
+              ? { ...cur, status: 'processing', currentStage: 'extracting' }
+              : cur,
+          ),
+        }));
+      }, 600);
     });
   };
 
@@ -476,10 +500,7 @@ export default function OnboardingPage() {
       footer={step.key === 'setup-complete' ? null : (
         <OnboardingActionFooter>
           {step.key === 'add-business-sources' ? (
-            <div className="flex w-full items-center justify-between">
-              <span className="text-xs text-muted-foreground">
-                Files are encrypted and only used to train NOVA
-              </span>
+            <div className="flex w-full items-center justify-end">
               <Button
                 onClick={goNext}
                 disabled={!canGoNext}

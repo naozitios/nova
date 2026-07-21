@@ -16,6 +16,7 @@ export function SidebarContextPanel({ state, variant = 'default' }: SidebarConte
       if (status === 'processing') return 'Analysing...';
       if (status === 'failed') return 'Failed';
       if (status === 'uploading') return 'Uploading...';
+      if (status === 'added') return 'Queued';
       return 'Queued';
     };
 
@@ -123,14 +124,6 @@ export function SidebarContextPanel({ state, variant = 'default' }: SidebarConte
 
       {/* Meta Status Card - for step 3 */}
       {variant === 'meta' && renderMetaStatus()}
-
-      {/* AI Tip */}
-      <div className="flex items-center gap-2 rounded-2xl bg-secondary p-4">
-        <span className="text-primary">✨</span>
-        <p className="text-sm text-muted-foreground">
-          Multi-source learning increases ad conversion accuracy by up to 34%.
-        </p>
-      </div>
     </div>
   );
 }
