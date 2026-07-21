@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { X, Plus, Globe, FileText, BarChart3, Settings } from 'lucide-react';
 import { OnboardingCard } from './OnboardingCard';
-import type { MockCompiledProfile } from '@/lib/onboarding/types';
+import type { MockCompiledProfile, MockSource } from '@/lib/onboarding/types';
 
 type BusinessContextReviewProps = {
   profile: MockCompiledProfile;
+  sources: MockSource[];
   onUpdateProfile: (field: keyof MockCompiledProfile, value: unknown) => void;
 };
 
@@ -16,10 +17,14 @@ const TAG_COLORS = [
   { bg: 'bg-rose-50', text: 'text-rose-800', border: 'border-rose-100' },
 ];
 
-export function BusinessContextReview({ profile, onUpdateProfile }: BusinessContextReviewProps) {
+export function BusinessContextReview({ profile, sources, onUpdateProfile }: BusinessContextReviewProps) {
   const [newAudience, setNewAudience] = useState('');
   const [newOffering, setNewOffering] = useState('');
-  const readinessPct = 92;
+  const readinessPct = profile.summary && profile.offerings.length > 0 ? 85 : 30;
+
+  const websiteSource = sources.find((s) => s.sourceType === 'website');
+  const uploadSources = sources.filter((s) => s.sourceType === 'upload');
+  const firstSourceLabel = websiteSource?.externalReference || uploadSources[0]?.sourceName || 'Not provided';
 
   const removeAudience = (index: number) => {
     const updated = profile.targetAudiences.filter((_, i) => i !== index);
@@ -109,7 +114,7 @@ export function BusinessContextReview({ profile, onUpdateProfile }: BusinessCont
             />
             <div className="mt-4 inline-flex items-center gap-2 self-start rounded-lg border border-border bg-muted px-3 py-1.5">
               <Globe className="size-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Source: Website homepage</span>
+              <span className="text-xs text-muted-foreground">Source: {firstSourceLabel}</span>
             </div>
           </OnboardingCard>
         </div>
@@ -127,7 +132,7 @@ export function BusinessContextReview({ profile, onUpdateProfile }: BusinessCont
               </div>
               <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5">
                 <FileText className="size-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">brand_guide.pdf</span>
+                <span className="text-xs text-muted-foreground">{firstSourceLabel}</span>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -172,7 +177,7 @@ export function BusinessContextReview({ profile, onUpdateProfile }: BusinessCont
               </div>
               <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5">
                 <Globe className="size-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">From website</span>
+                <span className="text-xs text-muted-foreground">From {firstSourceLabel}</span>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -222,7 +227,7 @@ export function BusinessContextReview({ profile, onUpdateProfile }: BusinessCont
             </div>
             <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5">
               <BarChart3 className="size-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">analytics.csv</span>
+              <span className="text-xs text-muted-foreground">{firstSourceLabel}</span>
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -268,7 +273,7 @@ export function BusinessContextReview({ profile, onUpdateProfile }: BusinessCont
             </div>
             <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5">
               <Settings className="size-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Manual setting</span>
+              <span className="text-xs text-muted-foreground">User provided</span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-6">
@@ -281,6 +286,7 @@ export function BusinessContextReview({ profile, onUpdateProfile }: BusinessCont
                 value={profile.funnelGoal}
                 onChange={(e) => onUpdateProfile('funnelGoal', e.target.value)}
               >
+                <option value="">Select a goal...</option>
                 <option>Generate qualified sales conversations</option>
                 <option>Sign-up Success</option>
                 <option>Purchase Complete</option>

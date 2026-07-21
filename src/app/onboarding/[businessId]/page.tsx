@@ -447,6 +447,7 @@ export default function OnboardingPage() {
         return (
           <BusinessContextReview
             profile={state.compiledProfile}
+            sources={state.sources}
             onUpdateProfile={updateProfile}
           />
         );

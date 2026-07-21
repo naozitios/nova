@@ -52,8 +52,11 @@ export function CompletionSummary({ state, completionStatus }: CompletionSummary
             You&apos;re all set up!
           </h1>
           <p className="mt-2 max-w-lg text-base text-muted-foreground">
-            Your business context is mapped and your Meta Ad account is
-            successfully connected to NOVA AI.
+            {metaConnection.status === 'connected'
+              ? 'Your business context is mapped and your Meta Ad account is successfully connected to NOVA AI.'
+              : metaConnection.status === 'skipped'
+                ? 'Your business context is mapped. You can connect your Meta Ad account later from Settings.'
+                : 'Your business context is mapped and is ready for NOVA AI.'}
           </p>
         </div>
 

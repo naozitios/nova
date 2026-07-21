@@ -11,6 +11,14 @@ export function SidebarContextPanel({ state, variant = 'default' }: SidebarConte
     const websiteSource = state.sources.find((s) => s.sourceType === 'website');
     const uploadedSources = state.sources.filter((s) => s.sourceType === 'upload');
 
+    const statusLabel = (status: string) => {
+      if (status === 'complete') return 'Ready';
+      if (status === 'processing') return 'Analysing...';
+      if (status === 'failed') return 'Failed';
+      if (status === 'uploading') return 'Uploading...';
+      return 'Queued';
+    };
+
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between mb-4">
@@ -25,11 +33,11 @@ export function SidebarContextPanel({ state, variant = 'default' }: SidebarConte
               <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary">
                 <Globe className="size-4 text-muted-foreground" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">
                   {websiteSource.externalReference || 'Website'}
                 </p>
-                <p className="text-xs text-muted-foreground">To be analysed</p>
+                <p className="text-xs text-muted-foreground">{statusLabel(websiteSource.status)}</p>
               </div>
             </div>
           )}
@@ -40,9 +48,9 @@ export function SidebarContextPanel({ state, variant = 'default' }: SidebarConte
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">{source.sourceName}</p>
-                <p className="text-xs text-muted-foreground">To be analysed</p>
+                <p className="text-xs text-muted-foreground">{statusLabel(source.status)}</p>
               </div>
             </div>
           ))}
