@@ -1,0 +1,6 @@
+export const DEMO_USER_ID = '10000000-0000-0000-0000-000000000010'
+export const DEMO_USER_EMAIL = 'demo@nova.io'
+export const DEMO_USER_COMPANY = 'Demo Agency'
+export const DEMO_WORKSPACE_ID = '10000000-0000-0000-0000-000000000020'
+export const DEMO_BUSINESS_ID = '10000000-0000-0000-0000-000000000020'
+export const DEMO_BUSINESS_ALIAS = 'biz_nova_media'
