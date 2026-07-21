@@ -399,7 +399,7 @@ export default function OnboardingPage() {
       case 'business-basics':
         return (
           <BusinessBasicsForm
-            key={state.businessBasics.businessName}
+            key={step.key}
             value={state.businessBasics}
             onChange={updateBusinessBasics}
           />
