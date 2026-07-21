@@ -34,7 +34,7 @@ export function SidebarContextPanel({ state, variant = 'default' }: SidebarConte
                 <Globe className="size-4 text-muted-foreground" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground">
+                <p className="break-all text-sm font-semibold text-foreground">
                   {websiteSource.externalReference || 'Website'}
                 </p>
                 <p className="text-xs text-muted-foreground">{statusLabel(websiteSource.status)}</p>
