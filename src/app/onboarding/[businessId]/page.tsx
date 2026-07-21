@@ -507,7 +507,7 @@ export default function OnboardingPage() {
               </div>
             ) : state.metaConnection.status === 'connected' ? (
               <div className="flex w-full items-center justify-end">
-                <Button variant="ghost" onClick={goNext}>
+                <Button variant="ghost" onClick={() => { metaSkip(); goNext(); }}>
                   Do this later
                 </Button>
               </div>
