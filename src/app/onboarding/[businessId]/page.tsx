@@ -441,7 +441,7 @@ export default function OnboardingPage() {
         );
 
       case 'processing':
-        return <ProcessingTimeline processing={state.processing} />;
+        return <ProcessingTimeline processing={{ ...state.processing, sources: state.sources }} />;
 
       case 'review-business-context':
         return (
@@ -512,7 +512,7 @@ export default function OnboardingPage() {
               <div className="flex items-center gap-4">
                 <div className="size-10 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                 <span className="text-sm text-muted-foreground">
-                  Step 3 of 6: Processing deep analysis…
+                  Step 4 of 6: Processing deep analysis…
                 </span>
               </div>
               <Button disabled={!state.processing.canContinue} onClick={goNext}>

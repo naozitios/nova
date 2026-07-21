@@ -31,7 +31,7 @@ export const initialOnboardingState: MockOnboardingState = {
     currentMessage: '',
     sources: [],
     blockers: [],
-    canContinue: true,
+    canContinue: false,
   },
   compiledProfile: {
     summary: '',

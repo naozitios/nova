@@ -110,6 +110,7 @@ export function BusinessContextReview({ profile, sources, onUpdateProfile }: Bus
             <textarea
               className="min-h-[120px] w-full resize-none rounded-xl border border-border bg-muted/50 p-4 text-sm leading-relaxed text-muted-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               value={profile.summary}
+              placeholder="Describe your business identity..."
               onChange={(e) => onUpdateProfile('summary', e.target.value)}
             />
             <div className="mt-4 inline-flex items-center gap-2 self-start rounded-lg border border-border bg-muted px-3 py-1.5">
