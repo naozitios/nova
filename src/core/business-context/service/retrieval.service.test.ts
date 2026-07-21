@@ -1,11 +1,20 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { RetrievalService } from './retrieval.service'
+import type { EmbeddingPort } from '../embedding.port'
+import type { RepositoryPort } from '../repository.port'
+import type { MetaRepositoryPort } from '@/core/meta-data/repository.port'
+import type { RetrievalPort } from '../retrieval.port'
+
+type MockRepo = Pick<RepositoryPort, 'getCurrentProfileVersion' | 'listContextFacts'>
+type MockRetrievalPort = Pick<RetrievalPort, 'hybridSearch'>
+type MockEmbeddingPort = Pick<EmbeddingPort, 'model' | 'dimensions' | 'embed'>
+type MockMetaRepo = Pick<MetaRepositoryPort, 'listAdAccounts'>
 
 describe('RetrievalService', () => {
-  let mockRepo: any
-  let mockRetrievalPort: any
-  let mockEmbeddingPort: any
-  let mockMetaRepo: any
+  let mockRepo: MockRepo
+  let mockRetrievalPort: MockRetrievalPort
+  let mockEmbeddingPort: MockEmbeddingPort
+  let mockMetaRepo: MockMetaRepo
   let service: RetrievalService
 
   beforeEach(() => {
@@ -48,7 +57,12 @@ describe('RetrievalService', () => {
         data: [{ id: 'ad-account-1', name: 'Test Account' }],
       }),
     }
-    service = new RetrievalService(mockRepo, mockRetrievalPort, mockEmbeddingPort, mockMetaRepo)
+    service = new RetrievalService(
+      mockRepo as RepositoryPort,
+      mockRetrievalPort,
+      mockEmbeddingPort,
+      mockMetaRepo as MetaRepositoryPort,
+    )
   })
 
   it('returns profile, facts, chunks, and meta metrics', async () => {
@@ -86,7 +100,7 @@ describe('RetrievalService', () => {
   })
 
   it('handles embedding failure', async () => {
-    mockEmbeddingPort.embed.mockResolvedValue({
+    vi.mocked(mockEmbeddingPort.embed).mockResolvedValue({
       ok: false,
       error: { code: 'EMBEDDING_FAILED', message: 'API error' },
     })

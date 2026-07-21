@@ -1,6 +1,6 @@
 import Link from 'next/link';
+import { CheckCircle, Building2, ArrowRight, ArrowUpRight } from 'lucide-react';
 import type { MockOnboardingState } from '@/lib/onboarding/types';
-import { Button } from '@/components/ui/button';
 import { OnboardingCard } from './OnboardingCard';
 
 type CompletionSummaryProps = {
@@ -8,51 +8,123 @@ type CompletionSummaryProps = {
   completionStatus: 'complete' | 'pending_admin_approval';
 };
 
-const metaStatusLabel: Record<string, string> = {
-  not_connected: 'Not Connected',
-  connected: 'Connected',
-  skipped: 'Skipped',
-  failed: 'Failed',
-};
+const NEXT_STEPS = [
+  {
+    title: 'Import historical data',
+    description:
+      "We're pulling the last 90 days of performance data to establish your baseline.",
+  },
+  {
+    title: 'First AI Audit',
+    description:
+      'Our engine scans your campaigns for creative fatigue and efficiency leaks.',
+  },
+  {
+    title: 'Identify Opportunities',
+    description:
+      'Receive your first 3 tailored recommendations to improve ROAS.',
+  },
+];
 
 export function CompletionSummary({ state, completionStatus }: CompletionSummaryProps) {
-  const { business, sources, metaConnection, completion } = state;
-  const isAdmin = completionStatus === 'complete';
+  const { business, metaConnection, selectedAdAccountId, adAccounts, completion } = state;
+
+  const connectedAccountLabel =
+    metaConnection.status === 'connected' && selectedAdAccountId
+      ? (() => {
+          const account = adAccounts.find((a) => a.id === selectedAdAccountId);
+          const shortId = selectedAdAccountId.slice(-6);
+          return account ? `${account.name}: ID …${shortId}` : `Meta Ads: ID …${shortId}`;
+        })()
+      : metaConnection.status === 'connected'
+        ? 'Meta Ads: Connected'
+        : 'Not connected';
 
   return (
-    <OnboardingCard className="space-y-6">
-      <div className="space-y-1">
-        <h3 className="text-lg font-semibold text-[#251816]">{business.name}</h3>
-        <p className="text-sm text-[#645d58]">Business onboarding complete</p>
-      </div>
+    <div className="mx-auto w-full max-w-3xl">
+      <OnboardingCard className="flex flex-col items-center text-center">
+        {/* Celebration header */}
+        <div className="mb-10 flex flex-col items-center">
+          <div className="mb-6 flex size-20 items-center justify-center rounded-full bg-success/10 text-success animate-bounce">
+            <CheckCircle className="size-10" />
+          </div>
+          <h1 className="text-3xl font-bold text-foreground">
+            You&apos;re all set up!
+          </h1>
+          <p className="mt-2 max-w-lg text-base text-muted-foreground">
+            {metaConnection.status === 'connected'
+              ? 'Your business context is mapped and your Meta Ad account is successfully connected to NOVA AI.'
+              : metaConnection.status === 'skipped'
+                ? 'Your business context is mapped. You can connect your Meta Ad account later from Settings.'
+                : 'Your business context is mapped and is ready for NOVA AI.'}
+          </p>
+        </div>
 
-      <div className="grid gap-4 text-sm">
-        <div className="flex items-center justify-between">
-          <span className="text-[#645d58]">Sources</span>
-          <span className="font-medium text-[#251816]">{sources.length} added</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-[#645d58]">Meta</span>
-          <span className="font-medium text-[#251816]">
-            {metaStatusLabel[metaConnection.status] ?? metaConnection.status}
-          </span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-[#645d58]">Approval</span>
-          <span className="font-medium text-[#251816]">
-            {isAdmin ? 'Approved by admin' : 'Pending admin approval'}
-          </span>
-        </div>
-      </div>
+        {/* Connection Summary */}
+        <OnboardingCard className="mb-10 w-full bg-muted/50 text-left">
+          <h3 className="mb-4 text-center text-xl font-semibold text-foreground">
+            Connection Summary
+          </h3>
+          <div className="mx-auto grid max-w-xl grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card shadow-sm">
+                <Building2 className="size-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Business Profile</p>
+                <p className="text-sm font-semibold text-foreground">{business.name}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card shadow-sm">
+                <ArrowUpRight className="size-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Connected Account</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {connectedAccountLabel}
+                </p>
+              </div>
+            </div>
+          </div>
+        </OnboardingCard>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Button className="bg-[#aa3016] text-white hover:bg-[#d14a2e]" asChild>
-          <Link href={completion.dashboardHref}>Go to Dashboard</Link>
-        </Button>
-        <Button variant="outline" asChild>
-          <Link href={completion.settingsHref}>Open Settings</Link>
-        </Button>
-      </div>
-    </OnboardingCard>
+        {/* What happens next */}
+        <div className="mb-10 w-full">
+          <h3 className="mb-6 text-center text-xl font-semibold text-foreground">
+            What happens next?
+          </h3>
+          <div className="mx-auto max-w-xl space-y-4">
+            {NEXT_STEPS.map((step, i) => (
+              <div
+                key={step.title}
+                className="group flex gap-4 rounded-xl border border-transparent p-4 transition-colors hover:border-border hover:bg-muted/30"
+              >
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
+                  {i + 1}
+                </div>
+                <div>
+                  <h4 className="mb-1 text-sm font-bold text-foreground">
+                    {step.title}
+                  </h4>
+                  <p className="text-sm text-muted-foreground">{step.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Primary CTA */}
+        <div className="w-full">
+          <Link
+            href={completion.dashboardHref}
+            className="flex w-full max-w-md mx-auto items-center justify-center gap-2 rounded-full bg-primary py-4 text-lg font-semibold text-primary-foreground shadow-md transition-all hover:opacity-90 active:scale-[0.98]"
+          >
+            Go to dashboard
+            <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
+          </Link>
+        </div>
+      </OnboardingCard>
+    </div>
   );
 }

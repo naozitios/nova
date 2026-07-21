@@ -15,6 +15,13 @@ export const mockOnboardingState: MockOnboardingState = {
     status: 'created',
     currentStep: 'business-basics',
   },
+  businessBasics: {
+    businessName: 'Nova Media Group',
+    websiteUrl: 'https://novamediagroup.example',
+    primaryMarket: 'us',
+    businessType: 'saas',
+    advertisingGoal: 'leads',
+  },
   selectedObjective: 'campaign_setup',
   objectiveOptions: [
     {
@@ -99,7 +106,7 @@ export const mockOnboardingState: MockOnboardingState = {
     },
   ],
   metaConnection: {
-    status: 'skipped',
+    status: 'not_connected',
     connectionId: null,
     connectedAt: null,
     error: null,
@@ -108,15 +115,21 @@ export const mockOnboardingState: MockOnboardingState = {
     {
       id: 'act_822109',
       name: 'Nova Media Growth',
+      accountId: 'act_822109',
       currency: 'USD',
       timezone: 'America/New_York',
+      businessName: 'Nova Media',
+      isSelected: false,
       status: 'active',
     },
     {
       id: 'act_774512',
       name: 'Nova Sandbox',
+      accountId: 'act_774512',
       currency: 'USD',
       timezone: 'America/Los_Angeles',
+      businessName: 'Nova Media',
+      isSelected: false,
       status: 'active',
     },
   ],

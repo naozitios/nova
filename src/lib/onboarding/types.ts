@@ -1,12 +1,18 @@
 export type OnboardingStepKey =
   | 'business-basics'
-  | 'primary-objective'
   | 'add-business-sources'
   | 'connect-meta'
   | 'processing'
   | 'review-business-context'
-  | 'select-ad-account'
   | 'setup-complete';
+
+export type BusinessBasics = {
+  businessName: string;
+  websiteUrl: string;
+  primaryMarket: string;
+  businessType: string;
+  advertisingGoal: string;
+};
 
 export type MetaConnectionStatus = 'not_connected' | 'connected' | 'skipped' | 'failed';
 export type SourceStatus = 'added' | 'uploading' | 'processing' | 'complete' | 'failed';
@@ -89,8 +95,11 @@ export type MockMetaConnection = {
 export type MockAdAccount = {
   id: string;
   name: string;
+  accountId: string;
   currency: string;
   timezone: string;
+  businessName: string;
+  isSelected: boolean;
   status: string;
 };
 
@@ -108,6 +117,7 @@ export type MockCompletion = {
 export type MockOnboardingState = {
   business: MockBusiness;
   onboardingSession: MockOnboardingSession;
+  businessBasics: BusinessBasics;
   selectedObjective: string | null;
   objectiveOptions: MockObjective[];
   sources: MockSource[];

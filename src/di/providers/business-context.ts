@@ -23,7 +23,7 @@ import { SourceAdapterRegistry } from '@/infrastructure/business-context/source-
 import { WebsiteSourceAdapter } from '@/infrastructure/business-context/website-source.adapter';
 import { MetaSourceAdapter } from '@/infrastructure/business-context/meta/meta-adapter';
 import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repository';
-
+import { ManualSourceAdapter } from '@/infrastructure/business-context/manual-source.adapter';
 import { LlmExtractionAdapter, type LlmClient } from '@/infrastructure/business-context/llm-extraction.adapter';
 import { OpenRouterExtractionClient } from '@/infrastructure/business-context/openrouter-extraction.client';
 import { SourceProcessingService } from '@/core/business-context/service/source-processing.service';
@@ -75,7 +75,6 @@ export function setBusinessContextRepository(repo: RepositoryPort): void {
   _bcRepo = repo;
   _bcVisibility = null;
   _bcCircuitBreaker = null;
-  // Reset all singletons that capture _bcRepo via getBusinessContextRepository()
   _canonicalDocumentIndexer = null;
   _sourceFactPipeline = null;
   _uploadedProcessor = null;
@@ -164,8 +163,8 @@ export function getSourceAdapterRegistry(): SourceAdapterRegistry {
     }
     _sourceAdapterRegistry = new SourceAdapterRegistry();
     _sourceAdapterRegistry.register(new WebsiteSourceAdapter({ apiKey: firecrawlKey }));
-    const metaRepo = new SupabaseMetaRepository();
-    _sourceAdapterRegistry.register(new MetaSourceAdapter({ repo: metaRepo }));
+    _sourceAdapterRegistry.register(new MetaSourceAdapter({ repo: new SupabaseMetaRepository(getSupabaseServiceClient()), db: getSupabaseServiceClient() } as any));
+    _sourceAdapterRegistry.register(new ManualSourceAdapter());
 
     // Stable unsupported outcomes for stored-document types until B16 adapters land
     _sourceAdapterRegistry.registerUnsupported('brand_deck', 'No adapter for brand_deck yet (B16 pending)');
@@ -180,9 +179,7 @@ export function getSourceAdapterRegistry(): SourceAdapterRegistry {
 /** Returns the document parser. Lazy-initializes Docling adapter. */
 export function getDocumentParser(): DocumentParserPort {
   if (!_documentParser) {
-    _documentParser = new DoclingDocumentParserAdapter(
-      getUploadStorage(),
-    );
+    _documentParser = new DoclingDocumentParserAdapter(getUploadStorage());
   }
   return _documentParser;
 }

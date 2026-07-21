@@ -404,6 +404,10 @@ export async function completeUploadIntent(
     parserVersion: null,
     effectiveAt: null,
     supersedesDocumentId: null,
+    processedStoragePath: null,
+    processingStatus: 'pending',
+    embeddingModel: null,
+    indexedAt: null,
     metadata: {},
     retrievedAt: new Date(now),
   })

@@ -1,33 +1,30 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { mockOnboardingState } from '@/lib/onboarding/mock-data';
-import { canContinueFromReviewStep, canContinueFromStep, getCompletionStatus, getNextStepIndex, ONBOARDING_STEPS } from '@/lib/onboarding/flow';
-import { createOnboardingReviewRequest } from '@/lib/onboarding/api';
-import type { OnboardingReview } from '@/lib/onboarding/api';
-import type { MockOnboardingState, MockSource } from '@/lib/onboarding/types';
+import { initialOnboardingState } from '@/lib/onboarding/initial-state';
+import { fetchOnboardingReview, getOnboardingState, type OnboardingReview } from '@/lib/onboarding/api';
+import type { JsonValue } from '@/core/business-context/types';
+import { canContinueFromStep, getCompletionStatus, getNextStepIndex, ONBOARDING_STEPS } from '@/lib/onboarding/flow';
+import type { BusinessBasics, MockOnboardingState, MockSource } from '@/lib/onboarding/types';
+import { Loader2 } from 'lucide-react';
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
 import { OnboardingActionFooter } from '@/components/onboarding/OnboardingActionFooter';
 import { OnboardingCard } from '@/components/onboarding/OnboardingCard';
-import { ObjectiveCard } from '@/components/onboarding/ObjectiveCard';
+import { BusinessBasicsForm } from '@/components/onboarding/BusinessBasicsForm';
 import { UploadDropzone } from '@/components/onboarding/UploadDropzone';
 import { SourceStatusCard } from '@/components/onboarding/SourceStatusCard';
 import { MetaConnectPanel } from '@/components/onboarding/MetaConnectPanel';
 import { ProcessingTimeline } from '@/components/onboarding/ProcessingTimeline';
 import { BusinessContextReview } from '@/components/onboarding/BusinessContextReview';
-import { AdAccountSelector } from '@/components/onboarding/AdAccountSelector';
 import { CompletionSummary } from '@/components/onboarding/CompletionSummary';
+import { SidebarContextPanel } from '@/components/onboarding/SidebarContextPanel';
 
 function helperTextForStep(stepKey: string): string {
   switch (stepKey) {
-    case 'business-basics':
-      return 'Review and confirm your business details before continuing.';
-    case 'primary-objective':
-      return 'Pick one objective to focus NOVA\'s setup.';
     case 'add-business-sources':
       return 'Add at least one source or note so NOVA has context to work with.';
     case 'connect-meta':
@@ -45,63 +42,233 @@ function helperTextForStep(stepKey: string): string {
   }
 }
 
+function mapBackendProfileToCompiledProfile(profile: Record<string, JsonValue>): MockOnboardingState['compiledProfile'] {
+  const business = profile.business as Record<string, JsonValue> | undefined;
+  const offers = profile.offers as Record<string, JsonValue> | undefined;
+  const brand = profile.brand as Record<string, JsonValue> | undefined;
+  const customers = profile.customers as Record<string, JsonValue> | undefined;
+  const conversion = profile.conversion_journey as Record<string, JsonValue> | undefined;
+  const economics = profile.economics as Record<string, JsonValue> | undefined;
+
+  const summary = typeof business?.summary === 'string'
+    ? business.summary
+    : typeof business?.description === 'string'
+      ? business.description
+      : '';
+
+  const offerings = Array.isArray(offers?.items)
+    ? offers.items.filter((x): x is string => typeof x === 'string')
+    : Array.isArray(offers?.list)
+      ? offers.list.filter((x): x is string => typeof x === 'string')
+      : [];
+
+  const valuePropositions = Array.isArray(brand?.value_propositions)
+    ? brand.value_propositions.filter((x): x is string => typeof x === 'string')
+    : Array.isArray(brand?.messaging)
+      ? brand.messaging.filter((x): x is string => typeof x === 'string')
+      : [];
+
+  const targetAudiences = Array.isArray(customers?.segments)
+    ? customers.segments.filter((x): x is string => typeof x === 'string')
+    : Array.isArray(customers?.target_audiences)
+      ? customers.target_audiences.filter((x): x is string => typeof x === 'string')
+      : [];
+
+  const funnelGoal = typeof conversion?.primary_goal === 'string'
+    ? conversion.primary_goal
+    : typeof economics?.goal === 'string'
+      ? economics.goal
+      : 'Generate qualified sales conversations';
+
+  const targetCpa = typeof economics?.target_cpa === 'string'
+    ? economics.target_cpa
+    : typeof economics?.cpa_target === 'string'
+      ? economics.cpa_target
+      : '$180';
+
+  return { summary, offerings, valuePropositions, targetAudiences, funnelGoal, targetCpa };
+}
+
 export default function OnboardingPage() {
   const params = useParams<{ businessId: string }>();
-  const [state, setState] = useState<MockOnboardingState>(() => structuredClone(mockOnboardingState));
+  const businessId = params?.businessId;
+  const [state, setState] = useState<MockOnboardingState>(() => structuredClone(initialOnboardingState));
   const [currentIndex, setCurrentIndex] = useState(0);
-
-  const [review, setReview] = useState<OnboardingReview | null>(null);
-  const [reviewLoading, setReviewLoading] = useState(false);
-  const [reviewError, setReviewError] = useState<string | null>(null);
-
-  const reviewRequestRef = useRef<{ abort: () => void } | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const step = ONBOARDING_STEPS[currentIndex];
-    if (step?.key !== 'review-business-context' || !params.businessId) return;
+    if (!businessId) return;
 
-    // Abort any previous request
-    reviewRequestRef.current?.abort();
-
-    const req = createOnboardingReviewRequest(params.businessId);
-    reviewRequestRef.current = req;
-
-    req.promise
-      .then((data) => {
-        if (reviewRequestRef.current !== req) return;
-        setReview(data);
-        setReviewLoading(false);
+    fetchOnboardingReview(businessId)
+      .then((review: OnboardingReview) => {
+        setState((s) => ({
+          ...s,
+          compiledProfile: mapBackendProfileToCompiledProfile(review.profile),
+          sources: review.sources.map((src) => ({
+            id: src.id,
+            sourceType: src.type as 'website' | 'upload' | 'manual_note',
+            sourceName: src.name,
+            externalReference: null,
+            status: src.status === 'completed' ? 'complete' : src.status === 'failed' ? 'failed' : 'processing',
+            currentStage: null,
+            progress: src.status === 'completed' ? 100 : 0,
+            error: null,
+          })),
+          questions: review.questions.map((q) => ({
+            factKey: q.factKey,
+            questionType: 'text' as const,
+            question: q.question,
+            options: [],
+            answer: typeof q.answer === 'string' ? q.answer : null,
+          })),
+          processing: {
+            ...s.processing,
+            blockers: review.warnings,
+            canContinue: review.warnings.length === 0,
+          },
+        }));
       })
       .catch((err) => {
-        if (reviewRequestRef.current !== req) return;
-        if (err.name === 'AbortError') return;
-        setReviewError(err instanceof Error ? err.message : 'Failed to load');
-        setReviewLoading(false);
+        console.error('Failed to fetch onboarding review:', err);
+        if (err?.status === 404) {
+          setState((s) => ({
+            ...s,
+            compiledProfile: {
+              summary: '',
+              offerings: [],
+              valuePropositions: [],
+              targetAudiences: [],
+              funnelGoal: '',
+              targetCpa: '',
+            },
+            processing: {
+              ...s.processing,
+              sources: [],
+            },
+          }));
+        }
+      })
+      .finally(() => setLoading(false));
+
+    getOnboardingState(businessId)
+      .then((onboardingState) => {
+        setState((s) => ({
+          ...s,
+          business: {
+            ...s.business,
+            workspaceId: onboardingState.business.workspaceId,
+            name: onboardingState.business.name,
+            websiteUrl: onboardingState.business.websiteUrl ?? '',
+          },
+          businessBasics: {
+            ...s.businessBasics,
+            businessName: onboardingState.business.name,
+            websiteUrl: onboardingState.business.websiteUrl ?? '',
+          },
+          sources: onboardingState.sources.map((src) => ({
+            id: src.id,
+            sourceType: src.sourceType as 'website' | 'upload' | 'manual_note',
+            sourceName: src.sourceName,
+            externalReference: src.externalReference,
+            status: src.status === 'completed' ? 'complete' : src.status === 'failed' ? 'failed' : 'processing',
+            currentStage: src.currentStage,
+            progress: src.status === 'completed' ? 100 : 0,
+            error: null,
+          })),
+        }));
+      })
+      .catch((err) => {
+        console.error('Failed to fetch onboarding state:', err);
+      })
+      .finally(() => setLoading(false));
+  }, [businessId]);
+
+  useEffect(() => {
+    const url = state.businessBasics.websiteUrl?.trim();
+    if (!url) return;
+    if (state.sources.some((s) => s.sourceType === 'website' && s.externalReference === url)) return;
+
+    setState((s) => ({
+      ...s,
+      sources: [
+        ...s.sources,
+        {
+          id: `src_website_${Date.now()}`,
+          sourceType: 'website',
+          sourceName: url,
+          externalReference: url,
+          status: 'processing',
+          currentStage: 'crawling',
+          progress: 0,
+          error: null,
+        },
+      ],
+    }));
+  }, [state.businessBasics.websiteUrl]);
+
+  useEffect(() => {
+    const workspaceId = state.business.workspaceId;
+    if (!workspaceId) return;
+
+    let cancelled = false;
+
+    fetch(`/api/meta/connections?workspace_id=${workspaceId}`)
+      .then((res) => res.json())
+      .then((data: { connected: boolean; connection: { id: string; status: string; selected_ad_account_id: string | null } | null }) => {
+        if (cancelled) return;
+
+        const isConnected = data.connected && data.connection?.status === 'connected';
+
+        setState((s) => ({
+          ...s,
+          metaConnection: {
+            ...s.metaConnection,
+            status: isConnected ? 'connected' : 'not_connected',
+            connectionId: data.connection?.id ?? null,
+            error: null,
+          },
+        }));
+
+        if (!isConnected) return;
+
+        return fetch(`/api/meta/ad-accounts?workspace_id=${workspaceId}`)
+          .then((res) => res.json())
+          .then((data: { accounts: Array<{ id: string; accountId: string; name: string; currency: string; timezoneName: string; businessId: string; businessName: string; isSelected: boolean }> }) => {
+            if (cancelled) return;
+
+            const selectedId = data.accounts.find((a) => a.isSelected)?.id ?? null;
+
+            setState((s) => ({
+              ...s,
+              adAccounts: data.accounts.map((account) => ({
+                id: account.id,
+                name: account.name,
+                accountId: account.accountId,
+                currency: account.currency,
+                timezone: account.timezoneName,
+                businessName: account.businessName,
+                isSelected: account.isSelected,
+                status: 'active',
+              })),
+              selectedAdAccountId: selectedId,
+            }));
+          });
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('Failed to fetch Meta connection:', err);
+        }
       });
 
-    return () => {
-      req.abort();
-      if (reviewRequestRef.current === req) reviewRequestRef.current = null;
-    };
-  }, [currentIndex, params.businessId]);
+    return () => { cancelled = true; };
+  }, [state.business.workspaceId]);
 
   const goBack = () => {
-    reviewRequestRef.current?.abort();
-    reviewRequestRef.current = null;
     setCurrentIndex((i) => Math.max(i - 1, 0));
   };
 
   const goNext = () => {
-    if (!canGoNext) return;
-    const nextIndex = getNextStepIndex(state, currentIndex);
-    if (ONBOARDING_STEPS[nextIndex]?.key === 'review-business-context') {
-      reviewRequestRef.current?.abort();
-      reviewRequestRef.current = null;
-      setReview(null);
-      setReviewError(null);
-      setReviewLoading(true);
-    }
-    setCurrentIndex(nextIndex);
+    setCurrentIndex(getNextStepIndex(state, currentIndex));
   };
 
   const selectObjective = (objectiveId: string) => {
@@ -110,6 +277,26 @@ export default function OnboardingPage() {
 
   const updateManualNotes = (notes: string) => {
     setState((s) => ({ ...s, manualNotes: notes }));
+  };
+
+  const updateBusinessBasics = (update: Partial<BusinessBasics>) => {
+    setState((s) => ({ ...s, businessBasics: { ...s.businessBasics, ...update } }));
+  };
+
+  const handleFileSelect = (files: FileList) => {
+    setState((s) => {
+      const newSources: MockSource[] = Array.from(files).map((file, i) => ({
+        id: `src_upload_${Date.now()}_${i}`,
+        sourceType: 'upload',
+        sourceName: file.name,
+        externalReference: null,
+        status: 'processing',
+        currentStage: 'uploading',
+        progress: 0,
+        error: null,
+      }));
+      return { ...s, sources: [...s.sources, ...newSources] };
+    });
   };
 
   const mockUpload = () => {
@@ -177,101 +364,66 @@ export default function OnboardingPage() {
     }));
   };
 
-  const markReadyForReview = () => {
-    setState((s) => ({
-      ...s,
-      processing: {
-        overallStatus: 'ready',
-        currentMessage: 'Business context is ready for review.',
-        sources: s.processing.sources.map((src) => ({
-          ...src,
-          status: 'complete' as const,
-          progress: 100,
-        })),
-        blockers: [],
-        canContinue: true,
-      },
-    }));
-  };
-
   const selectAdAccount = (accountId: string) => {
     setState((s) => ({ ...s, selectedAdAccountId: accountId }));
   };
 
+  const updateProfile = (field: keyof MockOnboardingState['compiledProfile'], value: unknown) => {
+    setState((s) => ({
+      ...s,
+      compiledProfile: { ...s.compiledProfile, [field]: value },
+    }));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="size-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-sm text-muted-foreground">Loading your business context...</p>
+        </div>
+      </div>
+    );
+  }
+
   const step = ONBOARDING_STEPS[currentIndex];
-  const canGoNext = step.key === 'review-business-context'
-    ? canContinueFromStep(state, currentIndex) && canContinueFromReviewStep({ loading: reviewLoading, error: reviewError, review })
-    : canContinueFromStep(state, currentIndex);
+  const canGoNext = canContinueFromStep(state, currentIndex);
   const isFinalStep = currentIndex === ONBOARDING_STEPS.length - 1;
   const isSkippedMeta = state.metaConnection.status === 'skipped';
+  const isReviewStep = step.key === 'review-business-context';
 
-  const skippedStepKeys = isSkippedMeta ? ['connect-meta', 'select-ad-account'] : [];
+  const skippedStepKeys = isSkippedMeta ? ['connect-meta'] : [];
 
   const renderStep = () => {
     switch (step.key) {
       case 'business-basics':
         return (
-          <OnboardingCard>
-            <h3 className="text-lg font-semibold text-[#251816]">{state.business.name}</h3>
-            <p className="mt-1 text-sm text-[#645d58]">
-              {state.business.websiteUrl || 'Website not provided'}
-            </p>
-            <div className="mt-4 space-y-2 text-sm text-[#645d58]">
-              <p>
-                <span className="font-medium text-[#251816]">Workspace:</span>{' '}
-                {state.business.workspaceId}
-              </p>
-              <p>
-                <span className="font-medium text-[#251816]">Status:</span>{' '}
-                {state.business.status}
-              </p>
-            </div>
-            <p className="mt-6 text-sm text-[#645d58]">
-              Confirm these details are correct before continuing. You can update them later from Settings.
-            </p>
-          </OnboardingCard>
-        );
-
-      case 'primary-objective':
-        return (
-          <div className="grid gap-4">
-            {state.objectiveOptions.map((objective) => (
-              <ObjectiveCard
-                key={objective.id}
-                objective={objective}
-                selected={state.selectedObjective === objective.id}
-                onSelect={() => selectObjective(objective.id)}
-              />
-            ))}
-          </div>
+          <BusinessBasicsForm
+            key={state.businessBasics.businessName}
+            value={state.businessBasics}
+            onChange={updateBusinessBasics}
+          />
         );
 
       case 'add-business-sources':
         return (
           <div className="grid gap-6">
-            <UploadDropzone onMockUpload={mockUpload} />
-            {state.sources.length > 0 && (
-              <div className="grid gap-3">
-                {state.sources.map((source) => (
-                  <SourceStatusCard key={source.id} source={source} />
-                ))}
-              </div>
-            )}
+            <UploadDropzone onFileSelect={handleFileSelect} onMockUpload={mockUpload} />
             <OnboardingCard>
-              <label className="block text-sm font-medium text-[#251816]">
-                Manual notes
+              <label className="block text-xl font-semibold text-foreground mb-4">
+                Brand Specific Notes
               </label>
               <Textarea
                 value={state.manualNotes}
                 onChange={(e) => updateManualNotes(e.target.value)}
-                placeholder="Add any additional context about your business..."
+                placeholder="Paste specific campaign goals, prohibited terminology, or unique brand voice instructions..."
                 className="mt-2"
                 rows={4}
               />
+              <div className="flex justify-end mt-4">
+                <span className="text-xs text-muted-foreground">{state.manualNotes.length} / 2000 characters</span>
+              </div>
             </OnboardingCard>
-            <p className="text-xs text-[#8d716b]">
-              Supported formats: PDF, DOCX, PPTX, XLSX up to 50MB. You can also paste notes directly above.
-            </p>
           </div>
         );
 
@@ -279,76 +431,24 @@ export default function OnboardingPage() {
         return (
           <MetaConnectPanel
             status={state.metaConnection.status}
+            adAccounts={state.adAccounts}
+            selectedAccountId={state.selectedAdAccountId}
+            onSelectAccount={selectAdAccount}
+            onRefresh={() => {}}
             onConnect={metaConnect}
-            onSkip={metaSkip}
-            onRetry={metaRetry}
+            onSkip={() => { metaSkip(); goNext(); }}
           />
         );
 
       case 'processing':
-        return (
-          <div className="grid gap-4">
-            <ProcessingTimeline processing={state.processing} />
-            {!state.processing.canContinue && (
-              <Button variant="outline" onClick={markReadyForReview}>
-                Mark ready for review
-              </Button>
-            )}
-          </div>
-        );
+        return <ProcessingTimeline processing={{ ...state.processing, sources: state.sources }} />;
 
       case 'review-business-context':
-        if (reviewLoading) {
-          return (
-            <OnboardingCard>
-              <p className="text-sm text-[#645d58]">Loading business context...</p>
-            </OnboardingCard>
-          );
-        }
-        if (reviewError) {
-          return (
-            <OnboardingCard>
-              <p className="mb-3 text-sm text-red-600">Failed to load review: {reviewError}</p>
-              <Button variant="outline" onClick={() => {
-                reviewRequestRef.current?.abort();
-                setReviewError(null);
-                setReviewLoading(true);
-                const req = createOnboardingReviewRequest(params.businessId);
-                reviewRequestRef.current = req;
-                req.promise
-                  .then((data) => {
-                    if (reviewRequestRef.current !== req) return;
-                    setReview(data);
-                    setReviewLoading(false);
-                  })
-                  .catch((err) => {
-                    if (reviewRequestRef.current !== req) return;
-                    if (err.name === 'AbortError') return;
-                    setReviewError(err instanceof Error ? err.message : 'Failed to load');
-                    setReviewLoading(false);
-                  });
-              }}>
-                Retry
-              </Button>
-            </OnboardingCard>
-          );
-        }
         return (
           <BusinessContextReview
-            review={review ?? { profile: {}, unresolvedFields: [], warnings: [], sources: [], questions: [] }}
-            canApprove={state.permissions.canApprove}
-          />
-        );
-
-      case 'select-ad-account':
-        return (
-          <AdAccountSelector
-            metaStatus={state.metaConnection.status}
-            accounts={state.adAccounts}
-            selectedAdAccountId={state.selectedAdAccountId}
-            onSelect={selectAdAccount}
-            onRefresh={() => {}}
-            onRetryMeta={metaRetry}
+            profile={state.compiledProfile}
+            sources={state.sources}
+            onUpdateProfile={updateProfile}
           />
         );
 
@@ -369,33 +469,101 @@ export default function OnboardingPage() {
     <OnboardingShell
       currentIndex={currentIndex}
       skippedStepKeys={skippedStepKeys}
+      layout={step.key === 'business-basics' || step.key === 'processing' || isReviewStep || step.key === 'setup-complete' ? 'centered' : 'sidebar'}
+      sidebar={step.key === 'processing' || isReviewStep || step.key === 'setup-complete' ? undefined : <SidebarContextPanel state={state} variant={step.key === 'connect-meta' ? 'meta' : step.key === 'add-business-sources' ? 'active-sources' : 'default'} />}
       onBack={goBack}
       canGoBack={currentIndex > 0}
-      footer={
+      footer={step.key === 'setup-complete' ? null : (
         <OnboardingActionFooter>
-          <span className="text-sm text-[#8d716b]">
-            {helperTextForStep(step.key)}
-          </span>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              onClick={goBack}
-              disabled={currentIndex === 0}
-            >
-              Back
-            </Button>
-            {isFinalStep ? (
-              <Button asChild className="bg-[#aa3016] text-white hover:bg-[#d14a2e]">
-                <Link href="/dashboard">Go to Dashboard</Link>
+          {step.key === 'add-business-sources' ? (
+            <div className="flex w-full items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                Files are encrypted and only used to train NOVA
+              </span>
+              <Button
+                onClick={goNext}
+                disabled={!canGoNext}
+              >
+                Next
               </Button>
-            ) : (
-              <Button onClick={goNext} disabled={!canGoNext} className="bg-[#aa3016] text-white hover:bg-[#d14a2e]">
-                Continue
+            </div>
+          ) : step.key === 'connect-meta' ? (
+            state.metaConnection.status === 'connected' && state.selectedAdAccountId ? (
+              <div className="flex w-full items-center justify-end">
+                <Button onClick={goNext}>
+                  Next
+                </Button>
+              </div>
+            ) : state.metaConnection.status === 'connected' ? (
+              <div className="flex w-full items-center justify-end">
+                <Button variant="ghost" onClick={goNext}>
+                  Do this later
+                </Button>
+              </div>
+            ) : state.metaConnection.status === 'skipped' ? (
+              <div className="flex w-full items-center justify-end">
+                <Button onClick={goNext}>
+                  Next
+                </Button>
+              </div>
+            ) : null
+          ) : step.key === 'processing' ? (
+            <div className="flex w-full items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="size-10 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span className="text-sm text-muted-foreground">
+                  Step 4 of 6: Processing deep analysis…
+                </span>
+              </div>
+              <Button disabled={!state.processing.canContinue} onClick={goNext}>
+                Next Step
               </Button>
-            )}
-          </div>
+            </div>
+          ) : isReviewStep ? (
+            <div className="flex w-full items-center justify-between">
+              <Button
+                variant="ghost"
+                onClick={goBack}
+                disabled={currentIndex === 0}
+              >
+                Back
+              </Button>
+              <div className="flex items-center gap-4">
+                <Button variant="secondary" className="hidden md:flex">
+                  Save as Draft
+                </Button>
+                <Button disabled={!canGoNext} onClick={goNext}>
+                  Confirm business context
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <span className="text-sm text-muted-foreground">
+                {helperTextForStep(step.key)}
+              </span>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  onClick={goBack}
+                  disabled={currentIndex === 0}
+                >
+                  Back
+                </Button>
+                {isFinalStep ? (
+                  <Button asChild>
+                    <Link href="/dashboard">Go to Dashboard</Link>
+                  </Button>
+                ) : (
+                  <Button onClick={goNext} disabled={!canGoNext}>
+                    Continue
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
         </OnboardingActionFooter>
-      }
+      )}
     >
       {renderStep()}
     </OnboardingShell>

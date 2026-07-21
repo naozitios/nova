@@ -117,6 +117,55 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+.onboarding-warm {
+  /* Nova Orange palette — matches homepage */
+  --background: #FAFAF9;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --primary: #E55A3C;
+  --primary-foreground: #ffffff;
+  --secondary: #FEF3E2;
+  --secondary-foreground: #1c1917;
+  --muted: #f5f5f4;
+  --muted-foreground: #78716c;
+  --accent: #FEF3E2;
+  --accent-foreground: #1c1917;
+  --border: #e7e5e4;
+  --input: #e7e5e4;
+  --ring: #E55A3C;
+  --destructive: #dc2626;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --radius: 0.75rem;
+}
+
+.dark .onboarding-warm {
+  --background: #1c1917;
+  --foreground: #fafaf9;
+  --card: #292524;
+  --card-foreground: #fafaf9;
+  --primary: #F4A574;
+  --primary-foreground: #1c1917;
+  --secondary: #44403c;
+  --secondary-foreground: #fafaf9;
+  --muted: #44403c;
+  --muted-foreground: #a8a29e;
+  --accent: #44403c;
+  --accent-foreground: #fafaf9;
+  --border: #57534e;
+  --input: #57534e;
+  --ring: #F4A574;
+  --destructive: #ef4444;
+  --success: #4ade80;
+  --warning: #fbbf24;
+}
+
+@theme inline {
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

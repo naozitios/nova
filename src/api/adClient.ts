@@ -173,7 +173,7 @@ export const adClient = {
       meta: { success: true, campaignId: `meta-${Date.now()}`, errors: null as string | null },
       google: { success: true, campaignId: `google-${Date.now()}`, errors: null as string | null },
     };
-    if (campaignData.headline?.toLowerCase().includes('free')) {
+    if (typeof campaignData.headline === 'string' && campaignData.headline.toLowerCase().includes('free')) {
       results.meta.errors = 'Meta Policy Violation: "Free" in headline requires pre-approval.';
       results.meta.success = false;
     }

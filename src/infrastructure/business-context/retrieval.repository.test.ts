@@ -1,15 +1,20 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { RetrievalRepository } from './retrieval.repository'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+type MockDb = {
+  rpc: ReturnType<typeof vi.fn>
+}
 
 describe('RetrievalRepository', () => {
-  let mockDb: any
+  let mockDb: MockDb
   let repo: RetrievalRepository
 
   beforeEach(() => {
     mockDb = {
       rpc: vi.fn(),
     }
-    repo = new RetrievalRepository(mockDb)
+    repo = new RetrievalRepository(mockDb as unknown as SupabaseClient)
   })
 
   it('calls RPC with correct parameters', async () => {
