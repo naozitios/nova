@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { mockOnboardingState } from '@/lib/onboarding/mock-data';
+import { initialOnboardingState } from '@/lib/onboarding/initial-state';
 import { fetchOnboardingReview, getOnboardingState, type OnboardingReview } from '@/lib/onboarding/api';
 import type { JsonValue } from '@/core/business-context/types';
 import { canContinueFromStep, getCompletionStatus, getNextStepIndex, ONBOARDING_STEPS } from '@/lib/onboarding/flow';
@@ -92,7 +92,7 @@ function mapBackendProfileToCompiledProfile(profile: Record<string, JsonValue>):
 export default function OnboardingPage() {
   const params = useParams<{ businessId: string }>();
   const businessId = params?.businessId;
-  const [state, setState] = useState<MockOnboardingState>(() => structuredClone(mockOnboardingState));
+  const [state, setState] = useState<MockOnboardingState>(() => structuredClone(initialOnboardingState));
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -130,6 +130,23 @@ export default function OnboardingPage() {
       })
       .catch((err) => {
         console.error('Failed to fetch onboarding review:', err);
+        if (err?.status === 404) {
+          setState((s) => ({
+            ...s,
+            compiledProfile: {
+              summary: '',
+              offerings: [],
+              valuePropositions: [],
+              targetAudiences: [],
+              funnelGoal: '',
+              targetCpa: '',
+            },
+            processing: {
+              ...s.processing,
+              sources: [],
+            },
+          }));
+        }
       })
       .finally(() => setLoading(false));
 
@@ -243,6 +260,22 @@ export default function OnboardingPage() {
     setState((s) => ({ ...s, businessBasics: { ...s.businessBasics, ...update } }));
   };
 
+  const handleFileSelect = (files: FileList) => {
+    setState((s) => {
+      const newSources: MockSource[] = Array.from(files).map((file, i) => ({
+        id: `src_upload_${Date.now()}_${i}`,
+        sourceType: 'upload',
+        sourceName: file.name,
+        externalReference: null,
+        status: 'processing',
+        currentStage: 'uploading',
+        progress: 0,
+        error: null,
+      }));
+      return { ...s, sources: [...s.sources, ...newSources] };
+    });
+  };
+
   const mockUpload = () => {
     setState((s) => {
       if (s.sources.some((src) => src.id === 'src_brand_voice')) return s;
@@ -352,7 +385,7 @@ export default function OnboardingPage() {
       case 'add-business-sources':
         return (
           <div className="grid gap-6">
-            <UploadDropzone onMockUpload={mockUpload} />
+            <UploadDropzone onFileSelect={handleFileSelect} onMockUpload={mockUpload} />
             <OnboardingCard>
               <label className="block text-xl font-semibold text-foreground mb-4">
                 Brand Specific Notes
@@ -441,6 +474,12 @@ export default function OnboardingPage() {
               <div className="flex w-full items-center justify-end">
                 <Button variant="ghost" onClick={goNext}>
                   Do this later
+                </Button>
+              </div>
+            ) : state.metaConnection.status === 'skipped' ? (
+              <div className="flex w-full items-center justify-end">
+                <Button onClick={goNext}>
+                  Next
                 </Button>
               </div>
             ) : null

@@ -1,12 +1,31 @@
+'use client';
+
+import { useRef, useCallback } from 'react';
 import { Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 type UploadDropzoneProps = {
-  onMockUpload: () => void;
+  onMockUpload?: () => void;
+  onFileSelect: (files: FileList) => void;
 };
 
-export function UploadDropzone({ onMockUpload }: UploadDropzoneProps) {
+export function UploadDropzone({ onMockUpload, onFileSelect }: UploadDropzoneProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        onFileSelect(files);
+      }
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    },
+    [onFileSelect],
+  );
+
   return (
     <div
       className={cn(
@@ -20,7 +39,15 @@ export function UploadDropzone({ onMockUpload }: UploadDropzoneProps) {
       <p className="mb-6 max-w-sm text-sm text-muted-foreground">
         Drag and drop your PDF, PPTX, DOCX, or Image files here to train NOVA.
       </p>
-      <Button type="button" variant="secondary" onClick={onMockUpload}>
+      <input
+        type="file"
+        multiple
+        accept=".pdf,.pptx,.docx,image/*"
+        ref={fileInputRef}
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
         Select Files
       </Button>
     </div>

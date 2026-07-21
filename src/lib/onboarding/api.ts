@@ -4,7 +4,7 @@ export interface OnboardingReview {
   profile: Record<string, JsonValue>
   unresolvedFields: string[]
   warnings: string[]
-  sources: { id: string; name: string; type: string; status: string }[]
+  sources: { id: string; name: string; type: string; status: string; sourceType: string; sourceName: string; externalReference: string | null; currentStage: string | null; progress: number }[]
   questions: { factKey: string; question: string; answer: unknown }[]
 }
 
@@ -48,6 +48,11 @@ export interface OnboardingStateResponse {
     name: string
     type: string
     status: string
+    sourceType: string
+    sourceName: string
+    externalReference: string | null
+    currentStage: string | null
+    progress: number
   }[]
   questions: {
     factKey: string
@@ -116,10 +121,15 @@ export async function getOnboardingState(
       currentStep: body.session.current_step ?? null
     } : null,
     sources: (body.sources ?? []).map(
-      (s: { id: string; name: string; type: string; status: string }) => ({
+      (s: { id: string; name: string; type: string; status: string; source_type?: string; source_name?: string; external_reference?: string | null; current_stage?: string | null; progress?: number }) => ({
         id: s.id,
         name: s.name,
         type: s.type,
+        sourceType: s.source_type ?? s.type,
+        sourceName: s.source_name ?? s.name,
+        externalReference: s.external_reference ?? null,
+        currentStage: s.current_stage ?? null,
+        progress: s.progress ?? 0,
         status: s.status,
       }),
     ),
@@ -182,10 +192,15 @@ export async function fetchOnboardingReview(
     unresolvedFields: body.unresolved_fields ?? [],
     warnings: body.warnings ?? [],
     sources: (body.sources ?? []).map(
-      (s: { id: string; name: string; type: string; status: string }) => ({
+      (s: { id: string; name: string; type: string; status: string; source_type?: string; source_name?: string; external_reference?: string | null; current_stage?: string | null; progress?: number }) => ({
         id: s.id,
         name: s.name,
         type: s.type,
+        sourceType: s.source_type ?? s.type,
+        sourceName: s.source_name ?? s.name,
+        externalReference: s.external_reference ?? null,
+        currentStage: s.current_stage ?? null,
+        progress: s.progress ?? 0,
         status: s.status,
       }),
     ),
