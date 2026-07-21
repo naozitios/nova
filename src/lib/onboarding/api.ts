@@ -42,7 +42,7 @@ export interface OnboardingStateResponse {
     workspaceId: string
     status: string
     currentStep: string | null
-  }
+  } | null
   sources: {
     id: string
     name: string
@@ -80,6 +80,9 @@ export async function getOnboardingState(
 ): Promise<OnboardingStateResponse> {
   const res = await fetch(`/api/businesses/${businessId}/onboarding/state`, {
     signal,
+    headers: {
+      'x-user-id': '10000000-0000-0000-0000-000000000010',
+    },
   })
 
   if (!res.ok) {
@@ -105,13 +108,13 @@ export async function getOnboardingState(
       websiteUrl: body.business.website_url ?? null,
       status: body.business.status,
     },
-    session: {
+    session: body.session ? {
       id: body.session.id,
       businessId: body.session.business_id,
       workspaceId: body.session.workspace_id,
       status: body.session.status,
-      currentStep: body.session.current_step ?? null,
-    },
+      currentStep: body.session.current_step ?? null
+    } : null,
     sources: (body.sources ?? []).map(
       (s: { id: string; name: string; type: string; status: string }) => ({
         id: s.id,
@@ -154,6 +157,9 @@ export async function fetchOnboardingReview(
 ): Promise<OnboardingReview> {
   const res = await fetch(`/api/businesses/${businessId}/onboarding/review`, {
     signal,
+    headers: {
+      'x-user-id': '10000000-0000-0000-0000-000000000010',
+    },
   })
 
   if (!res.ok) {

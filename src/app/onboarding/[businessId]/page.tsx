@@ -10,6 +10,7 @@ import { fetchOnboardingReview, getOnboardingState, type OnboardingReview } from
 import type { JsonValue } from '@/core/business-context/types';
 import { canContinueFromStep, getCompletionStatus, getNextStepIndex, ONBOARDING_STEPS } from '@/lib/onboarding/flow';
 import type { BusinessBasics, MockOnboardingState, MockSource } from '@/lib/onboarding/types';
+import { Loader2 } from 'lucide-react';
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell';
 import { OnboardingActionFooter } from '@/components/onboarding/OnboardingActionFooter';
 import { OnboardingCard } from '@/components/onboarding/OnboardingCard';
@@ -93,6 +94,7 @@ export default function OnboardingPage() {
   const businessId = params?.businessId;
   const [state, setState] = useState<MockOnboardingState>(() => structuredClone(mockOnboardingState));
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!businessId) return;
@@ -128,7 +130,8 @@ export default function OnboardingPage() {
       })
       .catch((err) => {
         console.error('Failed to fetch onboarding review:', err);
-      });
+      })
+      .finally(() => setLoading(false));
 
     getOnboardingState(businessId)
       .then((onboardingState) => {
@@ -145,11 +148,22 @@ export default function OnboardingPage() {
             businessName: onboardingState.business.name,
             websiteUrl: onboardingState.business.websiteUrl ?? '',
           },
+          sources: onboardingState.sources.map((src) => ({
+            id: src.id,
+            sourceType: src.sourceType as 'website' | 'upload' | 'manual_note',
+            sourceName: src.sourceName,
+            externalReference: src.externalReference,
+            status: src.status === 'completed' ? 'complete' : src.status === 'failed' ? 'failed' : 'processing',
+            currentStage: src.currentStage,
+            progress: src.status === 'completed' ? 100 : 0,
+            error: null,
+          })),
         }));
       })
       .catch((err) => {
         console.error('Failed to fetch onboarding state:', err);
-      });
+      })
+      .finally(() => setLoading(false));
   }, [businessId]);
 
   useEffect(() => {
@@ -305,6 +319,17 @@ export default function OnboardingPage() {
     }));
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="size-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-sm text-muted-foreground">Loading your business context...</p>
+        </div>
+      </div>
+    );
+  }
+
   const step = ONBOARDING_STEPS[currentIndex];
   const canGoNext = canContinueFromStep(state, currentIndex);
   const isFinalStep = currentIndex === ONBOARDING_STEPS.length - 1;
@@ -318,6 +343,7 @@ export default function OnboardingPage() {
       case 'business-basics':
         return (
           <BusinessBasicsForm
+            key={state.businessBasics.businessName}
             value={state.businessBasics}
             onChange={updateBusinessBasics}
           />
