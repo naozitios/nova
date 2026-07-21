@@ -184,6 +184,29 @@ export default function OnboardingPage() {
   }, [businessId]);
 
   useEffect(() => {
+    const url = state.businessBasics.websiteUrl?.trim();
+    if (!url) return;
+    if (state.sources.some((s) => s.sourceType === 'website' && s.externalReference === url)) return;
+
+    setState((s) => ({
+      ...s,
+      sources: [
+        ...s.sources,
+        {
+          id: `src_website_${Date.now()}`,
+          sourceType: 'website',
+          sourceName: url,
+          externalReference: url,
+          status: 'processing',
+          currentStage: 'crawling',
+          progress: 0,
+          error: null,
+        },
+      ],
+    }));
+  }, [state.businessBasics.websiteUrl]);
+
+  useEffect(() => {
     const workspaceId = state.business.workspaceId;
     if (!workspaceId) return;
 
