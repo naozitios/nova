@@ -10,6 +10,8 @@ export function SidebarContextPanel({ state, variant = 'default' }: SidebarConte
   const renderActiveSources = () => {
     const websiteSource = state.sources.find((s) => s.sourceType === 'website');
     const uploadedSources = state.sources.filter((s) => s.sourceType === 'upload');
+    const allSources = state.sources;
+    const allComplete = allSources.length > 0 && allSources.every((s) => s.status === 'complete');
 
     const statusLabel = (status: string) => {
       if (status === 'complete') return 'Ready';
@@ -26,7 +28,7 @@ export function SidebarContextPanel({ state, variant = 'default' }: SidebarConte
           <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-primary uppercase tracking-wider font-semibold">
             Active Sources
           </span>
-          <CheckCircle2 className="size-4 text-success" />
+          {allComplete && <CheckCircle2 className="size-4 text-success" />}
         </div>
         <div className="space-y-4">
           {websiteSource && (

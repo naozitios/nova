@@ -186,8 +186,10 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (ONBOARDING_STEPS[currentIndex].key !== 'add-business-sources') return;
     const url = state.businessBasics.websiteUrl?.trim();
-    if (!url || !/^https?:\/\//i.test(url)) return;
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url) && !/\./.test(url)) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot sync on step entry; deps won't re-fire.
     setState((s) => {
       const existing = s.sources.find((src) => src.sourceType === 'website');
       if (existing?.externalReference === url) return s;
@@ -309,18 +311,6 @@ export default function OnboardingPage() {
       error: null,
     }));
     setState((s) => ({ ...s, sources: [...s.sources, ...newSources] }));
-    newSources.forEach((src) => {
-      setTimeout(() => {
-        setState((s) => ({
-          ...s,
-          sources: s.sources.map((cur) =>
-            cur.id === src.id
-              ? { ...cur, status: 'processing', currentStage: 'extracting' }
-              : cur,
-          ),
-        }));
-      }, 600);
-    });
   };
 
   const mockUpload = () => {
