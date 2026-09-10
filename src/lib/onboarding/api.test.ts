@@ -1,5 +1,16 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { fetchOnboardingReview, OnboardingApiError, createOnboardingReviewRequest } from './api'
+import {
+  compileOnboardingDraft,
+  completeOnboardingUpload,
+  createOnboardingUploadIntent,
+  createOnboardingReviewRequest,
+  fetchOnboardingReview,
+  OnboardingApiError,
+  queueOnboardingScan,
+  registerOnboardingSource,
+  startOnboardingSession,
+  submitOnboardingAnswers,
+} from './api'
 
 const mockFetch = vi.fn()
 
@@ -149,5 +160,252 @@ describe('createOnboardingReviewRequest', () => {
     req.abort()
 
     expect(fetchSignal.aborted).toBe(true)
+  })
+})
+
+describe('registerOnboardingSource', () => {
+  it('posts source details to the backend and maps the created source', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'src-1',
+        source_type: 'website',
+        source_name: 'https://example.com',
+        external_reference: 'https://example.com',
+        status: 'registered',
+        current_stage: null,
+      }),
+    })
+
+    const source = await registerOnboardingSource('biz-1', {
+      sourceType: 'website',
+      sourceName: 'https://example.com',
+      externalReference: 'https://example.com',
+    })
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/businesses/biz-1/context/sources',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.stringMatching(/^onboarding-source-biz-1-website-/),
+        }),
+        body: JSON.stringify({
+          source_type: 'website',
+          source_name: 'https://example.com',
+          external_reference: 'https://example.com',
+        }),
+      }),
+    )
+    expect(source).toEqual({
+      id: 'src-1',
+      sourceType: 'website',
+      sourceName: 'https://example.com',
+      externalReference: 'https://example.com',
+      status: 'registered',
+      currentStage: null,
+      progress: 0,
+    })
+  })
+})
+
+describe('createOnboardingUploadIntent', () => {
+  it('creates a signed upload intent with storage path', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'upload-1',
+        source_type: 'upload',
+        document_class: 'other',
+        classification_source: 'user_selected',
+        upload_url: 'https://storage.example/upload',
+        storage_path: 'workspaces/ws-1/businesses/biz-1/uploads/upload-1/notes.pdf',
+        expires_at: '2026-07-21T00:00:00.000Z',
+        status: 'pending',
+        malware_scan_status: 'pending',
+        malware_scan_code: null,
+      }),
+    })
+
+    const intent = await createOnboardingUploadIntent('biz-1', {
+      sourceName: 'notes.pdf',
+      fileName: 'notes.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1234,
+      documentClass: 'other',
+    })
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/businesses/biz-1/context/uploads',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.stringMatching(/^onboarding-upload-biz-1-/),
+        }),
+        body: JSON.stringify({
+          source_type: 'upload',
+          source_name: 'notes.pdf',
+          file_name: 'notes.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 1234,
+          document_class: 'other',
+        }),
+      }),
+    )
+    expect(intent.storagePath).toBe('workspaces/ws-1/businesses/biz-1/uploads/upload-1/notes.pdf')
+    expect(intent.uploadUrl).toBe('https://storage.example/upload')
+  })
+})
+
+describe('completeOnboardingUpload', () => {
+  it('uploads file bytes to signed URL then completes backend upload', async () => {
+    const file = new File(['pdf'], 'notes.pdf', { type: 'application/pdf' })
+    mockFetch
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          source: {
+            id: 'src-1',
+            source_type: 'system_inference',
+            source_name: 'notes.pdf',
+            status: 'queued',
+            current_stage: 'queued',
+          },
+        }),
+      })
+
+    const result = await completeOnboardingUpload('biz-1', {
+      uploadId: 'upload-1',
+      uploadUrl: 'https://storage.example/upload',
+      storagePath: 'workspaces/ws-1/businesses/biz-1/uploads/upload-1/notes.pdf',
+      file,
+    })
+
+    expect(mockFetch).toHaveBeenNthCalledWith(1, 'https://storage.example/upload', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: file,
+    })
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      2,
+      '/api/businesses/biz-1/context/uploads/upload-1/complete',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.stringMatching(/^onboarding-upload-complete-biz-1-/),
+        }),
+        body: JSON.stringify({
+          storage_path: 'workspaces/ws-1/businesses/biz-1/uploads/upload-1/notes.pdf',
+        }),
+      }),
+    )
+    expect(result).toEqual({
+      id: 'src-1',
+      sourceType: 'system_inference',
+      sourceName: 'notes.pdf',
+      externalReference: null,
+      status: 'queued',
+      currentStage: 'queued',
+      progress: 0,
+    })
+  })
+})
+
+describe('queueOnboardingScan', () => {
+  it('queues backend processing for registered onboarding sources', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ jobs_queued: 2 }),
+    })
+
+    const result = await queueOnboardingScan('biz-1')
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/businesses/biz-1/onboarding/scan',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.stringMatching(/^onboarding-scan-biz-1-/),
+        }),
+      }),
+    )
+    expect(result.jobsQueued).toBe(2)
+  })
+})
+
+describe('compileOnboardingDraft', () => {
+  it('requests backend profile compilation', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ profile: { business: { summary: 'Acme summary' } } }),
+    })
+
+    const result = await compileOnboardingDraft('biz-1')
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/businesses/biz-1/onboarding/compile',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.stringMatching(/^onboarding-compile-biz-1-/),
+        }),
+      }),
+    )
+    expect(result.profile).toEqual({ business: { summary: 'Acme summary' } })
+  })
+})
+
+describe('startOnboardingSession', () => {
+  it('starts backend onboarding session with an idempotency key', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'session-1', status: 'in_progress' }),
+    })
+
+    const result = await startOnboardingSession('biz-1')
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/businesses/biz-1/onboarding',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.stringMatching(/^onboarding-session-biz-1-/),
+        }),
+      }),
+    )
+    expect(result.id).toBe('session-1')
+  })
+})
+
+describe('submitOnboardingAnswers', () => {
+  it('posts onboarding facts with an idempotency key', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    })
+
+    await submitOnboardingAnswers('biz-1', {
+      answers: [
+        { factKey: 'business.name', answer: 'Demo Agency' },
+        { factKey: 'economics.monthly_meta_budget', answer: 0 },
+      ],
+    })
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/businesses/biz-1/onboarding/answers',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.stringMatching(/^onboarding-answers-biz-1-/),
+        }),
+        body: JSON.stringify({
+          answers: [
+            { factKey: 'business.name', answer: 'Demo Agency' },
+            { factKey: 'economics.monthly_meta_budget', answer: 0 },
+          ],
+        }),
+      }),
+    )
   })
 })

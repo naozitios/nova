@@ -34,32 +34,32 @@ describe('mapBackendRouteStage', () => {
 });
 
 describe('mapSourceStatus', () => {
-  it('maps "queued" to queued', () => {
-    expect(mapSourceStatus('queued')).toBe('queued');
+  it('maps "queued" to added', () => {
+    expect(mapSourceStatus('queued')).toBe('added');
   });
 
   it('maps "processing" to processing', () => {
     expect(mapSourceStatus('processing')).toBe('processing');
   });
 
-  it('maps "completed" to completed', () => {
-    expect(mapSourceStatus('completed')).toBe('completed');
+  it('maps "completed" to complete', () => {
+    expect(mapSourceStatus('completed')).toBe('complete');
   });
 
   it('maps "failed" to failed', () => {
     expect(mapSourceStatus('failed')).toBe('failed');
   });
 
-  it('maps "registered" to queued', () => {
-    expect(mapSourceStatus('registered')).toBe('queued');
+  it('maps "registered" to added', () => {
+    expect(mapSourceStatus('registered')).toBe('added');
   });
 
-  it('maps "processed" to completed', () => {
-    expect(mapSourceStatus('processed')).toBe('completed');
+  it('maps "processed" to complete', () => {
+    expect(mapSourceStatus('processed')).toBe('complete');
   });
 
-  it('maps "processed_with_warnings" to completed', () => {
-    expect(mapSourceStatus('processed_with_warnings')).toBe('completed');
+  it('maps "processed_with_warnings" to complete', () => {
+    expect(mapSourceStatus('processed_with_warnings')).toBe('complete');
   });
 
   it('maps "blocked_needs_user_action" to failed', () => {

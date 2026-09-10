@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { Container } from '@/di/container'
 import { UploadRepository } from '@/infrastructure/business-context/repository/upload.repository'
 import { IdempotencyRepository } from '@/infrastructure/business-context/repository/idempotency.repository'
@@ -216,6 +216,35 @@ describe('Container', () => {
       const b = Container.getExtractionService()
       expect(a).toBe(b)
     })
+
+    it('uses local deterministic extraction when explicitly enabled', async () => {
+      const original = process.env.BUSINESS_CONTEXT_USE_LOCAL_EXTRACTION
+      try {
+        process.env.BUSINESS_CONTEXT_USE_LOCAL_EXTRACTION = 'true'
+        Container.reset()
+        const svc = Container.getExtractionService()
+
+        const result = await svc.extractFacts({
+          sourceDocumentId: 'doc-1',
+          sourceId: 'source-1',
+          businessId: 'biz-1',
+          workspaceId: 'ws-1',
+          contentText: 'Demo Agency sells ecommerce products in United States. Paid ads objective sales.',
+          sourceType: 'research_document',
+          parserName: 'test',
+        })
+
+        expect(result.ok).toBe(true)
+        if (result.ok) {
+          expect(result.data.facts.some((fact) => fact.factKey === 'business.name')).toBe(true)
+          expect(result.data.warnings).toContain('Used local deterministic extraction.')
+        }
+      } finally {
+        if (original === undefined) delete process.env.BUSINESS_CONTEXT_USE_LOCAL_EXTRACTION
+        else process.env.BUSINESS_CONTEXT_USE_LOCAL_EXTRACTION = original
+        Container.reset()
+      }
+    })
   })
 
   describe('getSourceProcessingService', () => {
@@ -269,6 +298,28 @@ describe('Container', () => {
     it('returns a function', () => {
       const handlers = Container.getRegisterHandlers()
       expect(typeof handlers).toBe('function')
+    })
+  })
+
+  describe('getEmbeddingAdapter', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('uses local deterministic embeddings in development when no API key is configured', async () => {
+      vi.stubEnv('NODE_ENV', 'development')
+      vi.stubEnv('EMBEDDING_API_KEY', undefined)
+
+      const { getEmbeddingAdapter } = await import('./providers/business-context')
+      const adapter = getEmbeddingAdapter()
+      const result = await adapter.embed(['local onboarding probe'])
+
+      expect(adapter.model).toBe('local-deterministic')
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.data).toHaveLength(1)
+        expect(result.data[0]).toHaveLength(adapter.dimensions)
+      }
     })
   })
 
@@ -425,11 +476,13 @@ describe('Container', () => {
       const originalUrl = process.env.LLM_API_URL
       const originalOpenRouterKey = process.env.OPENROUTER_API_KEY
       const originalOpenRouterModel = process.env.OPENROUTER_MODEL
+      const originalLocalExtraction = process.env.BUSINESS_CONTEXT_USE_LOCAL_EXTRACTION
       try {
         delete process.env.GROQ_API_KEY
         delete process.env.LLM_API_URL
         delete process.env.OPENROUTER_API_KEY
         delete process.env.OPENROUTER_MODEL
+        delete process.env.BUSINESS_CONTEXT_USE_LOCAL_EXTRACTION
         expect(() => Container.getExtractionService()).toThrow(
           /LLM|GROQ|API_KEY|provider/i,
         )
@@ -438,6 +491,7 @@ describe('Container', () => {
         if (originalUrl !== undefined) process.env.LLM_API_URL = originalUrl
         if (originalOpenRouterKey !== undefined) process.env.OPENROUTER_API_KEY = originalOpenRouterKey
         if (originalOpenRouterModel !== undefined) process.env.OPENROUTER_MODEL = originalOpenRouterModel
+        if (originalLocalExtraction !== undefined) process.env.BUSINESS_CONTEXT_USE_LOCAL_EXTRACTION = originalLocalExtraction
       }
     })
   })

@@ -56,7 +56,12 @@ export async function POST(
     const uploadRepo = Container.getUploadRepository()
     const bcRepo = Container.getBusinessContextRepository()
     const storage = Container.getUploadStorage()
-    const scanner = Container.getMalwareScanner()
+    let scanner
+    try {
+      scanner = Container.getMalwareScanner()
+    } catch {
+      return errorResponse(503, 'SCAN_FAILED', 'Content scanner is not configured')
+    }
 
     const validator = async (
       buffer: Buffer,

@@ -8,14 +8,17 @@
 //   - SIGTERM/SIGINT graceful shutdown
 //   - Polling meta_sync_runs via lease claim, dispatch by mode
 
-import { config } from '@/infrastructure/config'
-import { Container } from '@/di/container'
-import { startMetaSyncRunner } from '@/workers/meta-sync/runner'
+import { loadStandaloneWorkerEnv } from './load-env'
 
-const WORKER_ID = config.workerId
 const POLL_MS = 5_000
 const LEASE_MS = 120_000
 const logger = console
+
+loadStandaloneWorkerEnv()
+
+function unwrapModule<T>(module: T): T {
+  return ((module as { default?: T }).default ?? module)
+}
 
 if (process.env.NODE_ENV === 'production' && !process.env.WORKER_ID?.trim()) {
   console.error(
@@ -24,7 +27,19 @@ if (process.env.NODE_ENV === 'production' && !process.env.WORKER_ID?.trim()) {
   process.exit(1)
 }
 
-function main(): void {
+async function main(): Promise<void> {
+  const [configModule, containerModule, runnerModule] = await Promise.all([
+    import('@/infrastructure/config'),
+    import('@/di/container'),
+    import('@/workers/meta-sync/runner'),
+  ])
+
+  const { config } = unwrapModule(configModule)
+  const { Container } = unwrapModule(containerModule)
+  const { startMetaSyncRunner } = unwrapModule(runnerModule)
+
+  const WORKER_ID = config.workerId
+
   logger.log(`[worker] starting meta-sync worker id=${WORKER_ID}`)
 
   const runner = startMetaSyncRunner(
@@ -56,9 +71,7 @@ function main(): void {
   logger.log(`[worker] polling meta_sync_runs every ${POLL_MS}ms`)
 }
 
-try {
-  main()
-} catch (err) {
+main().catch((err) => {
   console.error('[worker] fatal:', err)
   process.exit(1)
-}
+})

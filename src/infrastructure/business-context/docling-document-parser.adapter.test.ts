@@ -94,7 +94,7 @@ describe('DoclingDocumentParserAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     uploadStorage = makeUploadStorage()
-    adapter = new DoclingDocumentParserAdapter(uploadStorage)
+    adapter = new DoclingDocumentParserAdapter(uploadStorage, { storageBucket: 'business-context-sources' })
     mockMkdtemp.mockResolvedValue('/tmp/nova-docling-abc123')
     mockWriteFile.mockResolvedValue(undefined)
     mockRm.mockResolvedValue(undefined)
@@ -119,7 +119,7 @@ describe('DoclingDocumentParserAdapter', () => {
     }
 
     expect(uploadStorage.download).toHaveBeenCalledWith({
-      bucket: 'documents',
+      bucket: 'business-context-sources',
       path: 'uploads/doc.pdf',
     })
     expect(mockMkdtemp).toHaveBeenCalledWith(expect.stringContaining('nova-docling-'))
@@ -200,6 +200,49 @@ describe('DoclingDocumentParserAdapter', () => {
     if (!result.ok) {
       expect(result.error.code).toBe('DOCLING_FAILED')
       expect(result.error.message).toBe('Python module not found')
+    }
+  })
+
+  it('falls back to plain text in development when Docling is not installed', async () => {
+    const originalNodeEnv = process.env.NODE_ENV
+    process.env.NODE_ENV = 'development'
+    setupExecFileError("Missing dependency: No module named 'docling'\n")
+
+    try {
+      const result = await adapter.parseContent({
+        content: Buffer.from('Nova paid ads onboarding facts'),
+        mimeType: 'application/pdf',
+        fileName: 'facts.pdf',
+      })
+
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.data.contentText).toContain('Nova paid ads onboarding facts')
+        expect(result.data.parserName).toBe('docling-dev-fallback')
+      }
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv
+    }
+  })
+
+  it('fails in production when Docling is not installed', async () => {
+    const originalNodeEnv = process.env.NODE_ENV
+    process.env.NODE_ENV = 'production'
+    setupExecFileError("Missing dependency: No module named 'docling'\n")
+
+    try {
+      const result = await adapter.parseContent({
+        content: Buffer.from('Nova paid ads onboarding facts'),
+        mimeType: 'application/pdf',
+        fileName: 'facts.pdf',
+      })
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.code).toBe('DOCLING_FAILED')
+      }
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv
     }
   })
 

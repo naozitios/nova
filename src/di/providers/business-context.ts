@@ -26,12 +26,14 @@ import { SupabaseMetaRepository } from '@/infrastructure/meta/supabase-meta.repo
 import { ManualSourceAdapter } from '@/infrastructure/business-context/manual-source.adapter';
 import { LlmExtractionAdapter, type LlmClient } from '@/infrastructure/business-context/llm-extraction.adapter';
 import { OpenRouterExtractionClient } from '@/infrastructure/business-context/openrouter-extraction.client';
+import { LocalExtractionAdapter } from '@/infrastructure/business-context/local-extraction.adapter';
 import { SourceProcessingService } from '@/core/business-context/service/source-processing.service';
 import { JobRunner } from '@/infrastructure/business-context/job-runner';
 import { registerHandlers } from '@/infrastructure/business-context/job-runner/register-handlers';
 import { ClamavMalwareScanner } from '@/infrastructure/business-context/clamav-malware.scanner';
 import { DoclingDocumentParserAdapter } from '@/infrastructure/business-context/docling-document-parser.adapter';
 import { OpenAIEmbeddingAdapter } from '@/infrastructure/business-context/openai-embedding.adapter';
+import { LocalEmbeddingAdapter } from '@/infrastructure/business-context/local-embedding.adapter';
 import { UploadedDocumentProcessor } from '@/core/business-context/service/uploaded-document.processor';
 import { CanonicalDocumentIndexer } from '@/core/business-context/service/canonical-document-indexer';
 import { SourceFactPipeline } from '@/core/business-context/service/source-fact-pipeline';
@@ -163,7 +165,10 @@ export function getSourceAdapterRegistry(): SourceAdapterRegistry {
     }
     _sourceAdapterRegistry = new SourceAdapterRegistry();
     _sourceAdapterRegistry.register(new WebsiteSourceAdapter({ apiKey: firecrawlKey }));
-    _sourceAdapterRegistry.register(new MetaSourceAdapter({ repo: new SupabaseMetaRepository(getSupabaseServiceClient()), db: getSupabaseServiceClient() } as any));
+    _sourceAdapterRegistry.register(new MetaSourceAdapter({
+      repo: new SupabaseMetaRepository(getSupabaseServiceClient()),
+      db: getSupabaseServiceClient(),
+    }));
     _sourceAdapterRegistry.register(new ManualSourceAdapter());
 
     // Stable unsupported outcomes for stored-document types until B16 adapters land
@@ -179,7 +184,9 @@ export function getSourceAdapterRegistry(): SourceAdapterRegistry {
 /** Returns the document parser. Lazy-initializes Docling adapter. */
 export function getDocumentParser(): DocumentParserPort {
   if (!_documentParser) {
-    _documentParser = new DoclingDocumentParserAdapter(getUploadStorage());
+    _documentParser = new DoclingDocumentParserAdapter(getUploadStorage(), {
+      storageBucket: process.env.UPLOAD_STORAGE_BUCKET || 'uploads',
+    });
   }
   return _documentParser;
 }
@@ -189,7 +196,11 @@ export function getEmbeddingAdapter(): EmbeddingPort {
   if (!_embeddingAdapter) {
     const apiKey = process.env.EMBEDDING_API_KEY;
     if (!apiKey) {
-      throw new Error('EMBEDDING_API_KEY environment variable is required');
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('EMBEDDING_API_KEY environment variable is required');
+      }
+      _embeddingAdapter = new LocalEmbeddingAdapter();
+      return _embeddingAdapter;
     }
     _embeddingAdapter = new OpenAIEmbeddingAdapter({
       apiKey,
@@ -238,6 +249,11 @@ export function getUploadedDocumentProcessor(): UploadedDocumentProcessor {
 /** Returns the extraction service, preferring configured OpenRouter over Groq. */
 export function getExtractionService(): ExtractionPort {
   if (!_extractionService) {
+    if (process.env.BUSINESS_CONTEXT_USE_LOCAL_EXTRACTION === 'true') {
+      _extractionService = new LocalExtractionAdapter();
+      return _extractionService;
+    }
+
     const openRouterKey = process.env.OPENROUTER_API_KEY;
     const openRouterModel = process.env.OPENROUTER_MODEL ?? 'deepseek/deepseek-v4-flash';
     const apiKey = process.env.GROQ_API_KEY;

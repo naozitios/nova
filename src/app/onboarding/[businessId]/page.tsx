@@ -1,12 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { initialOnboardingState } from '@/lib/onboarding/initial-state';
-import { fetchOnboardingReview, getOnboardingState, type OnboardingReview } from '@/lib/onboarding/api';
+import { resolveOnboardingBusinessId } from '@/lib/onboarding/business-id';
+import { processingRunSignature } from '@/lib/onboarding/processing-signature';
+import { DEMO_BUSINESS_ID } from '@/lib/demo-user';
+import {
+  compileOnboardingDraft,
+  completeOnboardingUpload,
+  createOnboardingUploadIntent,
+  fetchOnboardingReview,
+  getOnboardingState,
+  queueOnboardingScan,
+  registerOnboardingSource,
+  startOnboardingSession,
+  submitOnboardingAnswers,
+  type OnboardingReview,
+  type OnboardingSourceResult,
+  type OnboardingStateResponse,
+} from '@/lib/onboarding/api';
 import type { JsonValue } from '@/core/business-context/types';
 import { canContinueFromStep, getCompletionStatus, getNextStepIndex, ONBOARDING_STEPS } from '@/lib/onboarding/flow';
 import type { BusinessBasics, MockOnboardingState, MockSource } from '@/lib/onboarding/types';
@@ -16,7 +32,6 @@ import { OnboardingActionFooter } from '@/components/onboarding/OnboardingAction
 import { OnboardingCard } from '@/components/onboarding/OnboardingCard';
 import { BusinessBasicsForm } from '@/components/onboarding/BusinessBasicsForm';
 import { UploadDropzone } from '@/components/onboarding/UploadDropzone';
-import { SourceStatusCard } from '@/components/onboarding/SourceStatusCard';
 import { MetaConnectPanel } from '@/components/onboarding/MetaConnectPanel';
 import { ProcessingTimeline } from '@/components/onboarding/ProcessingTimeline';
 import { BusinessContextReview } from '@/components/onboarding/BusinessContextReview';
@@ -89,31 +104,148 @@ function mapBackendProfileToCompiledProfile(profile: Record<string, JsonValue>):
   return { summary, offerings, valuePropositions, targetAudiences, funnelGoal, targetCpa };
 }
 
+function mapBackendSourceStatus(status: string): MockSource['status'] {
+  if (status === 'processed' || status === 'processed_with_warnings' || status === 'completed') return 'complete';
+  if (status === 'failed' || status === 'failed_permanent' || status === 'blocked_needs_user_action') return 'failed';
+  if (status === 'registered' || status === 'queued') return 'added';
+  return 'processing';
+}
+
+function mapBackendSourceType(sourceType: string): MockSource['sourceType'] {
+  if (sourceType === 'website') return 'website';
+  if (sourceType === 'manual_note' || sourceType === 'user_answer') return 'manual_note';
+  return 'upload';
+}
+
+function mapSourceResultToMockSource(
+  source: OnboardingSourceResult,
+  fallbackType?: MockSource['sourceType'],
+): MockSource {
+  const status = mapBackendSourceStatus(source.status);
+  return {
+    id: source.id,
+    sourceType: fallbackType ?? mapBackendSourceType(source.sourceType),
+    sourceName: source.sourceName,
+    externalReference: source.externalReference,
+    status,
+    currentStage: source.currentStage,
+    progress: status === 'complete' ? 100 : source.progress,
+    error: status === 'failed' ? source.currentStage : null,
+  };
+}
+
+function mapStateSources(sources: OnboardingStateResponse['sources']): MockSource[] {
+  const seen = new Set<string>();
+  return sources.filter((src) => {
+    if (seen.has(src.id)) return false;
+    seen.add(src.id);
+    return true;
+  }).map((src) => {
+    const status = mapBackendSourceStatus(src.status);
+    return {
+      id: src.id,
+      sourceType: mapBackendSourceType(src.sourceType),
+      sourceName: src.sourceName,
+      externalReference: src.externalReference,
+      status,
+      currentStage: src.currentStage,
+      progress: status === 'complete' ? 100 : src.progress,
+      error: status === 'failed' ? src.currentStage : null,
+    };
+  });
+}
+
+function businessBasicsAnswers(businessBasics: BusinessBasics) {
+  return [
+    { factKey: 'business.name', answer: businessBasics.businessName.trim() },
+    { factKey: 'market.primary', answer: businessBasics.primaryMarket },
+    { factKey: 'advertising.primary_objective', answer: businessBasics.advertisingGoal },
+    { factKey: 'business.primary_outcome', answer: businessBasics.advertisingGoal },
+    { factKey: 'economics.monthly_meta_budget', answer: 0 },
+  ];
+}
+
+function isReadyRouteStage(routeStage: string): boolean {
+  return routeStage === 'review' || routeStage === 'context' || routeStage === 'complete';
+}
+
+function isProcessingReady(onboardingState: OnboardingStateResponse): boolean {
+  return onboardingState.readiness.approvalReady || isReadyRouteStage(onboardingState.readiness.routeStage);
+}
+
+function applyBackendState(
+  current: MockOnboardingState,
+  onboardingState: OnboardingStateResponse,
+): MockOnboardingState {
+  const sources = mapStateSources(onboardingState.sources);
+  const blockers = onboardingState.readiness.blockers.map(String);
+  const routeStage = onboardingState.readiness.routeStage;
+  const processingReady = onboardingState.readiness.approvalReady || isReadyRouteStage(routeStage);
+
+  return {
+    ...current,
+    business: {
+      ...current.business,
+      workspaceId: onboardingState.business.workspaceId,
+      name: onboardingState.business.name,
+      websiteUrl: onboardingState.business.websiteUrl ?? '',
+    },
+    businessBasics: {
+      ...current.businessBasics,
+      businessName: onboardingState.business.name,
+      websiteUrl: onboardingState.business.websiteUrl ?? '',
+    },
+    sources,
+    processing: {
+      ...current.processing,
+      overallStatus: processingReady ? 'ready' : sources.some((src) => src.status === 'failed') ? 'failed' : sources.length > 0 ? 'processing' : 'idle',
+      currentMessage: processingReady ? 'Business context ready for review.' : sources.length > 0 ? 'Processing business sources.' : '',
+      sources,
+      blockers,
+      canContinue: processingReady && blockers.length === 0,
+    },
+  };
+}
+
 export default function OnboardingPage() {
   const params = useParams<{ businessId: string }>();
+  const router = useRouter();
   const businessId = params?.businessId;
   const [state, setState] = useState<MockOnboardingState>(() => structuredClone(initialOnboardingState));
+  const canonicalBusinessId = businessId ? resolveOnboardingBusinessId(businessId, state.business.id) : '';
+  const processingSignature = canonicalBusinessId
+    ? processingRunSignature(canonicalBusinessId, state.sources)
+    : '';
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [savingBasics, setSavingBasics] = useState(false);
+  const [savingSources, setSavingSources] = useState(false);
+  const processingStartedFor = useRef<string | null>(null);
+  const pendingUploadFiles = useRef<Map<string, File>>(new Map());
 
   useEffect(() => {
     if (!businessId) return;
 
-    fetchOnboardingReview(businessId)
+    const apiBusinessId = resolveOnboardingBusinessId(businessId);
+
+    fetchOnboardingReview(apiBusinessId)
       .then((review: OnboardingReview) => {
         setState((s) => ({
           ...s,
           compiledProfile: mapBackendProfileToCompiledProfile(review.profile),
-          sources: review.sources.map((src) => ({
-            id: src.id,
-            sourceType: src.type as 'website' | 'upload' | 'manual_note',
-            sourceName: src.name,
-            externalReference: null,
-            status: src.status === 'completed' ? 'complete' : src.status === 'failed' ? 'failed' : 'processing',
-            currentStage: null,
-            progress: src.status === 'completed' ? 100 : 0,
-            error: null,
-          })),
+          sources: review.sources.map((src) => {
+            const status = mapBackendSourceStatus(src.status);
+            return {
+              id: src.id,
+              sourceType: src.type as 'website' | 'upload' | 'manual_note',
+              sourceName: src.name,
+              externalReference: null,
+              status,
+              currentStage: null,
+              progress: status === 'complete' ? 100 : 0,
+              error: null,
+            };
+          }),
           questions: review.questions.map((q) => ({
             factKey: q.factKey,
             questionType: 'text' as const,
@@ -124,12 +256,10 @@ export default function OnboardingPage() {
           processing: {
             ...s.processing,
             blockers: review.warnings,
-            canContinue: review.warnings.length === 0,
           },
         }));
       })
       .catch((err) => {
-        console.error('Failed to fetch onboarding review:', err);
         if (err?.status === 404) {
           setState((s) => ({
             ...s,
@@ -146,42 +276,127 @@ export default function OnboardingPage() {
               sources: [],
             },
           }));
+          return;
         }
+
+        console.error('Failed to fetch onboarding review:', err);
       })
       .finally(() => setLoading(false));
 
-    getOnboardingState(businessId)
-      .then((onboardingState) => {
-        setState((s) => ({
-          ...s,
-          business: {
-            ...s.business,
-            workspaceId: onboardingState.business.workspaceId,
-            name: onboardingState.business.name,
-            websiteUrl: onboardingState.business.websiteUrl ?? '',
-          },
-          businessBasics: {
-            ...s.businessBasics,
-            businessName: onboardingState.business.name,
-            websiteUrl: onboardingState.business.websiteUrl ?? '',
-          },
-          sources: onboardingState.sources.map((src) => ({
-            id: src.id,
-            sourceType: src.sourceType as 'website' | 'upload' | 'manual_note',
-            sourceName: src.sourceName,
-            externalReference: src.externalReference,
-            status: src.status === 'completed' ? 'complete' : src.status === 'failed' ? 'failed' : 'processing',
-            currentStage: src.currentStage,
-            progress: src.status === 'completed' ? 100 : 0,
-            error: null,
-          })),
-        }));
+    getOnboardingState(apiBusinessId)
+      .then(async (onboardingState) => {
+        const nextState = onboardingState.session
+          ? onboardingState
+          : await startOnboardingSession(apiBusinessId).then(() => getOnboardingState(apiBusinessId));
+
+        setState((s) => applyBackendState(s, nextState));
       })
       .catch((err) => {
         console.error('Failed to fetch onboarding state:', err);
+        if (err?.status === 404 && apiBusinessId !== DEMO_BUSINESS_ID) {
+          router.replace(`/onboarding/${DEMO_BUSINESS_ID}`);
+        }
       })
       .finally(() => setLoading(false));
-  }, [businessId]);
+  }, [businessId, router]);
+
+  useEffect(() => {
+    if (!canonicalBusinessId) return;
+    if (ONBOARDING_STEPS[currentIndex].key !== 'processing') return;
+    if (processingStartedFor.current === processingSignature) return;
+
+    processingStartedFor.current = processingSignature;
+    let cancelled = false;
+    let pollTimeout: number | null = null;
+
+    async function processOnboardingSources() {
+      try {
+        await queueOnboardingScan(canonicalBusinessId);
+
+        const poll = async () => {
+          if (cancelled) return;
+
+          const onboardingState = await getOnboardingState(canonicalBusinessId);
+          if (cancelled) return;
+
+          const readyForReview = isProcessingReady(onboardingState);
+          if (!readyForReview) {
+            setState((s) => applyBackendState(s, onboardingState));
+            pollTimeout = window.setTimeout(poll, 3000);
+            return;
+          }
+
+          const draft = await compileOnboardingDraft(canonicalBusinessId);
+          if (!cancelled) {
+            setState((s) => ({
+              ...applyBackendState(s, onboardingState),
+              compiledProfile: mapBackendProfileToCompiledProfile(draft.profile),
+            }));
+          }
+        };
+
+        await poll();
+      } catch (err) {
+        console.error('Failed to process onboarding sources:', err);
+        if (!cancelled) {
+          setState((s) => ({
+            ...s,
+            processing: {
+              ...s.processing,
+              overallStatus: 'failed',
+              blockers: ['Backend processing could not be started.'],
+              canContinue: false,
+            },
+          }));
+        }
+      }
+    }
+
+    void processOnboardingSources();
+
+    return () => {
+      cancelled = true;
+      if (pollTimeout) window.clearTimeout(pollTimeout);
+    };
+  }, [canonicalBusinessId, currentIndex, processingSignature]);
+
+  useEffect(() => {
+    if (!canonicalBusinessId) return;
+    if (ONBOARDING_STEPS[currentIndex].key !== 'processing') return;
+    if (state.processing.canContinue) return;
+
+    let cancelled = false;
+    let pollTimeout: number | null = null;
+
+    const refreshProcessingState = async () => {
+      try {
+        const onboardingState = await getOnboardingState(canonicalBusinessId);
+        if (cancelled) return;
+
+        if (!isProcessingReady(onboardingState)) {
+          pollTimeout = window.setTimeout(refreshProcessingState, 3000);
+          return;
+        }
+
+        const draft = await compileOnboardingDraft(canonicalBusinessId);
+        if (cancelled) return;
+
+        setState((s) => ({
+          ...applyBackendState(s, onboardingState),
+          compiledProfile: mapBackendProfileToCompiledProfile(draft.profile),
+        }));
+      } catch (err) {
+        console.error('Failed to refresh onboarding processing state:', err);
+      }
+    };
+
+    pollTimeout = window.setTimeout(refreshProcessingState, 3000);
+
+    return () => {
+      cancelled = true;
+      if (pollTimeout) window.clearTimeout(pollTimeout);
+    };
+  }, [canonicalBusinessId, currentIndex, state.processing.canContinue]);
 
   useEffect(() => {
     if (ONBOARDING_STEPS[currentIndex].key !== 'add-business-sources') return;
@@ -189,7 +404,6 @@ export default function OnboardingPage() {
     if (!url) return;
     if (!/^https?:\/\//i.test(url) && !/\./.test(url)) return;
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot sync on step entry; deps won't re-fire.
     setState((s) => {
       const existing = s.sources.find((src) => src.sourceType === 'website');
       if (existing?.externalReference === url) return s;
@@ -287,8 +501,100 @@ export default function OnboardingPage() {
     setCurrentIndex(getNextStepIndex(state, currentIndex));
   };
 
-  const selectObjective = (objectiveId: string) => {
-    setState((s) => ({ ...s, selectedObjective: objectiveId }));
+  const persistBusinessBasicsAndGoNext = async () => {
+    if (!canonicalBusinessId) return;
+
+    setSavingBasics(true);
+    try {
+      await submitOnboardingAnswers(canonicalBusinessId, {
+        answers: businessBasicsAnswers(state.businessBasics),
+      });
+      const onboardingState = await getOnboardingState(canonicalBusinessId);
+      setState((s) => applyBackendState(s, onboardingState));
+      setCurrentIndex(getNextStepIndex(state, currentIndex));
+    } catch (err) {
+      console.error('Failed to save onboarding answers:', err);
+    } finally {
+      setSavingBasics(false);
+    }
+  };
+
+  const persistSourcesAndGoNext = async () => {
+    if (!canonicalBusinessId) return;
+
+    const localSources = state.sources.filter((src) =>
+      src.id.startsWith('src_website_') || src.id.startsWith('src_upload_'),
+    );
+
+    if (localSources.length === 0) {
+      goNext();
+      return;
+    }
+
+    setSavingSources(true);
+    setState((s) => ({
+      ...s,
+      sources: s.sources.map((src) =>
+        src.id.startsWith('src_upload_') ? { ...src, status: 'uploading' as const, currentStage: 'uploading' } : src,
+      ),
+    }));
+
+    try {
+      const replacements = new Map<string, MockSource>();
+
+      for (const source of localSources) {
+        if (source.sourceType === 'website' && source.externalReference) {
+          const registered = await registerOnboardingSource(canonicalBusinessId, {
+            sourceType: 'website',
+            sourceName: source.sourceName,
+            externalReference: source.externalReference,
+          });
+          replacements.set(source.id, mapSourceResultToMockSource(registered, 'website'));
+        }
+
+        if (source.sourceType === 'upload') {
+          const file = pendingUploadFiles.current.get(source.id);
+          if (!file) continue;
+
+          const intent = await createOnboardingUploadIntent(canonicalBusinessId, {
+            sourceName: file.name,
+            fileName: file.name,
+            mimeType: file.type || 'application/octet-stream',
+            sizeBytes: file.size,
+            documentClass: 'other',
+          });
+          const completed = await completeOnboardingUpload(canonicalBusinessId, {
+            uploadId: intent.id,
+            uploadUrl: intent.uploadUrl,
+            storagePath: intent.storagePath,
+            file,
+          });
+          pendingUploadFiles.current.delete(source.id);
+          replacements.set(source.id, mapSourceResultToMockSource(completed, 'upload'));
+        }
+      }
+
+      setState((s) => ({
+        ...s,
+        sources: s.sources.map((src) => replacements.get(src.id) ?? src),
+      }));
+
+      const onboardingState = await getOnboardingState(canonicalBusinessId);
+      setState((s) => applyBackendState(s, onboardingState));
+      setCurrentIndex(getNextStepIndex(state, currentIndex));
+    } catch (err) {
+      console.error('Failed to save onboarding sources:', err);
+      setState((s) => ({
+        ...s,
+        sources: s.sources.map((src) =>
+          src.id.startsWith('src_upload_') || src.id.startsWith('src_website_')
+            ? { ...src, status: 'failed' as const, currentStage: 'save_failed', error: 'Could not save this source.' }
+            : src,
+        ),
+      }));
+    } finally {
+      setSavingSources(false);
+    }
   };
 
   const updateManualNotes = (notes: string) => {
@@ -300,16 +606,20 @@ export default function OnboardingPage() {
   };
 
   const handleFileSelect = (files: FileList) => {
-    const newSources: MockSource[] = Array.from(files).map((file, i) => ({
-      id: `src_upload_${Date.now()}_${i}`,
-      sourceType: 'upload',
-      sourceName: file.name,
-      externalReference: null,
-      status: 'added',
-      currentStage: 'queued',
-      progress: 0,
-      error: null,
-    }));
+    const newSources: MockSource[] = Array.from(files).map((file, i) => {
+      const id = `src_upload_${Date.now()}_${i}`;
+      pendingUploadFiles.current.set(id, file);
+      return {
+        id,
+        sourceType: 'upload',
+        sourceName: file.name,
+        externalReference: null,
+        status: 'added',
+        currentStage: 'queued',
+        progress: 0,
+        error: null,
+      };
+    });
     setState((s) => ({ ...s, sources: [...s.sources, ...newSources] }));
   };
 
@@ -357,19 +667,6 @@ export default function OnboardingPage() {
       ...s,
       metaConnection: {
         status: 'skipped',
-        connectionId: null,
-        connectedAt: null,
-        error: null,
-      },
-      selectedAdAccountId: null,
-    }));
-  };
-
-  const metaRetry = () => {
-    setState((s) => ({
-      ...s,
-      metaConnection: {
-        status: 'not_connected',
         connectionId: null,
         connectedAt: null,
         error: null,
@@ -492,10 +789,16 @@ export default function OnboardingPage() {
           {step.key === 'add-business-sources' ? (
             <div className="flex w-full items-center justify-end">
               <Button
-                onClick={goNext}
-                disabled={!canGoNext}
+                onClick={persistSourcesAndGoNext}
+                disabled={!canGoNext || savingSources}
               >
-                Next
+                {savingSources ? 'Saving sources…' : 'Next'}
+              </Button>
+            </div>
+          ) : step.key === 'business-basics' ? (
+            <div className="flex w-full items-center justify-end">
+              <Button onClick={persistBusinessBasicsAndGoNext} disabled={!canGoNext || savingBasics}>
+                {savingBasics ? 'Saving basics…' : 'Continue'}
               </Button>
             </div>
           ) : step.key === 'connect-meta' ? (

@@ -172,7 +172,7 @@ const DOC_CLASS_TO_SOURCE_TYPE: Record<DocumentClass, ContextSourceType> = {
   [DocumentClass.RESEARCH_DOCUMENT]: ContextSourceType.RESEARCH_DOCUMENT,
   [DocumentClass.CAMPAIGN_BRIEF]: ContextSourceType.CAMPAIGN_BRIEF,
   [DocumentClass.WEBSITE_CONTENT]: ContextSourceType.WEBSITE,
-  [DocumentClass.OTHER]: ContextSourceType.SYSTEM_INFERENCE,
+  [DocumentClass.OTHER]: ContextSourceType.RESEARCH_DOCUMENT,
 }
 
 // ── Completion API ─────────────────────────────────────────────────────────
@@ -404,10 +404,6 @@ export async function completeUploadIntent(
     parserVersion: null,
     effectiveAt: null,
     supersedesDocumentId: null,
-    processedStoragePath: null,
-    processingStatus: 'pending',
-    embeddingModel: null,
-    indexedAt: null,
     metadata: {},
     retrievedAt: new Date(now),
   })

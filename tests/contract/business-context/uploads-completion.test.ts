@@ -111,6 +111,10 @@ function makeSourceDocument(overrides?: Partial<SourceDocument>): SourceDocument
     fileSizeBytes: 1024,
     contentText: null,
     storagePath: 'uploads/ws-1/biz-1/test.pdf',
+    processedStoragePath: null,
+    processingStatus: 'pending',
+    embeddingModel: null,
+    indexedAt: null,
     contentHash: CONTENT_HASH,
     httpStatus: null,
     pageOrSlideCount: null,
@@ -228,6 +232,30 @@ describe('completeUploadIntent — contract', () => {
     expect(bcRepo.createContextSource).toHaveBeenCalledOnce()
     expect(bcRepo.createSourceDocument).toHaveBeenCalledOnce()
     expect(bcRepo.createContextJob).toHaveBeenCalledOnce()
+  })
+
+  it('maps generic uploads to a document evidence source', async () => {
+    const repo = createMockRepo()
+    repo.getUploadIntent = vi.fn().mockResolvedValue({
+      ok: true,
+      data: makePendingIntent({ documentClass: DocumentClass.OTHER }),
+    })
+    const bcRepo = createMockBcRepo()
+    const storage = createMockStorage()
+    storage.download = vi.fn().mockResolvedValue({ ok: true, data: CONTENT_BUFFER })
+    const scanner = createMockScanner()
+    const validator = createValidator()
+
+    const result = await completeUploadIntent(
+      repo, bcRepo, storage, scanner, validator,
+      { workspaceId: 'ws-1', businessId: 'biz-1', intentId: 'intent-1', storagePath: 'uploads/ws-1/biz-1/test.pdf' },
+      makeCompletionConfig(),
+    )
+
+    expect(result.ok).toBe(true)
+    expect(bcRepo.createContextSource).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceType: 'research_document' }),
+    )
   })
 
   it('returns INTENT_NOT_FOUND when intent missing', async () => {

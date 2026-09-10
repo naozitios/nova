@@ -143,6 +143,7 @@ export async function POST(
       document_class: intent.documentClass,
       classification_source: intent.classificationSource,
       upload_url: result.data.signedUrl,
+      storage_path: intent.storagePath,
       expires_at: intent.expiresAt.toISOString(),
       status: intent.status,
       malware_scan_status: intent.malwareScanStatus,

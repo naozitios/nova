@@ -42,10 +42,6 @@ export function mapSourceDocument(r: Row): SourceDocument {
     parserVersion: (r.parser_version as string) ?? null,
     effectiveAt: r.effective_at ? new Date(r.effective_at as string) : null,
     supersedesDocumentId: (r.supersedes_document_id as string) ?? null,
-    processedStoragePath: (r.processed_storage_path as string) ?? null,
-    processingStatus: (r.processing_status as SourceDocument['processingStatus']) ?? 'pending',
-    embeddingModel: (r.embedding_model as string) ?? null,
-    indexedAt: r.indexed_at ? new Date(r.indexed_at as string) : null,
     metadata: asJsonRecord(r.metadata),
     retrievedAt: new Date(r.retrieved_at as string),
   }

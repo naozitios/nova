@@ -321,6 +321,30 @@ describe('POST /complete — route handler', () => {
     expect(Container.getMalwareScanner).toHaveBeenCalledOnce()
   })
 
+  it('returns 503 when malware scanner is not configured', async () => {
+    mockRequireAuthz.mockResolvedValue({ ok: true })
+    mockParseJsonBody.mockResolvedValue({ ok: true, data: { storage_path: 'uploads/test.pdf' } })
+    mockValidateWithSchema.mockReturnValue({ ok: true, data: { storage_path: 'uploads/test.pdf' } })
+
+    const { Container } = await import('../../../src/di/container')
+    vi.mocked(Container.getMalwareScanner).mockImplementationOnce(() => {
+      throw new Error('CLAMAV_HOST environment variable is required for MalwareScanner')
+    })
+
+    const { POST } = await import(
+      '../../../src/app/api/businesses/[id]/context/uploads/[uploadId]/complete/route'
+    )
+    const res = await POST(makeRequest({ storage_path: 'uploads/test.pdf' }), makeParams())
+
+    expect(res.status).toBe(503)
+    expect(mockErrorResponse).toHaveBeenCalledWith(
+      503,
+      'SCAN_FAILED',
+      'Content scanner is not configured',
+    )
+    expect(mockCompleteUploadIntent).not.toHaveBeenCalled()
+  })
+
   it('passes nullable checksum_sha256 as undefined when omitted', async () => {
     mockRequireAuthz.mockResolvedValue({ ok: true })
     mockParseJsonBody.mockResolvedValue({

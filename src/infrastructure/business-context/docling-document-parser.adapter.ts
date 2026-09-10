@@ -20,6 +20,7 @@ const MAX_STDOUT_BYTES = 20 * 1024 * 1024 // 20 MB
 interface DoclingAdapterConfig {
   timeoutMs?: number
   pythonPath?: string
+  storageBucket?: string
 }
 
 function sanitizeFileName(fileName: string): string {
@@ -35,15 +36,38 @@ function getExtension(fileName?: string): string {
   return dot >= 0 ? fileName.slice(dot) : ''
 }
 
+function isMissingDocling(errorMessage: string): boolean {
+  return errorMessage.includes("No module named 'docling'")
+}
+
+function parseContentFallback(content: Buffer, mimeType: string, fileName?: string): ParsedDocument {
+  const text = content
+    .toString('utf8')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return {
+    contentText: text || `[Unparsed upload: ${fileName ?? 'document'}]`,
+    mimeType,
+    parserName: 'docling-dev-fallback',
+    parserVersion: 'local',
+    warnings: ['Docling is not installed; used local plain-text fallback.'],
+    metadata: {},
+  }
+}
+
 export class DoclingDocumentParserAdapter implements DocumentParserPort {
   private readonly uploadStorage: UploadStoragePort
   private readonly timeoutMs: number
   private readonly pythonPath: string
+  private readonly storageBucket: string
 
   constructor(uploadStorage: UploadStoragePort, config?: DoclingAdapterConfig) {
     this.uploadStorage = uploadStorage
     this.timeoutMs = config?.timeoutMs ?? DEFAULT_TIMEOUT_MS
     this.pythonPath = config?.pythonPath ?? 'python3'
+    this.storageBucket = config?.storageBucket ?? 'documents'
   }
 
   supports(mimeType: string): boolean {
@@ -56,7 +80,7 @@ export class DoclingDocumentParserAdapter implements DocumentParserPort {
     fileName?: string
   }): Promise<ServiceResult<ParsedDocument>> {
     const downloadResult = await this.uploadStorage.download({
-      bucket: 'documents',
+      bucket: this.storageBucket,
       path: params.storagePath,
     })
     if (!downloadResult.ok) {
@@ -94,6 +118,9 @@ export class DoclingDocumentParserAdapter implements DocumentParserPort {
 
       const result = await this.execPython(filePath)
       if (!result.ok) {
+        if (process.env.NODE_ENV !== 'production' && isMissingDocling(result.error.message)) {
+          return { ok: true, data: parseContentFallback(content, mimeType, fileName) }
+        }
         return result
       }
 

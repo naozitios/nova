@@ -18,14 +18,14 @@ export function mapBackendRouteStage(stage: string): string | null {
 }
 
 const SOURCE_STATUS_MAP: Record<string, SourceStatus> = {
-  registered: 'queued',
-  queued: 'queued',
+  registered: 'added',
+  queued: 'added',
   processing: 'processing',
-  processed: 'completed',
-  processed_with_warnings: 'completed',
+  processed: 'complete',
+  processed_with_warnings: 'complete',
   blocked_needs_user_action: 'failed',
   failed_permanent: 'failed',
-  completed: 'completed',
+  completed: 'complete',
   failed: 'failed',
 };
 

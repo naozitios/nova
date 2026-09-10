@@ -9,12 +9,15 @@
 //   - Handler registration
 //   - Job polling loop via JobRunner
 
-import { config } from '@/infrastructure/config'
-import { Container } from '@/di/container'
-import { registerHandlers } from '@/infrastructure/business-context/job-runner/register-handlers'
+import { loadStandaloneWorkerEnv } from './load-env'
 
-const WORKER_ID = config.workerId
 const logger = console
+
+loadStandaloneWorkerEnv()
+
+function unwrapModule<T>(module: T): T {
+  return ((module as { default?: T }).default ?? module)
+}
 
 if (process.env.NODE_ENV === 'production' && !process.env.WORKER_ID?.trim()) {
   console.error(
@@ -24,6 +27,18 @@ if (process.env.NODE_ENV === 'production' && !process.env.WORKER_ID?.trim()) {
 }
 
 async function main(): Promise<void> {
+  const [configModule, containerModule, handlersModule] = await Promise.all([
+    import('@/infrastructure/config'),
+    import('@/di/container'),
+    import('@/infrastructure/business-context/job-runner/register-handlers'),
+  ])
+
+  const { config } = unwrapModule(configModule)
+  const { Container } = unwrapModule(containerModule)
+  const { registerHandlers } = unwrapModule(handlersModule)
+
+  const WORKER_ID = config.workerId
+
   logger.log(`[worker] starting business-context worker id=${WORKER_ID}`)
 
   const runner = Container.getJobRunner()
